@@ -1,11 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { LiveState, Position, Side, SignalEvent, Sizing, TradeWindow } from "../lib/types";
 import type { Theme } from "./TradingChart";
 import { useBotState } from "../lib/useBotState";
 import { useLivePrice, type LivePrice } from "../lib/useLivePrice";
+import { useChat, type ChatMessage } from "../lib/useChat";
+import ChatPanel from "./ChatPanel";
 
 const TradingChart = dynamic(() => import("./TradingChart"), { ssr: false });
 
@@ -189,6 +191,29 @@ function SizeAdvice({ size }: { size: Sizing }) {
       {size.verdict !== "ok" && <p className="size-note">{size.note}</p>}
     </div>
   );
+}
+
+/** A short, soft two-note "pop" for chat messages (different from the trade-signal chime). */
+function chatSound() {
+  try {
+    const ctx = new AudioContext();
+    [880, 1175].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      osc.connect(gain).connect(ctx.destination);
+      const start = ctx.currentTime + i * 0.09;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.12, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.12);
+      osc.start(start);
+      osc.stop(start + 0.13);
+    });
+    setTimeout(() => ctx.close(), 500);
+  } catch {
+    // audio blocked until the page has been clicked once; the pop-up still shows
+  }
 }
 
 function describe(e: SignalEvent) {
@@ -449,6 +474,35 @@ export default function Dashboard() {
   const now = useNow();
   const state = useMemo(() => (botState ? withLivePrice(botState, live) : null), [botState, live]);
   const [alerts, setAlerts] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [toast, setToast] = useState<{ id: number; author: string; room: string; roomId: string; body: string } | null>(
+    null,
+  );
+  const onIncoming = useCallback((m: ChatMessage, room: string) => {
+    setToast({ id: m.id, author: m.author, room, roomId: m.room_id, body: m.body });
+    chatSound();
+    if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+      const n = new Notification(`${m.author} in ${room}`, { body: m.body.slice(0, 140), tag: `chat-${m.room_id}` });
+      n.onclick = () => window.focus();
+    }
+  }, []);
+  const chat = useChat(chatOpen, onIncoming);
+
+  // The pop-up preview disappears after a few seconds
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  function openChat(roomId?: string) {
+    if (roomId) chat.openRoom(roomId);
+    else chat.markRead();
+    setToast(null);
+    setChatOpen(true);
+    // Ask once for desktop notifications, while the person is clicking (browsers require that)
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+  }
   const { theme, toggle: toggleTheme } = useTheme();
   const prevBid = useRef<number | null>(null);
   const [tickDir, setTickDir] = useState<"up" | "down" | null>(null);
@@ -467,8 +521,11 @@ export default function Dashboard() {
   const word = position ? (position.side === "BUY" ? "Buy" : "Sell") : "Wait";
 
   useEffect(() => {
-    if (state) document.title = `${word} · ${price(state.bid)} · Golden Skibidi`;
-  }, [word, state]);
+    if (state) {
+      const unread = chat.totalUnread ? `(${chat.totalUnread}) ` : "";
+      document.title = `${unread}${word} · ${price(state.bid)} · Golden Skibidi`;
+    }
+  }, [word, state, chat.totalUnread]);
 
   async function toggleAlerts() {
     if (!alerts && "Notification" in window && Notification.permission === "default") {
@@ -702,6 +759,38 @@ export default function Dashboard() {
           </section>
         </aside>
       </div>
+
+      {chatOpen && <ChatPanel chat={chat} onClose={() => setChatOpen(false)} stamp={t.stamp} now={now} />}
+      {toast && !(chatOpen && chat.activeId === toast.roomId) && (
+        <button type="button" className="chat-toast" onClick={() => openChat(toast.roomId)} key={toast.id}>
+          <strong>
+            {toast.author} <span>in {toast.room}</span>
+          </strong>
+          <span className="chat-toast-body">{toast.body}</span>
+        </button>
+      )}
+      <button
+        type="button"
+        className="chat-fab"
+        aria-pressed={chatOpen}
+        aria-label={chatOpen ? "Close chat" : chat.totalUnread ? `Open chat, ${chat.totalUnread} unread` : "Open chat"}
+        onClick={() => (chatOpen ? setChatOpen(false) : openChat())}
+      >
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          {chatOpen ? (
+            <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+          ) : (
+            <path
+              d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          )}
+        </svg>
+        {chat.totalUnread > 0 && !chatOpen && (
+          <span className="chat-badge">{chat.totalUnread > 99 ? "99+" : chat.totalUnread}</span>
+        )}
+      </button>
     </main>
   );
 }

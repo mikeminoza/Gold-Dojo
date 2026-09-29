@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, sameValue, sessionToken } from "./app/lib/auth";
+import { SESSION_COOKIE, readSession } from "./app/lib/auth";
 
 /**
  * Password-protects the whole site: pages, API routes and the page's script files (which contain the
@@ -27,8 +27,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/_next/static/media/");
   if (open) return NextResponse.next();
 
-  const cookie = request.cookies.get(SESSION_COOKIE)?.value ?? "";
-  if (sameValue(cookie, await sessionToken(password))) return NextResponse.next();
+  if (await readSession(request.cookies.get(SESSION_COOKIE)?.value, password)) return NextResponse.next();
 
   if (pathname.startsWith("/api/") || pathname.startsWith("/_next/")) {
     return NextResponse.json({ error: "Sign in first." }, { status: 401 });
