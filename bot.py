@@ -10,7 +10,6 @@ It only sends signals; it never places orders.
 import argparse
 import json
 import os
-import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +19,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import cloud_state
 import config
 import live_state
 import news
@@ -50,8 +50,8 @@ class Bot:
         self.df = None
         self.daily = None
         self.daily_at = 0.0
-        self.chart_at = 0.0
-        self.stopping = threading.Event()
+        # Demo signals are random, so they never go to the real website
+        self.cloud = cloud_state.CloudPublisher(enabled=not demo)
         self.last_bar_time = None
         self.position, self.history = self.load()
 
@@ -167,33 +167,8 @@ class Bot:
                 self.open(sig, df, i)
 
     # --- website state -----------------------------------------------------
-    def chart_loop(self):
-        """Background thread: refresh chart.json without slowing down the live price updates."""
-        while not self.stopping.is_set():
-            try:
-                self.publish_chart()
-            except Exception as e:  # keep going through temporary network hiccups
-                print(f"{datetime.now():%H:%M:%S} chart error: {e}")
-            self.stopping.wait(config.CHART_WRITE_SECONDS)
-
-    def publish_chart(self):
-        """Candles for every chart timeframe -> chart.json (the website picks the timeframe to show)."""
-        self.chart_at = time.time()
-        out = {"symbol": self.symbol, "updated": self.chart_at, "timeframes": {}}
-        for tf in config.CHART_TIMEFRAMES:
-            bars = self.feed.get_chart_bars(self.symbol, tf, config.CHART_BARS)
-            out["timeframes"][tf] = [
-                {"t": row.time, "o": row.open, "h": row.high, "l": row.low, "c": row.close,
-                 "v": getattr(row, "tick_volume", 0)}
-                for row in bars.itertuples()
-            ]
-        live_state.write(out, live_state.CHART_FILE)
-
     def publish(self, bid, ask):
         now = pd.Timestamp.now(tz="UTC")
-        # The demo feed isn't thread-safe, so demo mode refreshes the chart inline instead
-        if self.demo and time.time() - self.chart_at >= config.CHART_WRITE_SECONDS:
-            self.publish_chart()
         last = self.df.iloc[-1]
         status = self.strat.status(self.df, now)
 
@@ -213,7 +188,7 @@ class Bot:
             lots = pos.get("size", {}).get("lots")
             pos = {**pos, "pnl": move, "pnl_usd": sizing.money(move, lots) if lots else None}
 
-        live_state.write({
+        state = {
             "symbol": self.symbol,
             "timeframe": "3s demo" if self.demo else config.TIMEFRAME,
             "demo": self.demo,
@@ -240,7 +215,9 @@ class Bot:
             "position": pos,
             "history": self.history,
             "chart": {"timeframes": config.CHART_TIMEFRAMES, "default": config.TIMEFRAME},
-        })
+        }
+        live_state.write(state)      # this PC (handy for checking what the bot sees)
+        self.cloud.publish(state)    # Supabase -> the website
 
     # --- main loop ---------------------------------------------------------
     def run(self):
@@ -249,11 +226,10 @@ class Bot:
         self.df = self.prepared()
         self.last_bar_time = self.df["time"].iat[-1]  # don't alert on a stale candle at startup
         poll = 0.5 if self.demo else config.POLL_SECONDS
-        if not self.demo:
-            threading.Thread(target=self.chart_loop, name="chart", daemon=True).start()
         print(f"Watching {self.symbol} {config.TIMEFRAME} with {self.strat.name}"
               f"{' (DEMO prices)' if self.demo else ''}. Telegram {'on' if self.telegram else 'off'}, "
-              f"news pause {'on' if self.news.enabled else 'off'}. Ctrl+C to stop.")
+              f"news pause {'on' if self.news.enabled else 'off'}, "
+              f"website (Supabase) {'on' if self.cloud.enabled else 'off'}. Ctrl+C to stop.")
 
         try:
             while True:
@@ -277,7 +253,7 @@ class Bot:
         except KeyboardInterrupt:
             print("Stopped.")
         finally:
-            self.stopping.set()
+            self.cloud.stop()
             self.feed.shutdown()
 
 

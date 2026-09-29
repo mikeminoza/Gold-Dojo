@@ -1195,3 +1195,72 @@ pre {
     font-size: 22px;
   }
 }
+
+/* ---- login ------------------------------------------------------------ */
+
+.login {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 16px;
+}
+
+.login-card {
+  display: grid;
+  gap: 12px;
+  width: min(380px, 100%);
+  padding: 32px 28px;
+  border-radius: 16px;
+  background: var(--panel);
+  border-top: 4px solid var(--gold);
+  box-shadow: 0 12px 40px var(--shadow);
+}
+
+.login-card h1 {
+  font-family: var(--display);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.login-card p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.login-card label {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.login-card input {
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.login-card input:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.login-card button {
+  margin-top: 6px;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--gold);
+  color: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-card .login-error {
+  color: var(--sell);
+  font-weight: 500;
+}

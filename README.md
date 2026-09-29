@@ -12,19 +12,38 @@ Watches XAUUSD and shows live BUY / SELL / CLOSE signals on a website (Telegram 
 Set `PRICE_FEED` in `config.py` to `"binance"` for raw PAXG, or `"mt5"` to use a MetaTrader 5
 terminal instead (MT5 is planned for reading your account balance later).
 
-## Run it (Windows)
-1. `.venv\Scripts\python bot.py` (or `bot.py --demo` for fake fast prices)
-2. In another terminal: `pnpm --dir web dev`, then open the URL it prints (usually http://localhost:3000)
+## How it fits together
+```
+Your PC: bot.py  --signals-->  Supabase (free database)  <--reads--  Website on Vercel (free)
+                                                                     live price + chart come straight
+                                                                     from Binance / Swissquote
+```
+The bot must run on your PC for new signals (a locked screen is fine, sleep is not). The website's
+live price and chart keep working without it.
+
+## Run the bot (Windows)
+1. `copy .env.example .env`, then fill in `SUPABASE_URL` and `SUPABASE_SECRET_KEY`
+   (Supabase -> Project Settings -> API Keys: the **secret** / service_role key; it stays only in `.env`).
+2. `.venv\Scripts\python bot.py` (`--demo` for fake fast prices; demo signals never go to the website)
 3. Backtest on real history: `.venv\Scripts\python backtest.py --compare`
 
-Optional Telegram: message **@BotFather** → `/newbot`, `copy .env.example .env`, paste the token into
-`TELEGRAM_BOT_TOKEN`, press **Start** on your bot, run `.venv\Scripts\python telegram_notify.py` for your
-chat ID, put it in `TELEGRAM_CHAT_ID`. It only sends when both are set.
+## Deploy the website (free)
+1. **Supabase:** create a project (Singapore region), then run `supabase/schema.sql` once in the SQL Editor.
+2. **Vercel:** Add New -> Project -> import this GitHub repo, set **Root Directory = `web`**, and add
+   Environment Variables:
+   - `NEXT_PUBLIC_SUPABASE_URL` - the Project URL, e.g. `https://abcd.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - the **anon / publishable** (public) key, never the secret one
+   - `SITE_PASSWORD` - the password for the site's login screen
+3. Deploy. Every push to GitHub redeploys automatically.
+
+To run the website on this PC instead: copy `web/.env.example` to `web/.env.local`, fill in the same
+three values, then `pnpm --dir web dev` and open http://localhost:3000.
+
+Optional Telegram: message **@BotFather** -> `/newbot`, paste the token into `TELEGRAM_BOT_TOKEN` in `.env`,
+press **Start** on your bot, run `.venv\Scripts\python telegram_notify.py` for your chat ID and put it in
+`TELEGRAM_CHAT_ID`. It only sends when both are set.
 
 ## Live signal website
-The bot writes its live view to `live.json` (about twice a second) and candles for every timeframe to
-`chart.json` (every 2 seconds); the Next.js site in `web/` streams them to the browser.
-
 - **Turn on sound alerts** for a chime and a desktop notification on every signal. The sun/moon button
   switches between dark and light themes.
 - The chart toolbar works like MetaTrader: timeframes M1–D1, bars / candles / line, an Indicators menu

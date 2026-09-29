@@ -1,13 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { LiveState, Position, Side, SignalEvent, Sizing, TradeWindow } from "../lib/types";
 import type { Theme } from "./TradingChart";
+import { useBotState } from "../lib/useBotState";
+import { useLivePrice, type LivePrice } from "../lib/useLivePrice";
 
 const TradingChart = dynamic(() => import("./TradingChart"), { ssr: false });
 
-const STALE_AFTER_S = 10;
+const STALE_AFTER_S = 45; // the bot checks in every 15 s even when nothing changes
 
 const price = (n: number) => n.toFixed(2);
 const signed = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
@@ -64,25 +66,20 @@ function ago(seconds: number) {
   return `${Math.floor(seconds / 3600)} h ago`;
 }
 
-/** Subscribes to the bot's live stream. */
-function useLiveState() {
-  const [state, setState] = useState<LiveState | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [missing, setMissing] = useState(false);
-
-  useEffect(() => {
-    const source = new EventSource("/api/stream");
-    source.onopen = () => setConnected(true);
-    source.onerror = () => setConnected(false); // EventSource reconnects by itself
-    source.addEventListener("state", (e) => {
-      setMissing(false);
-      setState(JSON.parse((e as MessageEvent).data));
-    });
-    source.addEventListener("missing", () => setMissing(true));
-    return () => source.close();
-  }, []);
-
-  return { state, connected, missing };
+/** The bot's state with the browser's live price on top; an open trade's P/L follows the live price. */
+function withLivePrice(state: LiveState, live: LivePrice | null): LiveState {
+  if (!live) return state;
+  const pos = state.position;
+  if (!pos) return { ...state, bid: live.bid, ask: live.ask };
+  const exit = pos.side === "BUY" ? live.bid : live.ask;
+  const pnl = pos.side === "BUY" ? exit - pos.entry : pos.entry - exit;
+  const lots = pos.size?.lots;
+  return {
+    ...state,
+    bid: live.bid,
+    ask: live.ask,
+    position: { ...pos, pnl, pnl_usd: lots ? pnl * lots * (state.account?.oz_per_lot ?? 100) : pos.pnl_usd },
+  };
 }
 
 /** Dark / light theme. The head script in layout.tsx applies the saved choice before the page paints. */
@@ -447,8 +444,10 @@ function History({ events, t, now }: { events: SignalEvent[]; t: TimeFormat; now
 }
 
 export default function Dashboard() {
-  const { state, connected, missing } = useLiveState();
+  const { state: botState, connected, missing, configured } = useBotState();
+  const live = useLivePrice();
   const now = useNow();
+  const state = useMemo(() => (botState ? withLivePrice(botState, live) : null), [botState, live]);
   const [alerts, setAlerts] = useState(false);
   const { theme, toggle: toggleTheme } = useTheme();
   const prevBid = useRef<number | null>(null);
@@ -479,14 +478,29 @@ export default function Dashboard() {
     setAlerts(!alerts);
   }
 
-  const stale = state ? now - state.updated > STALE_AFTER_S : false;
+  const lastSeen = botState ? now - botState.updated : 0;
   const status = !connected
-    ? { tone: "off", text: "Reconnecting to the site…" }
-    : missing || !state
+    ? { tone: "off", text: "Connecting…" }
+    : missing || !botState
       ? { tone: "off", text: "Waiting for the bot" }
-      : stale
-        ? { tone: "off", text: `Bot stopped sending ${ago(now - state.updated)}` }
+      : lastSeen > STALE_AFTER_S
+        ? { tone: "off", text: `Bot offline, last seen ${ago(lastSeen)}` }
         : { tone: "live", text: "Live" };
+
+  if (!configured) {
+    return (
+      <main className="page">
+        <div className="setup">
+          <h1>Connect Supabase</h1>
+          <p>
+            This site reads the bot&apos;s signals from Supabase. Add <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
+            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to <code>web/.env.local</code> (on this PC) or to the Vercel
+            project&apos;s Environment Variables, then reload.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   if (!state) {
     return (
@@ -494,12 +508,12 @@ export default function Dashboard() {
         <div className="setup">
           <h1>Waiting for the bot</h1>
           <p>
-            Start the signal bot and this page updates on its own. From the <code>trading-bot</code> folder, run:
+            The bot hasn&apos;t sent anything to Supabase yet. On your PC, check that <code>.env</code> has{" "}
+            <code>SUPABASE_URL</code> and <code>SUPABASE_SECRET_KEY</code>, then from the <code>trading-bot</code>{" "}
+            folder run:
           </p>
           <pre>.venv\Scripts\python bot.py</pre>
-          <p>
-            No MetaTrader 5 yet? Try it with fake prices: <code>.venv\Scripts\python bot.py --demo</code>
-          </p>
+          <p>This page updates on its own as soon as the bot starts.</p>
         </div>
       </main>
     );
@@ -514,7 +528,7 @@ export default function Dashboard() {
             The running bot is an older version than this page. Stop it with Ctrl+C in its terminal, then start it
             again:
           </p>
-          <pre>.venv\Scripts\python bot.py --demo</pre>
+          <pre>.venv\Scripts\python bot.py</pre>
         </div>
       </main>
     );
@@ -560,6 +574,11 @@ export default function Dashboard() {
           {alerts ? "Sound alerts on" : "Turn on sound alerts"}
         </button>
         <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        <form method="post" action="/api/logout">
+          <button type="submit" className="theme-toggle">
+            Sign out
+          </button>
+        </form>
       </header>
 
       <div className="workspace">
@@ -569,7 +588,8 @@ export default function Dashboard() {
             theme={theme}
             symbol={state.symbol}
             bid={state.bid}
-            priceTime={state.updated}
+            priceTime={live?.time ?? state.updated}
+            gap={live?.gapReady ? live.gap : null}
             tzLabel={state.display.label}
             timeframes={state.chart.timeframes}
             defaultTf={state.chart.default}

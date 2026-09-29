@@ -26,6 +26,7 @@ import {
 } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { bollinger, ema, rsi, type Point } from "../lib/indicators";
+import { fetchCandles } from "../lib/market";
 import type { Candle, OpeningRange, Position, SignalEvent } from "../lib/types";
 
 export type Theme = "dark" | "light";
@@ -119,7 +120,8 @@ const DEFAULT_SETTINGS: Settings = {
   },
 };
 const VISIBLE_BARS = 140;
-const REFRESH_MS = 2000;
+const REFRESH_MS = 15_000;
+const CANDLE_COUNT = 300;
 
 // Chart preferences and drawings are per-browser conveniences; the page works without them.
 function loadSettings(): Settings {
@@ -147,7 +149,10 @@ function save(key: string, value: unknown) {
   }
 }
 
-/** Fetches candles for the selected timeframe from the bot's chart export, refreshing every 2 s. */
+/**
+ * Loads candles for the selected timeframe straight from Binance (unadjusted PAXG), refreshing every
+ * 15 s. Between refreshes the newest candle follows the live price, so the chart still ticks live.
+ */
 function useCandles(tf: string) {
   const [data, setData] = useState<{ tf: string; candles: Candle[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -155,17 +160,12 @@ function useCandles(tf: string) {
     let stopped = false;
     const load = async () => {
       try {
-        const res = await fetch(`/api/chart?tf=${tf}`, { cache: "no-store" });
-        const body = await res.json();
+        const candles = await fetchCandles(tf, CANDLE_COUNT, 0);
         if (stopped) return;
-        if (res.ok) {
-          setData({ tf, candles: body.candles });
-          setError(null);
-        } else {
-          setError(body.error ?? "Chart data unavailable.");
-        }
-      } catch {
-        if (!stopped) setError("Can't reach the site to load candles.");
+        setData({ tf, candles });
+        setError(null);
+      } catch (e) {
+        if (!stopped) setError(`Can't load ${tf} candles right now (${(e as Error).message}). Retrying…`);
       }
     };
     load();
@@ -208,6 +208,7 @@ export default function TradingChart({
   symbol,
   bid,
   priceTime,
+  gap,
   tzLabel,
   timeframes,
   defaultTf,
@@ -221,7 +222,8 @@ export default function TradingChart({
   theme: Theme; // the chart is remounted when this changes
   symbol: string;
   bid: number;
-  priceTime: number; // UTC seconds of the live price (the bot's update time)
+  priceTime: number; // UTC seconds of the live price
+  gap: number | null; // PAXG-above-spot gap, candles shift down by it; null = not measured yet
   tzLabel: string; // e.g. "PH time": the time axis is shifted to it
   timeframes: string[];
   defaultTf: string;
@@ -241,7 +243,7 @@ export default function TradingChart({
 
   const tf = settings.tf && timeframes.includes(settings.tf) ? settings.tf : defaultTf;
   const { type, show } = settings;
-  const { candles: fetched, error } = useCandles(tf);
+  const { candles: raw, error } = useCandles(tf);
 
   const box = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -268,7 +270,9 @@ export default function TradingChart({
   // The chart ticks with every live price, between the candle refreshes from the bot:
   // the newest candle follows the price, and when its time is up a new candle starts right away.
   const candles = useMemo(() => {
-    if (!fetched || fetched.length === 0) return [];
+    if (!raw || raw.length === 0 || gap === null) return [];
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const fetched = gap ? raw.map((k) => ({ ...k, o: r2(k.o - gap), h: r2(k.h - gap), l: r2(k.l - gap), c: r2(k.c - gap) })) : raw;
     const last = fetched[fetched.length - 1];
     const step = fetched.length > 1 ? last.t - fetched[fetched.length - 2].t : 60;
     if (priceTime >= last.t + 2 * step) return fetched; // market closed (e.g. weekend): leave the last candle alone
@@ -276,7 +280,7 @@ export default function TradingChart({
       return [...fetched, { t: last.t + step, o: bid, h: bid, l: bid, c: bid, v: 0 }];
     }
     return [...fetched.slice(0, -1), { ...last, c: bid, h: Math.max(last.h, bid), l: Math.min(last.l, bid) }];
-  }, [fetched, bid, priceTime]);
+  }, [raw, gap, bid, priceTime]);
 
   const at = (t: number) => (t + offset) as UTCTimestamp;
   // Identifies the candle set apart from the newest candle: when it changes, series are redrawn in full
@@ -813,7 +817,7 @@ export default function TradingChart({
           </p>
         )}
         {hint && <p className="tc-hint">{hint}</p>}
-        {!fetched && <p className="tc-status">{error ?? `Loading ${tf} candles…`}</p>}
+        {(!raw || gap === null) && <p className="tc-status">{error ?? `Loading ${tf} candles…`}</p>}
       </div>
     </div>
   );
