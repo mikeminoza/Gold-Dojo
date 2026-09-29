@@ -5,6 +5,12 @@ import type { useChat } from "../lib/useChat";
 
 type Chat = ReturnType<typeof useChat>;
 
+function typingText(names: string[]) {
+  if (names.length === 1) return `${names[0]} is typing`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} are typing`;
+  return "Several people are typing";
+}
+
 /** The chat drawer: chats along the top, the open chat's messages, and a box to send. */
 export default function ChatPanel({
   chat,
@@ -18,7 +24,6 @@ export default function ChatPanel({
   now: number;
 }) {
   const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [roomName, setRoomName] = useState("");
@@ -26,32 +31,28 @@ export default function ChatPanel({
   const box = useRef<HTMLTextAreaElement>(null);
 
   const room = chat.rooms.find((r) => r.id === chat.activeId);
+  const messages = chat.messages;
+  // The ✓ goes under your most recent message once it's saved
+  const lastMine = messages ? [...messages].reverse().find((m) => m.author === chat.me) : undefined;
 
-  // Keep the newest message in view
+  // Keep the newest message (and the typing line) in view
   useEffect(() => {
     const el = list.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [chat.messages, chat.activeId]);
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [messages, chat.activeId, chat.typing.length]);
 
   useEffect(() => {
     box.current?.focus();
   }, [chat.activeId]);
 
-  async function submit(e?: FormEvent) {
+  function submit(e?: FormEvent) {
     e?.preventDefault();
     const body = draft.trim();
-    if (!body || sending) return;
-    setSending(true);
-    setProblem(null);
-    try {
-      await chat.send(body);
-      setDraft("");
-    } catch (err) {
-      setProblem((err as Error).message);
-    } finally {
-      setSending(false);
-      box.current?.focus();
-    }
+    if (!body || !room) return;
+    // Shows up instantly; delivery happens in the background (with a retry if it fails)
+    chat.send(body);
+    setDraft("");
+    box.current?.focus();
   }
 
   function onKey(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -101,12 +102,7 @@ export default function ChatPanel({
 
       <nav className="chat-rooms" aria-label="Chats">
         {chat.rooms.map((r) => (
-          <button
-            key={r.id}
-            type="button"
-            aria-pressed={r.id === chat.activeId}
-            onClick={() => chat.openRoom(r.id)}
-          >
+          <button key={r.id} type="button" aria-pressed={r.id === chat.activeId} onClick={() => chat.openRoom(r.id)}>
             {r.name}
             {(chat.unread[r.id] ?? 0) > 0 && r.id !== chat.activeId && (
               <span className="chat-badge" aria-label={`${chat.unread[r.id]} unread`}>
@@ -143,16 +139,23 @@ export default function ChatPanel({
         <p className="chat-empty">{chat.error}</p>
       ) : (
         <ol className="chat-messages" ref={list} aria-live="polite">
-          {chat.messages === undefined && <li className="chat-empty">Loading messages…</li>}
-          {chat.messages?.length === 0 && (
+          {messages === undefined && <li className="chat-empty">Loading messages…</li>}
+          {messages?.length === 0 && (
             <li className="chat-empty">No messages in {room?.name ?? "this chat"} yet. Say hello.</li>
           )}
-          {chat.messages?.map((m, i) => {
+          {messages?.map((m, i) => {
             const mine = m.author === chat.me;
-            const prev = chat.messages?.[i - 1];
-            const grouped = prev && prev.author === m.author && Date.parse(m.created_at) - Date.parse(prev.created_at) < 120_000;
+            const prev = messages[i - 1];
+            const grouped =
+              prev && prev.author === m.author && Date.parse(m.created_at) - Date.parse(prev.created_at) < 120_000;
             return (
-              <li key={m.id} data-mine={mine} data-grouped={grouped || undefined}>
+              <li
+                key={m.key}
+                data-mine={mine}
+                data-grouped={grouped || undefined}
+                data-fresh={m.fresh || undefined}
+                data-status={m.status}
+              >
                 {!grouped && (
                   <div className="chat-meta">
                     <strong>{mine ? "You" : m.author}</strong>
@@ -160,9 +163,29 @@ export default function ChatPanel({
                   </div>
                 )}
                 <p className="chat-bubble">{m.body}</p>
+                {m.status === "failed" ? (
+                  <button type="button" className="chat-retry" onClick={() => chat.retry(m)} title={m.error}>
+                    Not sent · Retry
+                  </button>
+                ) : m.status === "sending" ? (
+                  <span className="chat-state">Sending</span>
+                ) : (
+                  mine &&
+                  m.key === lastMine?.key && <span className="chat-state chat-sent">✓ Sent</span>
+                )}
               </li>
             );
           })}
+          {chat.typing.length > 0 && (
+            <li className="chat-typing" aria-label={typingText(chat.typing)}>
+              <span className="chat-dots" aria-hidden>
+                <i />
+                <i />
+                <i />
+              </span>
+              {typingText(chat.typing)}
+            </li>
+          )}
         </ol>
       )}
 
@@ -170,7 +193,10 @@ export default function ChatPanel({
         <textarea
           ref={box}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            if (e.target.value.trim()) chat.announceTyping();
+          }}
           onKeyDown={onKey}
           placeholder={room ? `Message ${room.name}` : "Pick a chat"}
           maxLength={1000}
@@ -178,8 +204,8 @@ export default function ChatPanel({
           disabled={!room}
           aria-label="Message"
         />
-        <button type="submit" disabled={!draft.trim() || sending || !room}>
-          {sending ? "Sending…" : "Send"}
+        <button type="submit" disabled={!draft.trim() || !room}>
+          Send
         </button>
       </form>
       {problem && <p className="chat-problem">{problem}</p>}

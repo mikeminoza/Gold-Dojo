@@ -210,8 +210,6 @@ pre {
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line) transparent;
 }
 
 .side-block {
@@ -1399,7 +1397,6 @@ pre {
   padding: 10px 14px;
   overflow-x: auto;
   border-bottom: 1px solid var(--line);
-  scrollbar-width: thin;
 }
 
 .chat-rooms button {
@@ -1651,4 +1648,172 @@ pre {
     right: 16px;
     bottom: 88px;
   }
+}
+
+/* ---- chat: live effects ----------------------------------------------- */
+
+/* New messages slide in (loaded history doesn't) */
+.chat-messages li[data-fresh] {
+  animation: msg-in 0.22s ease-out;
+}
+
+.chat-messages li[data-mine="true"][data-fresh] {
+  animation-name: msg-in-mine;
+}
+
+/* A message on its way is shown straight away, just a little lighter until it's saved */
+.chat-messages li[data-status="sending"] .chat-bubble {
+  opacity: 0.72;
+}
+
+.chat-messages li .chat-bubble {
+  transition: opacity 0.25s ease-out;
+}
+
+.chat-state {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.chat-sent {
+  color: var(--buy);
+  animation: fade-in 0.3s ease-out;
+}
+
+.chat-messages li[data-status="failed"] .chat-bubble {
+  border-color: color-mix(in srgb, var(--sell) 60%, transparent);
+  opacity: 0.8;
+}
+
+.chat-retry {
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sell);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chat-typing {
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  animation: fade-in 0.2s ease-out;
+}
+
+.chat-dots {
+  display: inline-flex;
+  gap: 3px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: var(--inset);
+}
+
+.chat-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: typing-dot 1.2s ease-in-out infinite;
+}
+
+.chat-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.chat-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes msg-in {
+  from {
+    opacity: 0;
+    transform: translate(-6px, 6px);
+  }
+}
+
+@keyframes msg-in-mine {
+  from {
+    opacity: 0;
+    transform: translate(6px, 6px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+/* ---- scrollbars: slim, rounded, in the theme's colours (no arrow buttons) ---- */
+
+:root {
+  --scroll-thumb: color-mix(in srgb, var(--muted) 35%, transparent);
+  --scroll-thumb-hover: color-mix(in srgb, var(--muted) 65%, transparent);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+*:hover {
+  scrollbar-color: var(--scroll-thumb-hover) transparent;
+}
+
+/* Browsers that don't support scrollbar-color use these instead */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--scroll-thumb) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover) padding-box;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* Keep chat bubbles clear of the scrollbar */
+.chat-messages {
+  padding-right: 12px;
+  scrollbar-gutter: stable;
+}
+
+/* The chat tabs scroll sideways without showing a bar */
+.chat-rooms {
+  scrollbar-width: none;
+}
+
+.chat-rooms::-webkit-scrollbar {
+  display: none;
 }
