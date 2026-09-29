@@ -29,6 +29,31 @@ import strategy
 import telegram_notify
 
 STATE_FILE = Path(__file__).with_name("state.json")
+LOCK_FILE = Path(__file__).with_name("bot.lock")
+PID_FILE = Path(__file__).with_name("bot.pid")
+ALREADY_RUNNING = 3  # exit code the start script checks, so it doesn't keep retrying
+
+
+def single_instance():
+    """Allow only one live bot at a time: two would overwrite each other's signals.
+
+    Holds an OS lock on bot.lock for as long as this process runs (released automatically if it
+    crashes). Returns the open lock file, which must be kept referenced.
+    """
+    lock = open(LOCK_FILE, "a+")
+    lock.seek(0)
+    try:
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        print("Another bot is already running on this PC; not starting a second one.")
+        raise SystemExit(ALREADY_RUNNING)
+    PID_FILE.write_text(str(os.getpid()))
+    return lock
 HISTORY_LIMIT = 50
 DAILY_REFRESH_SECONDS = 600
 
@@ -262,6 +287,7 @@ def main():
     ap.add_argument("--demo", action="store_true", help="use fake prices instead of MetaTrader 5")
     ap.add_argument("--strategy", choices=["orb", "ema"], default=config.STRATEGY)
     args = ap.parse_args()
+    lock = single_instance() if not args.demo else None  # noqa: F841 (held until exit)
     if args.demo:
         import demo_feed as feed
         config.SESSION_START_HOUR, config.SESSION_END_HOUR = 0, 24

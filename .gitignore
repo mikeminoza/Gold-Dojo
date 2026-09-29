@@ -13,3 +13,9 @@ chart.json
 # local editor / assistant settings
 .claude/
 .vercel/
+
+# bot runtime files
+logs/
+bot.lock
+bot.pid
+news_cache.json
