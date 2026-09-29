@@ -1,0 +1,99 @@
+"""All tunable settings. Change these, re-run backtest.py, compare results."""
+
+# Where prices come from (all free, no API key):
+#   "xauusd"  = real XAUUSD spot bid/ask (Swissquote) + candles from PAXG shifted to the spot price
+#   "binance" = PAXG/USDT only (gold-backed token, usually a few dollars above spot)
+#   "mt5"     = your broker's MetaTrader 5 terminal (for later)
+PRICE_FEED = "xauusd"
+BINANCE_SYMBOL = "PAXGUSDT"
+FEED_MARKET_HOURS_ONLY = True  # drop PAXG candles from when real gold is closed (weekends, daily break)
+
+# MetaTrader 5 symbol (only used when PRICE_FEED = "mt5"). Broker names differ: XAUUSD, XAUUSDm, GOLD ...
+# If this exact name isn't found, the bot auto-picks the first symbol containing "XAU" or "GOLD".
+SYMBOL = "XAUUSD"
+
+# Candle timeframe: M5, M15, M30, H1
+TIMEFRAME = "M15"
+
+# ======================================================================
+# Account and position sizing
+# ======================================================================
+# Every signal shows a suggested lot size so the trade risks about RISK_PERCENT of the account.
+# Update ACCOUNT_BALANCE yourself as the account grows or shrinks.
+ACCOUNT_BALANCE = 500.0
+RISK_PERCENT = 1.0          # target risk per trade
+MAX_RISK_PERCENT = 2.0      # warn "consider skipping" when even the smallest lot risks more than this
+# Standard account: 1 lot = 100 oz, smallest trade 0.01 lot (1 oz).
+# Cent account: set OZ_PER_LOT = 1 (0.01 lot = 0.01 oz) and ACCOUNT_BALANCE in dollars as usual.
+OZ_PER_LOT = 100
+MIN_LOT = 0.01
+LOT_STEP = 0.01
+
+# Which strategy the live bot runs:
+#   "orb" = session breakout (opening range of London / New York, with the daily trend)
+#   "ema" = EMA crossover with trend + RSI filters
+STRATEGY = "orb"
+
+# Shared by both strategies: volatility measure used to size stops
+ATR_PERIOD = 14
+
+# ======================================================================
+# Session breakout ("orb")
+# ======================================================================
+# Session open/end times are in each exchange's own time zone, so daylight saving is automatic.
+# In Taipei (UTC+8) summer: London 15:00-19:00, New York 20:30-23:30 (winter: one hour later).
+ORB_SESSIONS = [
+    {"name": "London", "tz": "Europe/London", "open": (8, 0), "end": (12, 0)},
+    # 08:30 New York = US data release time, so the data spike becomes part of the range
+    {"name": "New York", "tz": "America/New_York", "open": (8, 30), "end": (11, 30)},
+]
+ORB_RANGE_MINUTES = 30      # the opening range = first 30 minutes of each session
+ORB_RR = 2.0                # take profit = 2 x the risk
+ORB_MAX_STOP_ATR = 1.5      # cap the stop at 1.5 x ATR when the range is very wide
+ORB_MIN_STOP_ATR = 0.5      # and keep it at least 0.5 x ATR when the range is tiny
+DAILY_TREND_EMA = 50        # only buy above the 50-day EMA, only sell below it
+
+# ======================================================================
+# EMA crossover ("ema")
+# ======================================================================
+EMA_FAST = 9
+EMA_SLOW = 21
+EMA_TREND = 200          # only BUY above it, only SELL below it
+RSI_PERIOD = 14
+RSI_BUY_RANGE = (50, 70)   # momentum up, but not overbought
+RSI_SELL_RANGE = (30, 50)  # momentum down, but not oversold
+SL_ATR_MULT = 1.5        # stop loss = 1.5 x ATR away from entry
+TP_ATR_MULT = 3.0        # take profit = 3 x ATR (1:2 risk/reward)
+CLOSE_ON_OPPOSITE_CROSS = True  # exit early if EMAs cross back the other way
+
+# EMA strategy's trading hours, in YOUR PC's local time (24h clock).
+# 15:00-24:00 in UTC+8 = London open through the London/New York overlap.
+SESSION_START_HOUR = 15
+SESSION_END_HOUR = 24
+TRADE_WEEKDAYS = {0, 1, 2, 3, 4}  # Mon-Fri
+
+# ======================================================================
+# News pause (live bot, both strategies)
+# ======================================================================
+# No new signals this many minutes before/after high-impact US releases (CPI, jobs, Fed...).
+# Calendar comes from the free Forex Factory weekly feed. The backtest can't apply this
+# (no historical calendar), so live results may differ slightly from the backtest.
+NEWS_PAUSE = True
+NEWS_PAUSE_MINUTES = 30
+
+# Timeframes the website chart can switch between, and how many candles each shows
+CHART_TIMEFRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1"]
+CHART_BARS = 300
+CHART_WRITE_SECONDS = 2
+
+# Time zone the website shows times in
+DISPLAY_TZ = "Asia/Manila"
+DISPLAY_TZ_LABEL = "PH time"
+DISPLAY_TZ_SHORT = "PH"     # added after times on the page, e.g. "15:00 PH"
+
+# Backtests charge at least this spread per trade ($ per oz). Demo servers often show near-zero
+# spreads; real broker accounts are typically $0.15-0.40 on gold. Set it to your broker's spread.
+BACKTEST_MIN_SPREAD = 0.25
+
+# How often the live bot checks prices (seconds)
+POLL_SECONDS = 0.5

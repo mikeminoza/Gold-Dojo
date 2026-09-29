@@ -1,0 +1,1197 @@
+:root {
+  color-scheme: dark;
+  --bg: #0e1b2b;
+  --panel: #16283d;
+  --line: rgba(143, 163, 184, 0.16);
+  --text: #e8eef4;
+  --muted: #8fa3b8;
+  --gold: #d9a84e;
+  --buy: #34c08a;
+  --sell: #ef5b5b;
+  --shadow: rgba(4, 10, 18, 0.5);
+  --state: var(--muted);
+  /* Signal card surfaces */
+  --card-tint: 9%; /* how much of the Buy/Sell/Wait colour tints the card */
+  --inset: color-mix(in srgb, var(--bg) 40%, transparent); /* rows inside a card */
+  --inset-border: transparent;
+  --next-bg: color-mix(in srgb, var(--gold) 10%, transparent);
+  --next-text: var(--gold);
+  --wait: var(--muted);
+
+  --display: var(--font-display), system-ui, sans-serif;
+  --body: var(--font-text), system-ui, sans-serif;
+  --gutter: clamp(16px, 4vw, 40px);
+}
+
+/* Light theme: set on <html data-theme="light"> by the theme toggle (or the system preference) */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eef2f6;
+  --panel: #ffffff;
+  --line: rgba(30, 50, 75, 0.14);
+  --text: #13243a;
+  --muted: #5b6f86;
+  --gold: #a87412;
+  --buy: #148a5e;
+  --sell: #d23c3c;
+  --shadow: rgba(19, 36, 58, 0.18);
+  --card-tint: 6%;
+  --inset: #f5f7fa;
+  --inset-border: #e3e8ef;
+  --next-bg: #fff4dc;
+  --next-text: #8a5a00;
+  --wait: #3e5470;
+}
+
+/* Light theme: the card stays white while waiting; only Buy / Sell tint it */
+:root[data-theme="light"] .terminal[data-signal="WAIT"] .signal-card {
+  background: var(--panel);
+  border-top-color: #c9d3df;
+}
+
+:root[data-theme="light"] .signal-card,
+:root[data-theme="light"] .side-block,
+:root[data-theme="light"] .chart-panel {
+  box-shadow: 0 1px 2px rgba(19, 36, 58, 0.06), 0 4px 16px rgba(19, 36, 58, 0.05);
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  border-color: var(--muted);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+code,
+pre {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* ---- page shell ------------------------------------------------------ */
+
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--gutter) 48px;
+}
+
+/* Trading terminal: on desktop the chart fills the screen and stays put; the sidebar scrolls on its own */
+.terminal {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  padding: 0 16px 16px;
+}
+
+.terminal[data-signal="BUY"] {
+  --state: var(--buy);
+}
+
+.terminal[data-signal="SELL"] {
+  --state: var(--sell);
+}
+
+.demo-banner {
+  margin: 0 -16px;
+  padding: 6px 16px;
+  background: color-mix(in srgb, var(--gold) 16%, var(--bg));
+  color: var(--gold);
+  font-size: 13px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+}
+
+.topbar-quote {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+}
+
+.topbar-quote .bid {
+  font-size: 26px;
+}
+
+.topbar-quote dl {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.topbar-quote dt {
+  display: inline;
+  margin-right: 6px;
+  color: var(--muted);
+}
+
+.topbar-quote dd {
+  display: inline;
+  font-weight: 500;
+}
+
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 16px;
+}
+
+.chart-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-radius: 14px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.sidebar {
+  /* position: relative keeps absolutely positioned children (e.g. screen-reader labels) inside the
+     sidebar's scroll area instead of stretching the page */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.side-block {
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.side-block h2 {
+  margin-bottom: 12px;
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.instrument {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-right: auto;
+}
+
+.instrument strong {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.instrument span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sell);
+}
+
+.status[data-tone="live"] {
+  color: var(--text);
+}
+
+.status[data-tone="live"] i {
+  background: var(--buy);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.alert-toggle {
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.alert-toggle:hover {
+  border-color: var(--muted);
+}
+
+.alert-toggle[aria-pressed="true"] {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* ---- hero: the signal ------------------------------------------------ */
+
+.signal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 22px 18px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--state) var(--card-tint), var(--panel));
+  border-top: 4px solid var(--state);
+  transition: background-color 0.4s, border-color 0.4s;
+}
+
+/* Waiting state: a plain headline, then the countdown to the next session */
+.waiting {
+  display: grid;
+  gap: 10px;
+}
+
+.waiting-headline {
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.next-up {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--gold);
+  border-radius: 0 10px 10px 0;
+  background: var(--next-bg);
+}
+
+.next-up span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.next-up strong {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--next-text);
+}
+
+/* Session schedule: one row per session, PH time first */
+.schedule {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.schedule h2 {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.schedule h2 span {
+  margin-left: 6px;
+  color: var(--gold);
+}
+
+.schedule ul {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.schedule li {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--inset-border);
+  border-radius: 10px;
+  background: var(--inset);
+}
+
+.schedule li[data-tone="live"] {
+  background: color-mix(in srgb, var(--buy) 12%, transparent);
+}
+
+.schedule-main,
+.schedule-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.schedule-main strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.schedule-time {
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.schedule-sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.schedule-pill {
+  flex-shrink: 0;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+  color: var(--muted);
+}
+
+.schedule li[data-tone="live"] .schedule-pill {
+  background: color-mix(in srgb, var(--buy) 20%, transparent);
+  color: var(--buy);
+}
+
+.schedule li[data-tone="soon"] .schedule-pill {
+  background: color-mix(in srgb, var(--gold) 20%, transparent);
+  color: var(--gold);
+}
+
+.risk-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.risk-stat strong {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.signal-word {
+  font-family: var(--display);
+  font-size: 104px;
+  font-weight: 800;
+  line-height: 0.82;
+  letter-spacing: -0.045em;
+  color: var(--state);
+  animation: signal-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.terminal[data-signal="WAIT"] .signal-word {
+  color: var(--wait);
+}
+
+.signal-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 46ch;
+  color: var(--muted);
+}
+
+.pnl {
+  font-family: var(--display);
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--sell);
+}
+
+.pnl[data-winning="true"] {
+  color: var(--buy);
+}
+
+.pnl small {
+  font-family: var(--body);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.news {
+  max-width: 46ch;
+  padding-left: 12px;
+  border-left: 2px solid var(--gold);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.news[data-paused="true"] {
+  color: var(--gold);
+}
+
+.size {
+  display: grid;
+  gap: 2px;
+  max-width: 46ch;
+  margin-top: 6px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.size strong {
+  color: var(--text);
+  font-size: 17px;
+}
+
+.size-note {
+  color: var(--gold);
+}
+
+.size[data-verdict="skip"] {
+  outline: 1px solid color-mix(in srgb, var(--sell) 60%, transparent);
+}
+
+.size[data-verdict="skip"] .size-note {
+  color: var(--sell);
+  font-weight: 500;
+}
+
+.bid {
+  font-family: var(--display);
+  font-size: 44px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--gold);
+}
+
+.bid[data-tick="up"] {
+  animation: tick-up 0.6s ease-out;
+}
+
+.bid[data-tick="down"] {
+  animation: tick-down 0.6s ease-out;
+}
+
+/* ---- price ladder (open signal) ------------------------------------- */
+
+.ladder {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  min-height: 240px;
+}
+
+.ladder-end {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.ladder-end span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.ladder-end strong {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ladder-end em {
+  font-style: normal;
+  font-size: 13px;
+  min-width: 56px;
+  text-align: right;
+}
+
+.ladder-end.target em {
+  color: var(--buy);
+}
+
+.ladder-end.stop em {
+  color: var(--sell);
+}
+
+.ladder-rail {
+  position: relative;
+  margin: 6px 0 6px 12px;
+  border-left: 2px solid var(--line);
+}
+
+.ladder-fill {
+  position: absolute;
+  bottom: 0;
+  left: -2px;
+  width: 2px;
+  background: var(--sell);
+  transition: height 0.3s ease-out;
+}
+
+.ladder-fill[data-winning="true"] {
+  background: var(--buy);
+}
+
+.ladder-mark {
+  position: absolute;
+  left: -7px;
+  transform: translateY(50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: bottom 0.3s ease-out;
+}
+
+.ladder-mark::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.ladder-mark.entry::before {
+  background: var(--bg);
+  border: 2px solid var(--muted);
+}
+
+/* Entry sits on the far right, joined to its dot by a dashed guide, so it never collides with the live price */
+.ladder-mark.entry {
+  right: 0;
+}
+
+.ladder-mark.entry::after {
+  content: "";
+  order: 1;
+  flex: 1;
+  border-top: 1px dashed var(--line);
+}
+
+.ladder-mark.entry span {
+  order: 2;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.ladder-mark.now {
+  z-index: 1;
+}
+
+.ladder-mark.now::before {
+  background: var(--gold);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--gold) 25%, transparent);
+}
+
+.ladder-mark.now span {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--gold);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+/* ---- checklist (waiting) -------------------------------------------- */
+
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.checklist-intro {
+  color: var(--muted);
+  font-size: 14px;
+  max-width: 44ch;
+}
+
+.checklist-side h3 {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.checklist-side[data-side="BUY"] h3 {
+  color: var(--buy);
+}
+
+.checklist-side[data-side="SELL"] h3 {
+  color: var(--sell);
+}
+
+.checklist-side h3 span {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.checklist ul {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.checklist li {
+  display: flex;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.checklist li[data-ok="true"] {
+  color: var(--text);
+}
+
+.checklist li > span:first-child {
+  width: 14px;
+  text-align: center;
+}
+
+.checklist-side[data-side="BUY"] li[data-ok="true"] > span:first-child {
+  color: var(--buy);
+}
+
+.checklist-side[data-side="SELL"] li[data-ok="true"] > span:first-child {
+  color: var(--sell);
+}
+
+/* ---- trading chart ---------------------------------------------------- */
+
+.tc {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.tc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tc-group {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.tc-toolbar button,
+.tc-menu summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tc-toolbar button:hover:not(:disabled),
+.tc-menu summary:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+
+.tc-toolbar button[aria-pressed="true"] {
+  color: var(--bg);
+  background: var(--gold);
+}
+
+.tc-toolbar button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tc-menu {
+  position: relative;
+}
+
+.tc-menu summary {
+  list-style: none;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.tc-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.tc-menu summary::after {
+  content: "▾";
+  font-size: 11px;
+}
+
+.tc-menu-panel {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  gap: 2px;
+  min-width: 220px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 12px 32px var(--shadow);
+}
+
+.tc-menu-panel label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tc-menu-panel label:hover {
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+
+.tc-menu-panel input {
+  accent-color: var(--gold);
+}
+
+.tc-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.tc-body[data-tool="hline"],
+.tc-body[data-tool="trend"] {
+  cursor: crosshair;
+}
+
+.tc-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.tc-ohlc {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.tc-ohlc .tc-tz {
+  color: var(--gold);
+}
+
+.tz-note {
+  margin-left: 8px;
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--gold);
+}
+
+.tc-ohlc strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tc-ohlc [data-dir="up"] {
+  color: var(--buy);
+}
+
+.tc-ohlc [data-dir="down"] {
+  color: var(--sell);
+}
+
+.tc-hint,
+.tc-status {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.tc-hint {
+  top: 36px;
+  color: var(--gold);
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+}
+
+.tc-status {
+  top: 45%;
+  color: var(--muted);
+}
+
+/* ---- history + indicators --------------------------------------------- */
+
+.history {
+  list-style: none;
+  padding: 0;
+}
+
+.history li {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 2px 12px;
+  padding: 10px 0 10px 14px;
+  border-left: 3px solid var(--line);
+  margin-bottom: 2px;
+}
+
+.history li[data-type="open"][data-side="BUY"] {
+  border-left-color: var(--buy);
+}
+
+.history li[data-type="open"][data-side="SELL"] {
+  border-left-color: var(--sell);
+}
+
+.history time {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.history-what {
+  font-weight: 500;
+}
+
+.history li[data-type="close"] .history-what {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.history li[data-outcome="profit"] .history-what {
+  color: var(--buy);
+}
+
+.history li[data-outcome="loss"] .history-what {
+  color: var(--sell);
+}
+
+/* Profit / Loss label: shared by the open signal, history rows and the results summary */
+.outcome {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--muted) 18%, transparent);
+  color: var(--muted);
+}
+
+.outcome[data-tone="profit"] {
+  background: color-mix(in srgb, var(--buy) 18%, transparent);
+  color: var(--buy);
+}
+
+.outcome[data-tone="loss"] {
+  background: color-mix(in srgb, var(--sell) 18%, transparent);
+  color: var(--sell);
+}
+
+.results {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 32px;
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.results-net {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.results-net strong {
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.results-net strong[data-tone="profit"],
+.results dd[data-tone="profit"] {
+  color: var(--buy);
+}
+
+.results-net strong[data-tone="loss"],
+.results dd[data-tone="loss"] {
+  color: var(--sell);
+}
+
+.results dl {
+  display: flex;
+  gap: 24px;
+}
+
+.results dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.results dd {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.history-detail {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.empty {
+  color: var(--muted);
+}
+
+.indicators {
+  display: grid;
+}
+
+.indicators div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.indicators dt {
+  color: var(--muted);
+}
+
+.indicators dd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+}
+
+.indicators meter {
+  width: 72px;
+  height: 6px;
+}
+
+.note {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---- empty/setup state ---------------------------------------------- */
+
+.setup {
+  max-width: 60ch;
+  padding: 16vh 0;
+  display: grid;
+  gap: 16px;
+}
+
+.setup h1 {
+  font-family: var(--display);
+  font-size: clamp(40px, 7vw, 72px);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--gold);
+}
+
+.setup p {
+  color: var(--muted);
+}
+
+.setup pre {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--panel);
+  overflow-x: auto;
+}
+
+.setup code {
+  color: var(--text);
+}
+
+/* ---- motion ---------------------------------------------------------- */
+
+@keyframes signal-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+}
+
+@keyframes tick-up {
+  from {
+    color: var(--buy);
+  }
+}
+
+@keyframes tick-down {
+  from {
+    color: var(--sell);
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---- small screens --------------------------------------------------- */
+
+/* Desktop: the page itself never scrolls - only the sidebar does */
+@media (min-width: 1100px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
+/* Tablets and phones: stack everything - signal first, then the chart, then the rest */
+@media (max-width: 1099px) {
+  .terminal {
+    height: auto;
+  }
+
+  .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar {
+    display: contents;
+  }
+
+  .signal-card {
+    order: 1;
+  }
+
+  .chart-panel {
+    order: 2;
+    height: 72vh;
+    min-height: 420px;
+  }
+
+  .sidebar > :not(.signal-card) {
+    order: 3;
+  }
+}
+
+@media (max-width: 520px) {
+  .terminal {
+    padding: 0 12px 12px;
+  }
+
+  .demo-banner {
+    margin: 0 -12px;
+  }
+
+  .signal-word {
+    font-size: 84px;
+  }
+
+  .topbar-quote .bid {
+    font-size: 22px;
+  }
+}
