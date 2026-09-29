@@ -1817,3 +1817,11 @@ pre {
 .chat-rooms::-webkit-scrollbar {
   display: none;
 }
+
+/* Header: the chart timeframe you picked, then (quieter) what the signals run on */
+.instrument-strategy {
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+}

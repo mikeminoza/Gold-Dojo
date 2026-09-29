@@ -218,6 +218,7 @@ export default function TradingChart({
   position,
   periods,
   theme,
+  onTimeframe,
 }: {
   theme: Theme; // the chart is remounted when this changes
   symbol: string;
@@ -232,6 +233,7 @@ export default function TradingChart({
   range: OpeningRange | null;
   position: Position | null;
   periods: [number, number, number];
+  onTimeframe?: (tf: string) => void; // tells the page which timeframe is showing
 }) {
   const COLORS = PALETTES[theme];
   const [settings, setSettings] = useState<Settings>(loadSettings);
@@ -242,6 +244,11 @@ export default function TradingChart({
   const [mainVersion, setMainVersion] = useState(0);
 
   const tf = settings.tf && timeframes.includes(settings.tf) ? settings.tf : defaultTf;
+
+  // Let the page header show the timeframe you picked (and remember across visits)
+  useEffect(() => {
+    onTimeframe?.(tf);
+  }, [tf, onTimeframe]);
   const { type, show } = settings;
   const { candles: raw, error } = useCandles(tf);
 

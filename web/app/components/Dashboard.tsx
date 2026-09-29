@@ -475,6 +475,7 @@ export default function Dashboard() {
   const state = useMemo(() => (botState ? withLivePrice(botState, live) : null), [botState, live]);
   const [alerts, setAlerts] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chartTf, setChartTf] = useState<string | null>(null); // the timeframe picked on the chart
   const [toast, setToast] = useState<{ id: number; author: string; room: string; roomId: string; body: string } | null>(
     null,
   );
@@ -605,7 +606,10 @@ export default function Dashboard() {
         <div className="instrument">
           <strong>Golden Skibidi</strong>
           <span>
-            {state.symbol}, {state.timeframe}, {state.strategy.name.toLowerCase()}
+            {state.symbol}, {chartTf ?? state.chart.default} chart
+            <span className="instrument-strategy">
+              Signals: {state.strategy.name.toLowerCase()} on {state.timeframe} candles
+            </span>
           </span>
         </div>
         <div className="topbar-quote">
@@ -655,6 +659,7 @@ export default function Dashboard() {
             range={state.range}
             position={position}
             periods={state.indicators.periods}
+            onTimeframe={setChartTf}
           />
         </section>
 

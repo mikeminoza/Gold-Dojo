@@ -13,7 +13,8 @@ FEED_MARKET_HOURS_ONLY = True  # drop PAXG candles from when real gold is closed
 SYMBOL = "XAUUSD"
 
 # Candle timeframe: M5, M15, M30, H1
-TIMEFRAME = "M15"
+# M30 won a walk-forward test on real gold (Nov 2025 - Sep 2026); M15 lost money in the same test
+TIMEFRAME = "M30"
 
 # ======================================================================
 # Account and position sizing
@@ -41,15 +42,17 @@ ATR_PERIOD = 14
 # Session breakout ("orb")
 # ======================================================================
 # Session open/end times are in each exchange's own time zone, so daylight saving is automatic.
-# In Taipei (UTC+8) summer: London 15:00-19:00, New York 20:30-23:30 (winter: one hour later).
+# In PH time (UTC+8) summer: London 3:00-7:00 PM, New York 8:30-11:30 PM (winter: one hour later).
+# New York only: London breakouts mostly failed in the walk-forward test. To trade London too,
+# remove the # in front of its line.
 ORB_SESSIONS = [
-    {"name": "London", "tz": "Europe/London", "open": (8, 0), "end": (12, 0)},
+    # {"name": "London", "tz": "Europe/London", "open": (8, 0), "end": (12, 0)},
     # 08:30 New York = US data release time, so the data spike becomes part of the range
     {"name": "New York", "tz": "America/New_York", "open": (8, 30), "end": (11, 30)},
 ]
-ORB_RANGE_MINUTES = 30      # the opening range = first 30 minutes of each session
+ORB_RANGE_MINUTES = 60      # the opening range = first 60 minutes of the session (8:30-9:30 PM PH)
 ORB_RR = 2.0                # take profit = 2 x the risk
-ORB_MAX_STOP_ATR = 1.5      # cap the stop at 1.5 x ATR when the range is very wide
+ORB_MAX_STOP_ATR = 1.0      # cap the stop at 1 x ATR when the range is very wide
 ORB_MIN_STOP_ATR = 0.5      # and keep it at least 0.5 x ATR when the range is tiny
 DAILY_TREND_EMA = 50        # only buy above the 50-day EMA, only sell below it
 
