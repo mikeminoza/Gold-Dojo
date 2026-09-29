@@ -7,6 +7,7 @@ import type { Theme } from "./TradingChart";
 import { useBotState } from "../lib/useBotState";
 import { useLivePrice, type LivePrice } from "../lib/useLivePrice";
 import { useChat, type ChatMessage } from "../lib/useChat";
+import { journalCsv, useJournal, type JournalEntry } from "../lib/useJournal";
 import ChatPanel from "./ChatPanel";
 
 const TradingChart = dynamic(() => import("./TradingChart"), { ssr: false });
@@ -421,14 +422,164 @@ function Results({ events, balance }: { events: SignalEvent[]; balance: number }
           <dt>Win rate</dt>
           <dd>{Math.round((100 * wins) / closed.length)}%</dd>
         </div>
+        <div>
+          <dt>Profit factor</dt>
+          <dd title="Money won divided by money lost. Above 1 means profitable.">{profitFactor(closed)}</dd>
+        </div>
       </dl>
+      <SessionSplit closed={closed} />
     </div>
+  );
+}
+
+/** Money won / money lost; above 1 means the trades made money overall. */
+function profitFactor(closed: SignalEvent[]) {
+  const value = (e: SignalEvent) => e.pnl_usd ?? e.pnl ?? 0;
+  const won = closed.filter((e) => value(e) > 0).reduce((a, e) => a + value(e), 0);
+  const lost = -closed.filter((e) => value(e) < 0).reduce((a, e) => a + value(e), 0);
+  if (lost === 0) return won > 0 ? "∞" : "–";
+  return (won / lost).toFixed(2);
+}
+
+/** Results per session (e.g. London vs New York), when trades came from more than one. */
+function SessionSplit({ closed }: { closed: SignalEvent[] }) {
+  const groups = new Map<string, SignalEvent[]>();
+  for (const e of closed) {
+    const key = e.session ?? "Other";
+    groups.set(key, [...(groups.get(key) ?? []), e]);
+  }
+  if (groups.size < 2) return null;
+  return (
+    <table className="results-split">
+      <caption>By session</caption>
+      <thead>
+        <tr>
+          <th scope="col">Session</th>
+          <th scope="col">Trades</th>
+          <th scope="col">Win rate</th>
+          <th scope="col">Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {[...groups].map(([name, list]) => {
+          const net = list.reduce((a, e) => a + (e.pnl_usd ?? e.pnl ?? 0), 0);
+          const wins = list.filter((e) => (e.pnl_usd ?? e.pnl ?? 0) > 0).length;
+          return (
+            <tr key={name}>
+              <th scope="row">{name}</th>
+              <td>{list.length}</td>
+              <td>{Math.round((100 * wins) / list.length)}%</td>
+              <td data-tone={net > 0 ? "profit" : net < 0 ? "loss" : undefined}>{usd(net, true)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+type Period = "week" | "month" | "all";
+const PERIODS: [Period, string][] = [
+  ["week", "This week"],
+  ["month", "This month"],
+  ["all", "All time"],
+];
+
+/** Start of this week (Monday) or month, in the display time zone, as UTC seconds. */
+function periodStart(period: Period, now: number, offset: number) {
+  if (period === "all") return 0;
+  const local = now + offset;
+  if (period === "week") {
+    const day = Math.floor(local / 86400);
+    const sinceMonday = (day + 3) % 7; // 1 Jan 1970 was a Thursday
+    return (day - sinceMonday) * 86400 - offset;
+  }
+  const d = new Date(local * 1000);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000 - offset;
+}
+
+function fromJournal(e: JournalEntry, account: LiveState["account"]): SignalEvent {
+  const riskPercent = e.risk != null ? (100 * e.risk) / account.balance : 0;
+  return {
+    id: e.event_id,
+    type: e.type,
+    side: e.side,
+    price: e.price,
+    time: Date.parse(e.created_at) / 1000,
+    sl: e.sl ?? undefined,
+    tp: e.tp ?? undefined,
+    entry: e.entry ?? undefined,
+    pnl: e.pnl ?? undefined,
+    pnl_usd: e.pnl_usd,
+    lots: e.lots,
+    reason: e.reason ?? undefined,
+    session: e.session ?? undefined,
+    size:
+      e.type === "open" && e.lots != null
+        ? {
+            lots: e.lots,
+            risk: e.risk ?? 0,
+            reward: 0,
+            risk_percent: riskPercent,
+            verdict: riskPercent > account.max_risk_percent ? "skip" : "ok",
+            note: "",
+          }
+        : undefined,
+  };
+}
+
+/**
+ * Every signal ever recorded (the journal in Supabase), with results for a chosen period and a CSV
+ * download. Falls back to the bot's recent history until the journal table exists.
+ */
+function Journal({ state, t, now }: { state: LiveState; t: TimeFormat; now: number }) {
+  const journal = useJournal();
+  const [period, setPeriod] = useState<Period>("all");
+  const usingJournal = journal.available && journal.entries.length > 0;
+  const all = usingJournal ? journal.entries.map((e) => fromJournal(e, state.account)) : state.history;
+  const since = periodStart(period, now, state.display.offset);
+  const events = all.filter((e) => e.time >= since);
+
+  function download() {
+    const csv = journalCsv(journal.entries, state.display.tz);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    link.download = `golden-skibidi-signals-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  return (
+    <>
+      <div className="journal-bar">
+        <div className="journal-periods" role="group" aria-label="Period">
+          {PERIODS.map(([key, label]) => (
+            <button key={key} type="button" aria-pressed={period === key} onClick={() => setPeriod(key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {usingJournal && (
+          <button type="button" className="journal-csv" onClick={download}>
+            Download CSV
+          </button>
+        )}
+      </div>
+      {!journal.available && (
+        <p className="note">
+          Showing recent signals only. Run <code>supabase/signals.sql</code> in Supabase to keep every signal
+          permanently.
+        </p>
+      )}
+      <Results events={events} balance={state.account.balance} />
+      <History events={events.slice(0, 50)} t={t} now={now} />
+    </>
   );
 }
 
 function History({ events, t, now }: { events: SignalEvent[]; t: TimeFormat; now: number }) {
   if (events.length === 0) {
-    return <p className="empty">No signals yet. They&apos;ll appear here as soon as the bot sends one.</p>;
+    return <p className="empty">No signals in this period. They&apos;ll appear here as soon as the bot sends one.</p>;
   }
   return (
     <ol className="history">
@@ -721,8 +872,7 @@ export default function Dashboard() {
             <h2>
               Signals <span className="tz-note">{state.display.label}</span>
             </h2>
-            <Results events={state.history} balance={state.account.balance} />
-            <History events={state.history} t={t} now={now} />
+            <Journal state={state} t={t} now={now} />
           </section>
 
           <section className="side-block">

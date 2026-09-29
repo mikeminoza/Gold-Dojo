@@ -4,6 +4,9 @@ Only sends when something the page shows has changed (a signal, the checklist, s
 or every HEARTBEAT_SECONDS so the page knows the bot is running. Live prices aren't sent: the
 website gets those straight from the price feeds. Sending runs in a background thread so a slow
 network never delays the bot's price checks.
+
+Every signal (BUY / SELL / CLOSE) is also saved permanently in the `signals` table - the journal.
+Those are queued and retried until Supabase has them, and re-sending never creates duplicates.
 """
 import json
 import os
@@ -44,6 +47,7 @@ class CloudPublisher:
         self._sent_sig = None
         self._sent_at = 0.0
         self._failing = False
+        self._journal = []  # signal rows waiting to be saved
         if self.enabled:
             threading.Thread(target=self._run, name="cloud", daemon=True).start()
 
@@ -54,6 +58,34 @@ class CloudPublisher:
         with self._lock:
             self._latest = state
         self._wake.set()
+
+    def journal(self, events):
+        """Queue signal events to be saved permanently (duplicates are ignored by Supabase)."""
+        if not self.enabled:
+            return
+        rows = [journal_row(e) for e in events]
+        with self._lock:
+            self._journal.extend(rows)
+        self._wake.set()
+
+    def _send_journal(self):
+        with self._lock:
+            rows, self._journal = self._journal, []
+        if not rows:
+            return
+        try:
+            headers = {**self._headers(), "Prefer": "resolution=ignore-duplicates,return=minimal"}
+            r = requests.post(f"{self.url}/rest/v1/signals?on_conflict=event_id", headers=headers,
+                              data=json.dumps(rows, default=_plain), timeout=10)
+            if r.status_code >= 300:
+                raise RuntimeError(f"Supabase answered {r.status_code}: {r.text[:200]}")
+        except (requests.RequestException, RuntimeError) as e:
+            with self._lock:
+                self._journal = rows + self._journal  # keep them for the next try
+            if not self._failing:
+                print(f"{datetime.now():%H:%M:%S} Supabase journal: can't save signals yet ({e}); retrying")
+            self._failing = True
+            self._stop.wait(RETRY_SECONDS)
 
     def stop(self):
         self._stop.set()
@@ -78,6 +110,7 @@ class CloudPublisher:
         while not self._stop.is_set():
             self._wake.wait(1.0)
             self._wake.clear()
+            self._send_journal()
             with self._lock:
                 state = self._latest
             if state is None:
@@ -96,3 +129,29 @@ class CloudPublisher:
                     print(f"{datetime.now():%H:%M:%S} Supabase: can't send ({e}); retrying")
                 self._failing = True
                 self._stop.wait(RETRY_SECONDS)
+
+
+def journal_row(event):
+    """A bot history event -> a row of the `signals` table."""
+    size = event.get("size") or {}
+    return {
+        "event_id": event["id"],
+        # an open is its own trade; a close points back at the open
+        "trade_id": event.get("trade_id") or (event["id"] if event["type"] == "open" else None),
+        "type": event["type"],
+        "side": event["side"],
+        "strategy": event.get("strategy"),
+        "session": event.get("session"),
+        "symbol": event.get("symbol"),
+        "timeframe": event.get("timeframe"),
+        "price": event["price"],
+        "entry": event.get("entry"),
+        "sl": event.get("sl"),
+        "tp": event.get("tp"),
+        "lots": event.get("lots") or size.get("lots"),
+        "risk": size.get("risk"),
+        "pnl": event.get("pnl"),
+        "pnl_usd": event.get("pnl_usd"),
+        "reason": event.get("reason"),
+        "created_at": datetime.fromtimestamp(event["time"], timezone.utc).isoformat(),
+    }

@@ -63,6 +63,7 @@ export type SignalEvent = {
   size?: Sizing;
   lots?: number | null;
   pnl_usd?: number | null;
+  session?: string; // e.g. "New York"
 };
 
 export type Condition = { label: string; ok: boolean };

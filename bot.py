@@ -117,7 +117,9 @@ class Bot:
     def record(self, event):
         event["time"] = int(time.time())
         event["id"] = f"{event['time']}-{event['type']}-{len(self.history)}"
+        event.update(strategy=self.strategy_name, symbol=self.symbol, timeframe=config.TIMEFRAME)
         self.history = ([event] + self.history)[:HISTORY_LIMIT]
+        self.cloud.journal([event])  # saved permanently in the signals table
         print(f"{datetime.now():%H:%M:%S} >>> {event['type'].upper()} {event['side']} @ {fmt(event['price'])}"
               f" ({event.get('reason', '')})")
 
@@ -134,8 +136,11 @@ class Bot:
         self.position = {"side": sig.side, "entry": entry, "sl": sl, "tp": tp, "atr": df["atr"].iat[i],
                          "rsi": df["rsi"].iat[i], "opened": int(time.time()), "expires": sig.expires,
                          "reason": sig.reason, "size": size}
+        session = sig.tag[:-11] if sig.tag and len(sig.tag) > 11 else None  # "New York-2026-09-29" -> "New York"
         self.record({"type": "open", "side": sig.side, "price": entry, "sl": sl, "tp": tp, "reason": sig.reason,
-                     "size": size})
+                     "size": size, "session": session})
+        self.position["trade_id"] = self.history[0]["id"]
+        self.position["session"] = session
         if self.telegram:
             icon = "🟢" if sig.side == "BUY" else "🔴"
             warning = "" if size["verdict"] == "ok" else f"\n⚠️ {size['note']}"
@@ -151,7 +156,8 @@ class Bot:
         lots = pos.get("size", {}).get("lots")
         usd = sizing.money(move, lots) if lots else None
         self.record({"type": "close", "side": pos["side"], "price": price, "entry": pos["entry"],
-                     "pnl": move, "reason": reason, "lots": lots, "pnl_usd": usd})
+                     "pnl": move, "reason": reason, "lots": lots, "pnl_usd": usd,
+                     "trade_id": pos.get("trade_id"), "session": pos.get("session")})
         self.position = None
         if self.telegram:
             icon, result = ("✅", "PROFIT") if move > 0 else ("❌", "LOSS") if move < 0 else ("➖", "BREAK-EVEN")
@@ -250,6 +256,8 @@ class Bot:
         self.symbol = self.feed.resolve_symbol(config.SYMBOL)
         self.df = self.prepared()
         self.last_bar_time = self.df["time"].iat[-1]  # don't alert on a stale candle at startup
+        # Make sure everything already recorded is in the journal (Supabase ignores duplicates)
+        self.cloud.journal([{**e, "symbol": e.get("symbol", self.symbol)} for e in reversed(self.history)])
         poll = 0.5 if self.demo else config.POLL_SECONDS
         print(f"Watching {self.symbol} {config.TIMEFRAME} with {self.strat.name}"
               f"{' (DEMO prices)' if self.demo else ''}. Telegram {'on' if self.telegram else 'off'}, "

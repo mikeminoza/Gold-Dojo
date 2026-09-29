@@ -1825,3 +1825,89 @@ pre {
   border-left: 1px solid var(--line);
   color: var(--muted);
 }
+
+/* ---- signal journal --------------------------------------------------- */
+
+.journal-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.journal-periods {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--inset);
+}
+
+.journal-periods button,
+.journal-csv {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.journal-periods button[aria-pressed="true"] {
+  background: var(--gold);
+  color: var(--bg);
+}
+
+.journal-csv {
+  border: 1px solid var(--line);
+}
+
+.journal-csv:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.results-split {
+  width: 100%;
+  margin-top: 4px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.results-split caption {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+}
+
+.results-split th,
+.results-split td {
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+  text-align: right;
+  font-weight: 500;
+}
+
+.results-split thead th {
+  border-top: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.results-split th:first-child {
+  text-align: left;
+}
+
+.results-split td[data-tone="profit"] {
+  color: var(--buy);
+}
+
+.results-split td[data-tone="loss"] {
+  color: var(--sell);
+}
