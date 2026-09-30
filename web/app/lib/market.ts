@@ -43,12 +43,15 @@ function keep(candle: Candle, tf: string) {
   return TF_SECONDS[tf] > 3600 || goldMarketOpen(candle.t);
 }
 
-/** Newest `count` candles for a timeframe, closed-market candles removed, shifted down by `gap`. */
-export async function fetchCandles(tf: string, count: number, gap: number): Promise<Candle[]> {
+/**
+ * Newest `count` candles for a timeframe (or the `count` before the `before` time, UTC seconds),
+ * closed-market candles removed, shifted down by `gap`. Returns [] when there's no older history.
+ */
+export async function fetchCandles(tf: string, count: number, gap: number, before?: number): Promise<Candle[]> {
   const interval = INTERVALS[tf];
   if (!interval) throw new Error(`Unknown timeframe ${tf}`);
   let out: Candle[] = [];
-  let endTime: number | undefined;
+  let endTime: number | undefined = before ? before * 1000 - 1 : undefined;
   // A whole weekend can fall inside the window, so page further back until there are enough
   for (let page = 0; page < 4 && out.length < count; page++) {
     const params = new URLSearchParams({ symbol: PAXG, interval, limit: "1000" });

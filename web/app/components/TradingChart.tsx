@@ -24,7 +24,7 @@ import {
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { bollinger, ema, rsi, type Point } from "../lib/indicators";
 import { fetchCandles } from "../lib/market";
 import type { Candle, OpeningRange, Position, SignalEvent } from "../lib/types";
@@ -121,7 +121,11 @@ const DEFAULT_SETTINGS: Settings = {
 };
 const VISIBLE_BARS = 140;
 const REFRESH_MS = 15_000;
-const CANDLE_COUNT = 300;
+const INITIAL_CANDLES = 1000; // what a timeframe opens with
+const REFRESH_CANDLES = 200; // the newest candles, re-read every 15 s
+const OLDER_BATCH = 1000; // added each time you scroll near the left edge
+const MAX_CANDLES = 20_000; // enough years of daily candles; keeps the browser fast
+const LOAD_OLDER_AT = 40; // load more when fewer than this many candles are left of the view
 
 // Chart preferences and drawings are per-browser conveniences; the page works without them.
 function loadSettings(): Settings {
@@ -149,33 +153,71 @@ function save(key: string, value: unknown) {
   }
 }
 
+/** Candles from `a` and `b` combined by time (`b` wins where both have the same candle), oldest first. */
+function mergeCandles(a: Candle[], b: Candle[]) {
+  const byTime = new Map<number, Candle>();
+  for (const k of a) byTime.set(k.t, k);
+  for (const k of b) byTime.set(k.t, k);
+  return [...byTime.values()].sort((x, y) => x.t - y.t).slice(-MAX_CANDLES);
+}
+
 /**
- * Loads candles for the selected timeframe straight from Binance (unadjusted PAXG), refreshing every
- * 15 s. Between refreshes the newest candle follows the live price, so the chart still ticks live.
+ * Candles for the selected timeframe straight from Binance (unadjusted PAXG). Starts with the latest
+ * INITIAL_CANDLES, refreshes the newest ones every 15 s, and `loadOlder()` adds earlier history when
+ * you scroll back - like MetaTrader. Between refreshes the newest candle follows the live price.
  */
 function useCandles(tf: string) {
   const [data, setData] = useState<{ tf: string; candles: Candle[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const current = useRef<{ tf: string; candles: Candle[] } | null>(null);
+  const busy = useRef(false);
+  const exhausted = useRef(false);
+
+  useEffect(() => {
+    current.current = data;
+  }, [data]);
+
   useEffect(() => {
     let stopped = false;
-    const load = async () => {
+    exhausted.current = false;
+    const load = async (first: boolean) => {
       try {
-        const candles = await fetchCandles(tf, CANDLE_COUNT, 0);
+        const fresh = await fetchCandles(tf, first ? INITIAL_CANDLES : REFRESH_CANDLES, 0);
         if (stopped) return;
-        setData({ tf, candles });
+        setData((prev) => (prev?.tf === tf && !first ? { tf, candles: mergeCandles(prev.candles, fresh) } : { tf, candles: fresh }));
         setError(null);
       } catch (e) {
         if (!stopped) setError(`Can't load ${tf} candles right now (${(e as Error).message}). Retrying…`);
       }
     };
-    load();
-    const id = setInterval(load, REFRESH_MS);
+    load(true);
+    const id = setInterval(() => load(false), REFRESH_MS);
     return () => {
       stopped = true;
       clearInterval(id);
     };
   }, [tf]);
-  return { candles: data?.tf === tf ? data.candles : null, error };
+
+  const loadOlder = useCallback(async () => {
+    const now = current.current;
+    if (busy.current || exhausted.current || !now || now.tf !== tf || now.candles.length === 0) return;
+    if (now.candles.length >= MAX_CANDLES) return;
+    busy.current = true;
+    setLoadingOlder(true);
+    try {
+      const older = await fetchCandles(tf, OLDER_BATCH, 0, now.candles[0].t);
+      if (older.length === 0) exhausted.current = true;
+      else setData((prev) => (prev?.tf === tf ? { tf, candles: mergeCandles(older, prev.candles) } : prev));
+    } catch {
+      // try again on the next scroll
+    } finally {
+      busy.current = false;
+      setLoadingOlder(false);
+    }
+  }, [tf]);
+
+  return { candles: data?.tf === tf ? data.candles : null, error, loadOlder, loadingOlder };
 }
 
 /** setData when the dataset changed, otherwise update just the newest point (keeps zoom and scroll). */
@@ -250,7 +292,12 @@ export default function TradingChart({
     onTimeframe?.(tf);
   }, [tf, onTimeframe]);
   const { type, show } = settings;
-  const { candles: raw, error } = useCandles(tf);
+  const { candles: raw, error, loadOlder, loadingOlder } = useCandles(tf);
+  const loadOlderRef = useRef(loadOlder);
+  useEffect(() => {
+    loadOlderRef.current = loadOlder;
+  }, [loadOlder]);
+  const firstShown = useRef<number | null>(null); // oldest candle on the chart, to keep the view steady
 
   const box = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -342,10 +389,15 @@ export default function TradingChart({
       }
     };
     c.subscribeCrosshairMove(onMove);
+    const onRange = (r: { from: number; to: number } | null) => {
+      if (r && r.from < LOAD_OLDER_AT) loadOlderRef.current();
+    };
+    c.timeScale().subscribeVisibleLogicalRangeChange(onRange);
     chartRef.current = c;
     const refs = { indicators: indicatorRefs.current, keys: syncKeys.current };
     return () => {
       c.unsubscribeCrosshairMove(onMove);
+      c.timeScale().unsubscribeVisibleLogicalRangeChange(onRange);
       chartRef.current = null;
       c.remove();
       Object.keys(refs.indicators).forEach((k) => delete refs.indicators[k]);
@@ -391,6 +443,9 @@ export default function TradingChart({
     const c = chartRef.current;
     const main = mainRef.current;
     if (!c || !main || candles.length === 0) return;
+    const ts = c.timeScale();
+    const view = ts.getVisibleLogicalRange();
+    const prevFirst = firstShown.current;
     if (type === "line") {
       sync(main as ISeriesApi<"Line">, candles.map((k) => ({ time: at(k.t), value: k.c })), dataKey, syncKeys.current);
     } else {
@@ -400,8 +455,13 @@ export default function TradingChart({
     // New timeframe: show the latest bars at a readable zoom, like MetaTrader
     if (shownTf.current !== tf) {
       shownTf.current = tf;
-      c.timeScale().setVisibleLogicalRange({ from: candles.length - VISIBLE_BARS, to: candles.length + 4 });
+      ts.setVisibleLogicalRange({ from: candles.length - VISIBLE_BARS, to: candles.length + 4 });
+    } else if (view && prevFirst !== null && candles[0].t < prevFirst) {
+      // Older candles were added at the start: move the view along so the chart doesn't jump
+      const added = candles.findIndex((k) => k.t >= prevFirst);
+      if (added > 0) ts.setVisibleLogicalRange({ from: view.from + added, to: view.to + added });
     }
+    firstShown.current = candles[0].t;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `at` only depends on offset, part of dataKey
   }, [candles, dataKey, mainVersion, type, tf]);
 
@@ -824,6 +884,7 @@ export default function TradingChart({
           </p>
         )}
         {hint && <p className="tc-hint">{hint}</p>}
+        {loadingOlder && <p className="tc-older">Loading older candles…</p>}
         {(!raw || gap === null) && <p className="tc-status">{error ?? `Loading ${tf} candles…`}</p>}
       </div>
     </div>
