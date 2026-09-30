@@ -1,7 +1,7 @@
 """Free XAUUSD (spot gold) prices, no account or API key.
 
 - Live bid/ask: real XAUUSD spot quotes from Swissquote's public price feed.
-- Candles: PAXG/USDT candles from Binance (PAX Gold, a token backed 1:1 by physical gold), shifted by
+- Candles: PAXG candles from Binance, OKX or Kraken (PAX Gold, a token backed 1:1 by physical gold), shifted by
   the measured PAXG-vs-spot gap (usually $5-10) so they line up with the XAUUSD price.
 
 Same functions as mt5_data. If Swissquote can't be reached, the adjusted PAXG price is used instead.
@@ -16,12 +16,13 @@ import config
 
 SPOT_URL = "https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD"
 SPOT_MIN_INTERVAL = 1.0      # seconds between spot requests (be polite to a public feed)
-GAP_MIN_INTERVAL = 10.0      # seconds between PAXG-vs-spot gap measurements
+GAP_MIN_INTERVAL = 60.0      # seconds between PAXG-vs-spot gap measurements (it drifts slowly)
 GAP_SMOOTHING = 0.2          # each new measurement moves the gap 20% of the way
 
 POINT = 0.01
 candle_seconds = paxg.candle_seconds
 is_connected = paxg.is_connected
+market_open = paxg.market_open
 
 _lock = threading.Lock()
 _state = {"spot": None, "spot_at": 0.0, "gap": None, "gap_at": 0.0, "warned": False}
@@ -54,7 +55,10 @@ def _measure_gap(force=False):
     spot = _spot_quote()
     if spot is None:
         return
-    pbid, pask = paxg.get_tick(config.BINANCE_SYMBOL)
+    try:
+        pbid, pask = paxg.get_tick(config.BINANCE_SYMBOL)
+    except ConnectionError:
+        return  # keep the last gap; measured again later
     gap = (pbid + pask) / 2 - (spot[0] + spot[1]) / 2
     with _lock:
         old = _state["gap"]

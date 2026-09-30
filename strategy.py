@@ -192,8 +192,10 @@ class SessionBreakout:
 
     @property
     def summary(self):
-        return (f"Trades the breakout of the first {config.ORB_RANGE_MINUTES} minutes of the London "
-                f"and New York sessions, in the direction of the daily trend. One trade per session.")
+        names = [d["name"] for d in config.ORB_SESSIONS]
+        which = " and ".join(names) + (" sessions" if len(names) > 1 else " session")
+        return (f"Trades the breakout of the first {config.ORB_RANGE_MINUTES} minutes of the {which}, "
+                f"in the direction of the daily trend. One trade per session.")
 
     def prepare(self, df, daily=None):
         df = add_indicators(df)

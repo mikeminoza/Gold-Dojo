@@ -57,6 +57,9 @@ def single_instance():
     return lock
 HISTORY_LIMIT = 50
 DAILY_REFRESH_SECONDS = 600
+CANDLE_SETTLE_SECONDS = 5     # wait this long after a candle closes before asking for it
+CANDLE_RETRY_SECONDS = 10     # ask again this often if the new candle isn't there yet
+CANDLE_GIVE_UP_SECONDS = 300  # after this, wait for the next candle (e.g. a quiet market)
 
 
 def fmt(price):
@@ -264,11 +267,48 @@ class Bot:
         self.cloud.publish(state)    # Supabase -> the website
 
     # --- main loop ---------------------------------------------------------
+    def start(self):
+        """Connect and load the first candles, retrying (not exiting) while price sources refuse."""
+        wait = 5
+        while True:
+            try:
+                self.feed.connect()
+                self.symbol = self.feed.resolve_symbol(config.SYMBOL)
+                self.df = self.prepared()
+                return
+            except Exception as e:
+                print(f"{datetime.now():%H:%M:%S} can't get prices yet ({e}); retrying in {wait}s")
+            # Still alive, just waiting: keep the health page green so the host doesn't restart us
+            # into the same refusal
+            if self.health:
+                self.health.touch(waiting_for_prices=True)
+            time.sleep(wait)
+            wait = min(wait * 2, 60)
+
+    def new_candle_due(self, now):
+        """Clock-based check (free feeds): only ask for candles just after a candle should have closed,
+        instead of polling the exchange twice a second. Returns True when it's time to look."""
+        if not hasattr(self.feed, "market_open"):
+            return True  # MT5 / demo: asking is local and cheap
+        step = self.feed.candle_seconds(config.TIMEFRAME)
+        boundary = int(now // step) * step
+        if boundary <= self.checked_boundary or now - boundary < CANDLE_SETTLE_SECONDS:
+            return False
+        closed_bar = pd.Timestamp(boundary - step, unit="s", tz="UTC")
+        if closed_bar <= self.last_bar_time or not self.feed.market_open(closed_bar):
+            self.checked_boundary = boundary  # nothing new can exist (e.g. weekend)
+            return False
+        if now - boundary > CANDLE_GIVE_UP_SECONDS:
+            self.checked_boundary = boundary
+            return False
+        return now >= self.next_candle_check
+
     def run(self):
-        self.feed.connect()
-        self.symbol = self.feed.resolve_symbol(config.SYMBOL)
-        self.df = self.prepared()
+        self.start()
         self.last_bar_time = self.df["time"].iat[-1]  # don't alert on a stale candle at startup
+        self.checked_boundary = 0
+        self.next_candle_check = 0.0
+        errors = 0
         # Make sure everything already recorded is in the journal (Supabase ignores duplicates)
         self.cloud.journal([{**e, "symbol": e.get("symbol", self.symbol)} for e in reversed(self.history)])
         poll = 0.5 if self.demo else config.POLL_SECONDS
@@ -285,19 +325,31 @@ class Bot:
                         bid, ask = tick
                         if self.position:
                             self.check_sl_tp(bid, ask)
-                        bar_time = self.feed.get_bars(self.symbol, config.TIMEFRAME, 2)["time"].iat[-1]
-                        if bar_time != self.last_bar_time:
-                            self.last_bar_time = bar_time
-                            self.on_candle_close()
+                        now = time.time()
+                        if self.new_candle_due(now):
+                            bar_time = self.feed.get_bars(self.symbol, config.TIMEFRAME, 2)["time"].iat[-1]
+                            if bar_time != self.last_bar_time:
+                                self.last_bar_time = bar_time
+                                self.checked_boundary = int(now // self.feed.candle_seconds(config.TIMEFRAME)) \
+                                    * self.feed.candle_seconds(config.TIMEFRAME)
+                                self.on_candle_close()
+                            else:  # the source hasn't published the new candle yet
+                                self.next_candle_check = now + CANDLE_RETRY_SECONDS
                         self.save()
                         self.publish(bid, ask)
-                except Exception as e:  # keep running through temporary MT5/network hiccups
+                    errors = 0
+                except Exception as e:  # keep running through temporary network hiccups / refusals
+                    errors += 1
                     print(f"{datetime.now():%H:%M:%S} error: {e}")
-                    if not self.feed.is_connected():
-                        self.feed.connect()
+                    try:
+                        if not self.feed.is_connected():
+                            self.feed.connect()
+                    except Exception as e2:
+                        print(f"{datetime.now():%H:%M:%S} reconnect failed: {e2}")
                 if self.health:
-                    self.health.touch(symbol=self.symbol, position=bool(self.position))
-                time.sleep(poll)
+                    self.health.touch(symbol=self.symbol, position=bool(self.position), waiting_for_prices=errors > 0)
+                # back off while things fail: 1s, 2s, 4s ... up to 30s
+                time.sleep(poll if errors == 0 else min(2 ** (errors - 1), 30))
         except KeyboardInterrupt:
             print("Stopped.")
         finally:
