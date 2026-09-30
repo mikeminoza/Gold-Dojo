@@ -1,0 +1,21 @@
+# Render Blueprint: runs the Golden Skibidi bot 24/7 on Render's free plan.
+# Render -> New -> Blueprint -> pick this GitHub repo. See docs/render-deploy.md.
+services:
+  - type: web                       # free plan only runs web services; the bot serves /health
+    name: golden-skibidi-bot
+    runtime: python
+    region: singapore               # close to the Philippines; Binance's price data works there
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -u bot.py
+    healthCheckPath: /health        # answers 503 if the bot's price loop stalls -> Render restarts it
+    autoDeploy: true                # every push to GitHub restarts the bot with the new code
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: TZ
+        value: Asia/Manila
+      - key: SUPABASE_URL
+        sync: false                 # you type these in Render's dashboard; never committed
+      - key: SUPABASE_SECRET_KEY
+        sync: false

@@ -21,6 +21,7 @@ load_dotenv()
 
 import cloud_state
 import config
+import health
 import live_state
 import news
 import sessions
@@ -79,28 +80,40 @@ class Bot:
         self.cloud = cloud_state.CloudPublisher(enabled=not demo)
         self.last_bar_time = None
         self.position, self.history = self.load()
+        self.health = None  # set by main() when running as a web service
 
     # --- persistence -------------------------------------------------------
     def load(self):
         if self.demo:
             return None, []
+        data = None
         try:
             data = json.loads(STATE_FILE.read_text())
         except (FileNotFoundError, json.JSONDecodeError):
+            pass
+        if data is None:
+            # Nothing saved on this machine (e.g. a fresh start on Render): use the copy in Supabase
+            data = self.cloud.load_memory()
+            if data:
+                print("Restored the bot's memory (open trade, sessions traded) from Supabase")
+        if not data:
             return None, []
-        if data and "side" in data:  # older state.json held only the position
+        if "side" in data:  # older state.json held only the position
             return data, []
         data = data or {}
         self.strat.state.update(data.get("strategy_state", {}).get(self.strategy_name, {}))
         return data.get("position"), data.get("history", [])
 
     def save(self):
-        if not self.demo:
-            STATE_FILE.write_text(json.dumps({
-                "position": self.position,
-                "history": self.history,
-                "strategy_state": {self.strategy_name: self.strat.state},
-            }))
+        if self.demo:
+            return
+        memory = {
+            "position": self.position,
+            "history": self.history,
+            "strategy_state": {self.strategy_name: self.strat.state},
+        }
+        STATE_FILE.write_text(json.dumps(memory, default=live_state._plain))
+        self.cloud.remember(memory)  # a copy in Supabase survives restarts on hosts that wipe their disk
 
     # --- data --------------------------------------------------------------
     def daily_bars(self):
@@ -282,6 +295,8 @@ class Bot:
                     print(f"{datetime.now():%H:%M:%S} error: {e}")
                     if not self.feed.is_connected():
                         self.feed.connect()
+                if self.health:
+                    self.health.touch(symbol=self.symbol, position=bool(self.position))
                 time.sleep(poll)
         except KeyboardInterrupt:
             print("Stopped.")
@@ -309,7 +324,11 @@ def main():
         import binance_feed as feed
     else:
         import xauusd_feed as feed
-    Bot(feed, args.demo, args.strategy).run()
+    bot = Bot(feed, args.demo, args.strategy)
+    if os.getenv("PORT"):  # hosted as a web service (Render): answer health checks and pings
+        bot.health = health.Health()
+        bot.health.serve(int(os.environ["PORT"]))
+    bot.run()
 
 
 if __name__ == "__main__":

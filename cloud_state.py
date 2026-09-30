@@ -21,6 +21,7 @@ from live_state import _plain
 HEARTBEAT_SECONDS = 15
 RETRY_SECONDS = 5
 ROW_ID = "live"
+MEMORY_ROW = "memory"  # the bot's own memory (open trade, sessions traded), for restarts
 
 # Fields that change every tick; they don't count as "something changed"
 VOLATILE = ("bid", "ask", "updated")
@@ -48,6 +49,8 @@ class CloudPublisher:
         self._sent_at = 0.0
         self._failing = False
         self._journal = []  # signal rows waiting to be saved
+        self._memory = None  # latest bot memory to save
+        self._memory_sig = None
         if self.enabled:
             threading.Thread(target=self._run, name="cloud", daemon=True).start()
 
@@ -87,6 +90,44 @@ class CloudPublisher:
             self._failing = True
             self._stop.wait(RETRY_SECONDS)
 
+    def remember(self, memory):
+        """Keep a copy of the bot's memory in Supabase (sent only when it changes)."""
+        if not self.enabled:
+            return
+        with self._lock:
+            self._memory = memory
+        self._wake.set()
+
+    def load_memory(self):
+        """The memory saved by an earlier run, or None."""
+        if not self.enabled:
+            return None
+        try:
+            r = requests.get(f"{self.url}/rest/v1/bot_state", params={"id": f"eq.{MEMORY_ROW}", "select": "data"},
+                             headers=self._headers(), timeout=10)
+            rows = r.json() if r.ok else []
+            return rows[0]["data"] if rows else None
+        except (requests.RequestException, ValueError, KeyError, IndexError) as e:
+            print(f"Supabase: couldn't load the saved memory ({e}); starting fresh")
+            return None
+
+    def _send_memory(self):
+        with self._lock:
+            memory = self._memory
+        if memory is None:
+            return
+        sig = json.dumps(memory, sort_keys=True, default=_plain)
+        if sig == self._memory_sig:
+            return
+        body = {"id": MEMORY_ROW, "data": memory, "updated_at": datetime.now(timezone.utc).isoformat()}
+        try:
+            r = requests.post(f"{self.url}/rest/v1/bot_state", headers=self._headers(),
+                              data=json.dumps(body, default=_plain), timeout=10)
+            if r.status_code < 300:
+                self._memory_sig = sig
+        except requests.RequestException:
+            pass  # tried again on the next pass
+
     def stop(self):
         self._stop.set()
         self._wake.set()
@@ -111,6 +152,7 @@ class CloudPublisher:
             self._wake.wait(1.0)
             self._wake.clear()
             self._send_journal()
+            self._send_memory()
             with self._lock:
                 state = self._latest
             if state is None:

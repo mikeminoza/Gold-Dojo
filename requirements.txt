@@ -1,4 +1,4 @@
-MetaTrader5>=5.0.45
+MetaTrader5>=5.0.45; sys_platform == "win32"  # Windows only; not needed for the free price feeds
 pandas>=2.2
 numpy>=1.26
 requests>=2.31
