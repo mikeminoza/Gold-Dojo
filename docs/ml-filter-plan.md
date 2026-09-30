@@ -7,7 +7,9 @@ past and use how *they* turned out to decide whether to take this one. The bot l
 **Not the goal.** Predicting prices, or changing the strategy's rules. The rules still find the
 signal; the filter only decides *take* or *skip*.
 
-**Status:** not started. Everything below is designed to fit the current code (`strategy.py`,
+**Status:** phases 1 and 2 done (Oct 2026). **Verdict: no-go** - the k-NN filter made results worse
+than taking every signal; keep it off. Phases 3-4 are not started. See "Phase 2 results" below.
+Everything below is designed to fit the current code (`strategy.py`,
 `backtest.py`, `binance_feed.py`, `bot.py`, `cloud_state.py`, `web/`).
 
 ---
@@ -95,12 +97,15 @@ fake-good.
 
 | | All signals (current bot) | Filtered signals |
 |---|---|---|
-| Trades | | |
-| Win rate | | |
-| Profit factor | | |
-| Result on $500 (`sizing.lot_size`, as the live bot) | | |
-| Worst drop | | |
-| Share of blocks where filtered beat unfiltered | | |
+| Trades | 376 | 40 |
+| Win rate | 43.4% | 40.0% |
+| Profit factor | 1.14 | 0.67 |
+| Result on $500 (`sizing.lot_size`, as the live bot) | +$156.64 | -$62.03 |
+| Worst drop | -38.9% | -17.8% (random 40 trades: -9.9% median) |
+| Share of blocks where filtered beat unfiltered | - | 53% by $ result; 29% on higher PF **and** smaller drop |
+
+*(k = 20, take if neighbour win rate >= 0.50 and avg R > 0; 17 test blocks, Jul 2022 - Sep 2026.
+Filled in from `python -m ml.evaluate --shuffles 200 --randoms 5000`, Oct 2026.)*
 
 4. **Robustness checks** (so a lucky setting doesn't sneak through):
    - Repeat with `k` = 10, 20, 40 and thresholds 0.45 / 0.50 / 0.55. The result should be similar
@@ -114,6 +119,96 @@ fake-good.
   worst drop**, in **most** blocks, across the nearby `k` / threshold values, and the label-shuffle
   test shows no improvement.
 - **No-go** otherwise: keep the filter off. That is a valid, useful result.
+
+### Phase 1 results (Oct 2026)
+
+- **History:** Binance PAXGUSDT from its listing on 28 Aug 2020 to 30 Sep 2026: 73,035 M30 candles
+  and 1,588 D1 candles (market hours only, as the live feed). 2020 is thin (median 34 trades per
+  candle vs 100-965 later), so trades are kept from **1 Jan 2021**; the indicators and the 50-day EMA
+  warm up on the 2020 data.
+- **Settings replayed** (from `config.py`): ORB, M30, New York only, 60-minute range, RR 2.0, min
+  spread $0.25. Same code path as the bot: `strategy.create("orb", 1800)`, `prepare`,
+  `backtest.run(..., 0.01, 1800)` with one fresh strategy (session state starts empty, `on_open` is
+  called by `backtest.run`, exactly as `backtest.py` does).
+- **Memory:** 509 trades, 2021-01-01 to 2026-09-30, win rate 41.5%, average R -0.045, +$22.57/oz,
+  +$7.93 on $500. Exits: 248 session end, 194 stop, 67 target. A separate `backtest.run` +
+  `backtest.summarize` on the same period gives the same 509 trades, 41.5%, PF 1.01, +$7.93, worst
+  drop -63.3% (93 trades where even 0.01 lot risked over 2%).
+- **By year** (avg R): 2021 -0.28, 2022 -0.03, 2023 -0.13, 2024 -0.17, 2025 +0.17, 2026 +0.17. The
+  strategy only made money in 2025-2026 on this data.
+- `news_day` was left out (no historical calendar yet).
+
+### Phase 2 results (Oct 2026)
+
+Walk-forward as described: memory = first 18 months (2021-01 to 2022-06), then 17 blocks of 3 months.
+Each signal's neighbours are only trades whose exit was before its signal candle, and the scaler is
+refitted on those past trades for every signal.
+
+**Robustness grid** (filtered results; all signals = 376 trades, PF 1.14, +$156.64, drop -38.9%):
+
+| k | threshold | taken | win % | PF | result on $500 | worst drop | blocks $ beat | blocks PF & drop beat |
+|---|---|---|---|---|---|---|---|---|
+| 10 | 0.45 | 84 | 35.7 | 0.70 | -$110.49 | -23.8% | 41% | 18% |
+| 10 | 0.50 | 62 | 37.1 | 0.77 | -$59.81 | -17.6% | 47% | 29% |
+| 10 | 0.55 | 43 | 30.2 | 0.78 | -$43.08 | -19.5% | 53% | 18% |
+| 20 | 0.45 | 72 | 37.5 | 0.69 | -$104.69 | -27.5% | 53% | 35% |
+| 20 | 0.50 | 40 | 40.0 | 0.67 | -$62.03 | -17.8% | 53% | 29% |
+| 20 | 0.55 | 12 | 58.3 | 1.68 | +$27.70 | -7.6% | 59% | 29% |
+| 40 | 0.45 | 34 | 38.2 | 0.83 | -$38.82 | -16.9% | 59% | 12% |
+| 40 | 0.50 | 11 | 45.5 | 1.93 | +$41.36 | -5.4% | 53% | 12% |
+| 40 | 0.55 | 2 | 50.0 | 3.61 | +$20.24 | -1.6% | 53% | 6% |
+
+7 of 9 settings have a *lower* profit factor than taking everything. The two with a higher PF keep
+only 11-12 trades in 4 years (too few to mean anything) and still make far less money than all
+signals. The "blocks $ beat" share is flattered by blocks where all signals lost and the filter
+took ~0 trades.
+
+**Label shuffle** (200 runs, outcomes shuffled across trades, k = 20 / 0.50): shuffled filters
+averaged PF 1.21 and +$38.36; 94% of shuffles had a PF at least as good as the real filter. The real
+filter is *worse* than one fed random labels - no leak, but no signal either.
+
+**Random skip of the same count** (keep 40 of 376 at random, 5,000 runs): random median PF 1.12,
++$13.77, drop -9.9%. The real filter sits at the 12th percentile for PF, 8th for result and 9th for
+worst drop - i.e. worse than skipping at random. Its smaller drop than "all signals" comes only
+from taking fewer trades.
+
+**Logistic regression** (for comparison; refit at each block start on trades closed before it):
+
+| rule | taken | win % | PF | result | worst drop | vs random skip (PF pct) | shuffled labels with PF >= real |
+|---|---|---|---|---|---|---|---|
+| p(win) >= 0.50 | 69 | 47.8 | 1.50 | +$83.85 | -12.1% | 82nd | 20% |
+| p(win) >= 0.45 | 123 | 45.5 | 1.26 | +$74.21 | -14.8% | 69th | 16% |
+| p(win) >= past win rate | 214 | 45.8 | 1.37 | +$203.70 | -19.0% | 94th | 6% |
+
+Coefficients (standardised, fitted on all 509 trades, for reading only; + = more likely to win):
+trend_strength +0.19, candle_body -0.18, atr_pct -0.17, atr_change +0.15, side (BUY) +0.15,
+break_atr +0.13, rsi -0.08, weekday_cos +0.06, minutes_in +0.05, weekday_sin -0.03, range_atr 0.00.
+Read: stronger daily trend, more decisive breaks, rising-but-not-high volatility and smaller signal
+candle bodies did a bit better; BUYs beat SELLs (a gold bull market, 2024-2026).
+
+The logistic regression looks better than k-NN, but it is **not** a go on its own: three thresholds
+were tried and only one clears the random-skip / shuffle bars (94th pct, 6%), the block-by-block win
+(higher PF *and* smaller drop) is only 35-59%, and "BUY beats SELL" and
+"strong trend wins" are probably the 2024-2026 gold rally rather than a stable edge. Worth a
+separate, pre-registered test (fix the rule now, judge it only on the next 6-12 months of live /
+new data) before any live use.
+
+### Verdict: **no-go** (keep `ML_FILTER` off; don't start phase 3)
+
+Against the criteria above:
+- Higher profit factor: **no** (0.67 vs 1.14 at the chosen setting; lower in 7 of 9 grid settings).
+- Smaller worst drop: only because it takes 1 in 9 trades; vs random skipping the same number its
+  drop is worse (9th percentile).
+- In most blocks: **no** - higher PF and smaller drop in 29% of blocks (6-35% across the grid).
+- Across nearby k / thresholds: **no** consistent improvement.
+- Label shuffle shows no improvement: satisfied in the sense that nothing leaks, but the real filter
+  is worse than the shuffled ones, so there is no information to keep.
+
+Likely reasons: ~370 test trades with 11 features is thin for nearest neighbours, the strategy's
+own edge is small (PF ~1.0-1.1 over the whole period) and flips by regime (losing 2021-2024,
+winning 2025-2026), so "similar past trades" mostly come from a different regime than the trade
+being judged. Re-run `python -m ml.build_memory --refetch && python -m ml.evaluate` after more live
+history (or on MT5 broker data) before revisiting.
 
 ---
 
@@ -205,7 +300,7 @@ the filter can never learn that it's skipping good trades.
 | `supabase/signals.sql` | 3 | `features`, `similar`, `skip` type |
 | `web/app/components/Dashboard.tsx` | 3 | "Similar past trades" line, skipped signals |
 | `ml/refresh.py` + Task Scheduler entry | 4 | Monthly update and report |
-| `requirements.txt` | 1 | add `scikit-learn`, `pyarrow` (for parquet) |
+| `requirements-ml.txt` | 1 | `scikit-learn`, `pyarrow` (for parquet); kept out of `requirements.txt` so the live bot stays light |
 | `.gitignore` | 1 | add `data/` (big, regenerable files) |
 
 ---
@@ -225,8 +320,9 @@ the filter can never learn that it's skipping good trades.
 
 ## Checklist
 
-- [ ] Phase 1: memory built, summary matches `backtest.py`
-- [ ] Phase 2: walk-forward table filled in above, robustness checks done, go / no-go decided
+- [x] Phase 1: memory built, summary matches `backtest.py` (509 trades, 2021-2026)
+- [x] Phase 2: walk-forward table filled in above, robustness checks done, go / no-go decided
+      (**no-go**)
 - [ ] Phase 3 (if go): `ML_FILTER` code, journal columns, website line, tested with the filter off
       and on
 - [ ] Phase 4: monthly refresh scheduled, virtual tracking of skipped signals, first report written

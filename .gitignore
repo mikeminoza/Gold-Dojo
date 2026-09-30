@@ -19,3 +19,6 @@ logs/
 bot.lock
 bot.pid
 news_cache.json
+
+# research data (big, regenerable: python -m ml.build_memory)
+data/

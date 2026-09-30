@@ -8,7 +8,10 @@ import { useBotState } from "../lib/useBotState";
 import { useLivePrice, type LivePrice } from "../lib/useLivePrice";
 import { useChat, type ChatMessage } from "../lib/useChat";
 import { journalCsv, useJournal, type JournalEntry } from "../lib/useJournal";
+import { sizeEvents, sizePosition, useMyAccount } from "../lib/account";
+import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
+import Performance from "./Performance";
 
 const TradingChart = dynamic(() => import("./TradingChart"), { ssr: false });
 
@@ -16,6 +19,9 @@ const TradingChart = dynamic(() => import("./TradingChart"), { ssr: false });
 // worrying, and call it offline only after a restart would normally have finished (1-2 min).
 const LATE_AFTER_S = 60;
 const OFFLINE_AFTER_S = 180;
+
+// config.py's account settings, used until the bot's first update arrives
+const DEFAULT_RULES: LiveState["account"] = { balance: 500, risk_percent: 1, max_risk_percent: 2, oz_per_lot: 100, min_lot: 0.01 };
 
 const price = (n: number) => n.toFixed(2);
 const signed = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
@@ -517,6 +523,7 @@ function fromJournal(e: JournalEntry, account: LiveState["account"]): SignalEven
     lots: e.lots,
     reason: e.reason ?? undefined,
     session: e.session ?? undefined,
+    trade_id: e.trade_id,
     size:
       e.type === "open" && e.lots != null
         ? {
@@ -535,11 +542,23 @@ function fromJournal(e: JournalEntry, account: LiveState["account"]): SignalEven
  * Every signal ever recorded (the journal in Supabase), with results for a chosen period and a CSV
  * download. Falls back to the bot's recent history until the journal table exists.
  */
-function Journal({ state, t, now }: { state: LiveState; t: TimeFormat; now: number }) {
-  const journal = useJournal();
+function Journal({
+  journal,
+  all,
+  balance,
+  state,
+  t,
+  now,
+}: {
+  journal: ReturnType<typeof useJournal>;
+  all: SignalEvent[]; // every signal, sized for the visitor's account
+  balance: number;
+  state: LiveState;
+  t: TimeFormat;
+  now: number;
+}) {
   const [period, setPeriod] = useState<Period>("all");
   const usingJournal = journal.available && journal.entries.length > 0;
-  const all = usingJournal ? journal.entries.map((e) => fromJournal(e, state.account)) : state.history;
   const since = periodStart(period, now, state.display.offset);
   const events = all.filter((e) => e.time >= since);
 
@@ -574,7 +593,7 @@ function Journal({ state, t, now }: { state: LiveState; t: TimeFormat; now: numb
           permanently.
         </p>
       )}
-      <Results events={events} balance={state.account.balance} />
+      <Results events={events} balance={balance} />
       <History events={events.slice(0, 50)} t={t} now={now} />
     </>
   );
@@ -626,7 +645,25 @@ export default function Dashboard() {
   const { state: botState, connected, missing, configured, seenAt } = useBotState();
   const live = useLivePrice();
   const now = useNow();
-  const state = useMemo(() => (botState ? withLivePrice(botState, live) : null), [botState, live]);
+  const rules = botState?.account ?? DEFAULT_RULES;
+  const my = useMyAccount(rules);
+  const { account } = my;
+  // The bot's state with the live price on top, and the open trade sized for this visitor's account
+  const state = useMemo(() => {
+    if (!botState) return null;
+    const s = withLivePrice(botState, live);
+    return s.position && s.account ? { ...s, position: sizePosition(s.position, account, s.account) } : s;
+  }, [botState, live, account]);
+  const journal = useJournal();
+  const signals = useMemo(() => {
+    if (!botState?.account) return [];
+    const usingJournal = journal.available && journal.entries.length > 0;
+    const all = usingJournal ? journal.entries.map((e) => fromJournal(e, botState.account)) : (botState.history ?? []);
+    return sizeEvents(all, account, botState.account);
+  }, [journal.available, journal.entries, botState, account]);
+  const [perfOpen, setPerfOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const closePerf = useCallback(() => setPerfOpen(false), []);
   const [alerts, setAlerts] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chartTf, setChartTf] = useState<string | null>(null); // the timeframe picked on the chart
@@ -788,6 +825,12 @@ export default function Dashboard() {
           <i aria-hidden />
           {status.text}
         </div>
+        <button type="button" className="theme-toggle" aria-haspopup="dialog" onClick={() => setPerfOpen(true)}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+            <path d="M2 13.5h12M3 11l3.5-4 3 2.5L14 3.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Performance
+        </button>
         <button type="button" className="alert-toggle" aria-pressed={alerts} onClick={toggleAlerts}>
           {alerts ? "Sound alerts on" : "Turn on sound alerts"}
         </button>
@@ -863,11 +906,21 @@ export default function Dashboard() {
             <SessionSchedule state={state} now={now} t={t} />
             <div className="risk-stat">
               <span>Risk per trade</span>
-              <strong>{usd((state.account.balance * state.account.risk_percent) / 100)}</strong>
+              <strong>{usd((account.balance * account.risk_percent) / 100)}</strong>
               <span>
-                {state.account.risk_percent}% of {usd(state.account.balance).replace(".00", "")}
+                {account.risk_percent}% of {my.custom ? "your " : ""}
+                {usd(account.balance).replace(".00", "")}
               </span>
+              <button
+                type="button"
+                className="link-button"
+                aria-expanded={accountOpen}
+                onClick={() => setAccountOpen((v) => !v)}
+              >
+                {my.custom ? "Change" : "Use your own account"}
+              </button>
             </div>
+            {accountOpen && <AccountForm my={my} rules={state.account} onDone={() => setAccountOpen(false)} />}
           </section>
 
           <section className="side-block">
@@ -878,7 +931,7 @@ export default function Dashboard() {
             <h2>
               Signals <span className="tz-note">{state.display.label}</span>
             </h2>
-            <Journal state={state} t={t} now={now} />
+            <Journal journal={journal} all={signals} balance={account.balance} state={state} t={t} now={now} />
           </section>
 
           <section className="side-block">
@@ -921,6 +974,9 @@ export default function Dashboard() {
         </aside>
       </div>
 
+      {perfOpen && (
+        <Performance events={signals} my={my} rules={state.account} tz={state.display.tz} onClose={closePerf} />
+      )}
       {chatOpen && <ChatPanel chat={chat} onClose={() => setChatOpen(false)} stamp={t.stamp} now={now} />}
       {toast && !(chatOpen && chat.activeId === toast.roomId) && (
         <button type="button" className="chat-toast" onClick={() => openChat(toast.roomId)} key={toast.id}>

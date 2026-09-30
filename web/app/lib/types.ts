@@ -64,6 +64,31 @@ export type SignalEvent = {
   lots?: number | null;
   pnl_usd?: number | null;
   session?: string; // e.g. "New York"
+  trade_id?: string | null; // a close points at the id of the open it ends
+};
+
+/** One replayed trade from publish_backtest.py. Times are UTC seconds; pnl is $ per oz after spread. */
+export type BacktestTrade = {
+  t: number;
+  x: number;
+  side: Side;
+  entry: number;
+  sl: number;
+  tp: number;
+  exit: number;
+  pnl: number;
+  reason: string;
+};
+
+export type Backtest = {
+  generated: number;
+  strategy: { id: string; name: string; summary: string };
+  timeframe: string;
+  from: number;
+  to: number;
+  spread: number;
+  source: string;
+  trades: BacktestTrade[];
 };
 
 export type Condition = { label: string; ok: boolean };
