@@ -12,7 +12,10 @@ import ChatPanel from "./ChatPanel";
 
 const TradingChart = dynamic(() => import("./TradingChart"), { ssr: false });
 
-const STALE_AFTER_S = 45; // the bot checks in every 15 s even when nothing changes
+// The bot checks in every 15 s even when nothing changes. Allow a missed check-in or two before
+// worrying, and call it offline only after a restart would normally have finished (1-2 min).
+const LATE_AFTER_S = 60;
+const OFFLINE_AFTER_S = 180;
 
 const price = (n: number) => n.toFixed(2);
 const signed = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
@@ -620,7 +623,7 @@ function History({ events, t, now }: { events: SignalEvent[]; t: TimeFormat; now
 }
 
 export default function Dashboard() {
-  const { state: botState, connected, missing, configured } = useBotState();
+  const { state: botState, connected, missing, configured, seenAt } = useBotState();
   const live = useLivePrice();
   const now = useNow();
   const state = useMemo(() => (botState ? withLivePrice(botState, live) : null), [botState, live]);
@@ -687,14 +690,17 @@ export default function Dashboard() {
     setAlerts(!alerts);
   }
 
-  const lastSeen = botState ? now - botState.updated : 0;
+  // Seconds since this browser last received a new update from the bot (see useBotState)
+  const lastSeen = seenAt !== null ? Math.max(0, now - seenAt / 1000) : 0;
   const status = !connected
-    ? { tone: "off", text: "Connecting…" }
+    ? { tone: "wait", text: "Connecting…" }
     : missing || !botState
       ? { tone: "off", text: "Waiting for the bot" }
-      : lastSeen > STALE_AFTER_S
+      : lastSeen > OFFLINE_AFTER_S
         ? { tone: "off", text: `Bot offline, last seen ${ago(lastSeen)}` }
-        : { tone: "live", text: "Live" };
+        : lastSeen > LATE_AFTER_S
+          ? { tone: "wait", text: "Bot restarting…" }
+          : { tone: "live", text: "Live" };
 
   if (!configured) {
     return (

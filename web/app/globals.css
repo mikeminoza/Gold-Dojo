@@ -1911,3 +1911,9 @@ pre {
 .results-split td[data-tone="loss"] {
   color: var(--sell);
 }
+
+/* "Connecting..." / "Bot restarting..." - not an error yet, so amber rather than red */
+.status[data-tone="wait"] i {
+  background: var(--gold);
+  animation: pulse 1.2s ease-in-out infinite;
+}
