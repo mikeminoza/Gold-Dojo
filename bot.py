@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import backtest_refresh
 import cloud_state
 import config
 import health
@@ -81,6 +82,8 @@ class Bot:
         self.daily_at = 0.0
         # Demo signals are random, so they never go to the real website
         self.cloud = cloud_state.CloudPublisher(enabled=not demo)
+        # Keeps the website's backtest running up to the latest session (needs publish_backtest.py once)
+        self.backtest = backtest_refresh.BacktestRefresher(self.cloud, feed.candle_seconds(config.TIMEFRAME))
         self.last_bar_time = None
         self.position, self.history = self.load()
         self.health = None  # set by main() when running as a web service
@@ -127,6 +130,8 @@ class Bot:
 
     def prepared(self, include_forming=False):
         bars = self.feed.get_bars(self.symbol, config.TIMEFRAME, 600, include_forming=include_forming)
+        if not include_forming:
+            self.backtest.maybe_refresh(bars, self.daily_bars())
         return self.strat.prepare(bars, self.daily_bars())
 
     # --- signal events -----------------------------------------------------
