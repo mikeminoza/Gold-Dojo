@@ -137,6 +137,22 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
   );
 }
 
+/** The signed-in member's display name and role. */
+function useMe() {
+  const [me, setMe] = useState<{ name: string; role: "admin" | "member" } | null>(null);
+  useEffect(() => {
+    let stopped = false;
+    fetch("/api/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => !stopped && d?.name && setMe({ name: d.name, role: d.role }))
+      .catch(() => {});
+    return () => {
+      stopped = true;
+    };
+  }, []);
+  return me;
+}
+
 function useNow() {
   const [now, setNow] = useState(() => Date.now() / 1000);
   useEffect(() => {
@@ -645,6 +661,7 @@ export default function Dashboard() {
   const { state: botState, connected, missing, configured, seenAt } = useBotState();
   const live = useLivePrice();
   const now = useNow();
+  const me = useMe();
   const rules = botState?.account ?? DEFAULT_RULES;
   const my = useMyAccount(rules);
   const { account } = my;
@@ -835,7 +852,17 @@ export default function Dashboard() {
           {alerts ? "Sound alerts on" : "Turn on sound alerts"}
         </button>
         <ThemeToggle theme={theme} onToggle={toggleTheme} />
-        <form method="post" action="/api/logout">
+        {me && (
+          <a className="theme-toggle" href="/welcome" title="Change your display name">
+            {me.name}
+          </a>
+        )}
+        {me?.role === "admin" && (
+          <a className="theme-toggle" href="/admin">
+            Members
+          </a>
+        )}
+        <form method="post" action="/auth/signout">
           <button type="submit" className="theme-toggle">
             Sign out
           </button>

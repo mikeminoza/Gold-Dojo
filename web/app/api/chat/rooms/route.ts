@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { SESSION_COOKIE, signedInName } from "../../../lib/auth";
+import { currentMember } from "../../../lib/members";
 import { supabaseServer } from "../../../lib/supabaseServer";
 
 export const runtime = "nodejs";
@@ -8,7 +8,7 @@ const NAME_MAX = 40;
 
 /** POST /api/chat/rooms { name } - adds a new chat. */
 export async function POST(request: NextRequest) {
-  const createdBy = await signedInName(request.cookies.get(SESSION_COOKIE)?.value);
+  const createdBy = (await currentMember({ getAll: () => request.cookies.getAll() }))?.name;
   if (!createdBy) return Response.json({ error: "Sign in first." }, { status: 401 });
   const db = supabaseServer();
   if (!db) return Response.json({ error: "Chat isn't set up: SUPABASE_SECRET_KEY is missing." }, { status: 503 });

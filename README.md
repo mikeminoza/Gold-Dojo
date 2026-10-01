@@ -33,11 +33,13 @@ live price and chart keep working without it.
    Environment Variables:
    - `NEXT_PUBLIC_SUPABASE_URL` - the Project URL, e.g. `https://abcd.supabase.co`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - the **anon / publishable** (public) key, never the secret one
-   - `SITE_PASSWORD` - the password for the site's login screen
+   - `SUPABASE_SECRET_KEY` - the **secret** key (server-only: sign-in checks and chat)
 3. Deploy. Every push to GitHub redeploys automatically.
+4. **Sign-in:** anyone can register (Google or email + password). One-time setup in
+   `docs/sign-in-setup.md`, then run `supabase/members.sql` (with your email filled in).
 
-To run the website on this PC instead: copy `web/.env.example` to `web/.env.local`, fill in the same
-three values, then `pnpm --dir web dev` and open http://localhost:3000.
+To run the website on this PC instead: copy `web/.env.example` to `web/.env.local`, fill in the
+same values, then `pnpm --dir web dev` and open http://localhost:3000.
 
 Optional Telegram: message **@BotFather** -> `/newbot`, paste the token into `TELEGRAM_BOT_TOKEN` in `.env`,
 press **Start** on your bot, run `.venv\Scripts\python telegram_notify.py` for your chat ID and put it in

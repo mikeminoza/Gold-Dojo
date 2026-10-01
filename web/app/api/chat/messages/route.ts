@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { SESSION_COOKIE, signedInName } from "../../../lib/auth";
+import { currentMember } from "../../../lib/members";
 import { supabaseServer } from "../../../lib/supabaseServer";
 
 export const runtime = "nodejs";
@@ -8,7 +8,7 @@ const BODY_MAX = 1000;
 
 /** POST /api/chat/messages { roomId, body } - sends a message as the signed-in name. */
 export async function POST(request: NextRequest) {
-  const author = await signedInName(request.cookies.get(SESSION_COOKIE)?.value);
+  const author = (await currentMember({ getAll: () => request.cookies.getAll() }))?.name;
   if (!author) return Response.json({ error: "Sign in first." }, { status: 401 });
   const db = supabaseServer();
   if (!db) return Response.json({ error: "Chat isn't set up: SUPABASE_SECRET_KEY is missing." }, { status: 503 });
