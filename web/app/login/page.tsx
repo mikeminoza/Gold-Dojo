@@ -20,6 +20,8 @@ const ERRORS: Record<string, string> = {
 const NOTES: Record<string, string> = {
   confirm_sent: "Almost done: open the confirmation link we emailed you (check spam too), then sign in.",
   reset_sent: "If that email has an account, a reset link is on its way. Open it in this browser.",
+  exists:
+    "That email may already have an account. Sign in with Google if you used it there, or use Forgot password to set a password.",
 };
 
 type Mode = "signin" | "register" | "forgot";

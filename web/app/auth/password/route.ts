@@ -38,8 +38,10 @@ export async function POST(request: NextRequest) {
     if (password !== String(form.get("confirm") ?? "")) return redirect("/login?mode=register&error=match");
     const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: callback() } });
     if (error) return redirect(`/login?mode=register&error=${error.status === 429 ? "busy" : "register"}`);
-    // Signed in straight away when email confirmation is off; otherwise check your inbox
-    return redirect(data.session ? "/welcome" : "/login?note=confirm_sent");
+    // Signed in straight away when email confirmation is off. An email that already has an account
+    // (e.g. through Google) comes back with no identities and gets no email.
+    if (data.session) return redirect("/welcome");
+    return redirect(data.user?.identities?.length === 0 ? "/login?note=exists" : "/login?note=confirm_sent");
   }
 
   if (!validEmail || !password) return redirect("/login?error=signin");
