@@ -1,3 +1,5 @@
+import AuthShell from "../components/AuthShell";
+import SubmitButton from "../components/SubmitButton";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -22,7 +24,7 @@ export default async function Welcome({ searchParams }: PageProps<"/welcome">) {
   const message = typeof error === "string" ? ERRORS[error] : undefined;
   const first = !member.name;
   return (
-    <main className="login">
+    <AuthShell>
       <form className="login-card" method="post" action="/api/profile">
         <h1>{first ? "Welcome" : "Your name"}</h1>
         <p>
@@ -50,13 +52,13 @@ export default async function Welcome({ searchParams }: PageProps<"/welcome">) {
             {message}
           </p>
         )}
-        <button type="submit">{first ? "Continue" : "Save"}</button>
+        <SubmitButton pending="Saving…">{first ? "Continue" : "Save"}</SubmitButton>
         {!first && (
           <Link className="login-hint" href="/">
             Back to the signals
           </Link>
         )}
       </form>
-    </main>
+    </AuthShell>
   );
 }

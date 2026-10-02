@@ -1,3 +1,5 @@
+import AuthShell from "../components/AuthShell";
+import SubmitButton from "../components/SubmitButton";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PASSWORD_MIN } from "../lib/auth";
@@ -49,10 +51,10 @@ export default async function Login({ searchParams }: PageProps<"/login">) {
   const title = mode === "register" ? "Create your account" : mode === "forgot" ? "Reset your password" : "Sign in";
 
   return (
-    <main className="login">
+    <AuthShell>
       <div className="login-card">
-        <h1>Golden Skibidi</h1>
-        <p>Live XAUUSD signals and chat. {title}.</p>
+        <h1>{title}</h1>
+        <p>{mode === "register" ? "Join to see the live XAUUSD signals and chat." : mode === "forgot" ? "We'll email you a link to choose a new password." : "Welcome back. Sign in to see the live signals and chat."}</p>
         {message && (
           <p className="login-error" role="alert">
             {message}
@@ -97,9 +99,11 @@ export default async function Login({ searchParams }: PageProps<"/login">) {
               <input id="confirm" name="confirm" type="password" autoComplete="new-password" required />
             </>
           )}
-          <button type="submit">
+          <SubmitButton
+            pending={mode === "register" ? "Creating account…" : mode === "forgot" ? "Sending…" : "Signing in…"}
+          >
             {mode === "register" ? "Create account" : mode === "forgot" ? "Send reset link" : "Sign in"}
-          </button>
+          </SubmitButton>
         </form>
 
         <p className="login-links">
@@ -112,6 +116,6 @@ export default async function Login({ searchParams }: PageProps<"/login">) {
           {mode !== "signin" && <Link href="/login">Back to sign in</Link>}
         </p>
       </div>
-    </main>
+    </AuthShell>
   );
 }

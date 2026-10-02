@@ -1,3 +1,5 @@
+import AuthShell from "../components/AuthShell";
+import SubmitButton from "../components/SubmitButton";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -29,7 +31,7 @@ export default async function Profile({ searchParams }: PageProps<"/profile">) {
   const bad = typeof error === "string" ? ERRORS[error] : undefined;
 
   return (
-    <main className="login">
+    <AuthShell>
       <div className="login-card admin-card">
         <h1>Profile</h1>
         <p>
@@ -52,7 +54,7 @@ export default async function Profile({ searchParams }: PageProps<"/profile">) {
           <input type="hidden" name="from" value="profile" />
           <label htmlFor="name">Shown next to your chat messages</label>
           <input id="name" name="name" type="text" autoComplete="nickname" maxLength={NAME_MAX} defaultValue={me.name ?? ""} required />
-          <button type="submit">Save name</button>
+          <SubmitButton pending="Saving…">Save name</SubmitButton>
         </form>
 
         <form className="login-form profile-section" method="post" action="/api/account">
@@ -90,14 +92,14 @@ export default async function Profile({ searchParams }: PageProps<"/profile">) {
               />
             </label>
           </div>
-          <button type="submit">Save account</button>
+          <SubmitButton pending="Saving…">Save account</SubmitButton>
         </form>
         {me.account && (
           <form method="post" action="/api/account">
             <input type="hidden" name="action" value="reset" />
-            <button type="submit" className="link-button">
+            <SubmitButton className="link-button" pending="Switching…">
               Use the bot&apos;s default account instead
-            </button>
+            </SubmitButton>
           </form>
         )}
 
@@ -106,6 +108,6 @@ export default async function Profile({ searchParams }: PageProps<"/profile">) {
           <Link href="/how">How it works</Link>
         </p>
       </div>
-    </main>
+    </AuthShell>
   );
 }

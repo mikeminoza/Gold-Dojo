@@ -2469,7 +2469,7 @@ a.login-hint {
 /* Long pages (profile, members, how it works) scroll inside themselves on desktop,
    where the page body doesn't scroll */
 @media (min-width: 1100px) {
-  .login,
+  .auth,
   .how {
     height: 100dvh;
     overflow-y: auto;
@@ -2741,18 +2741,6 @@ a.login-hint {
 
 /* ---- responsive: header menu, results, signal list -------------------- */
 
-.topbar-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.topbar-menu-toggle {
-  display: none;
-}
-
 /* Results numbers: as many per row as fit, never squashed labels */
 .results dl {
   display: grid;
@@ -2767,35 +2755,6 @@ a.login-hint {
 
 .results-net {
   width: 100%;
-}
-
-@media (max-width: 1099px) {
-  /* Phones and tablets: the header's links fold into a Menu button */
-  .topbar-menu-toggle {
-    display: flex;
-    margin-left: auto;
-  }
-
-  .topbar-actions {
-    display: none;
-    flex-basis: 100%;
-    margin-left: 0;
-  }
-
-  .topbar-actions[data-open="true"] {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    padding: 10px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--panel);
-  }
-
-  .topbar-actions > *,
-  .topbar-actions form button {
-    justify-content: center;
-    width: 100%;
-  }
 }
 
 @media (max-width: 520px) {
@@ -2954,4 +2913,292 @@ a.login-hint {
 .tool-grid label span {
   color: var(--muted);
   font-weight: 400;
+}
+
+/* ---- sign-in and account pages: same frame as the terminal ------------ */
+
+.auth {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 0 var(--gutter);
+  /* a soft gold glow and the chart's grid, like the trading screen */
+  background:
+    radial-gradient(900px 480px at 50% -8%, color-mix(in srgb, var(--gold) 14%, transparent), transparent 70%),
+    linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 48px 48px,
+    var(--bg);
+}
+
+.auth-top {
+  display: flex;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.auth-top .instrument {
+  text-decoration: none;
+}
+
+.auth .login {
+  min-height: 0;
+  padding: 32px 0;
+}
+
+.auth .login-card {
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--gold);
+  background: color-mix(in srgb, var(--gold) 3%, var(--panel));
+}
+
+.auth .login-card h1 {
+  color: var(--text);
+  font-size: 26px;
+}
+
+.auth-foot {
+  padding: 14px 0 18px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ---- avatar and profile menu ------------------------------------------ */
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  background: hsl(var(--avatar-hue, 40) 45% 42%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.profile-menu {
+  position: relative;
+}
+
+.profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.profile-trigger[aria-expanded="true"] {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.profile-panel {
+  position: absolute;
+  z-index: 35;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  gap: 4px;
+  width: min(280px, calc(100vw - 32px));
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 16px 40px var(--shadow);
+  animation: menu-in 0.14s ease-out;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.profile-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-who > div {
+  display: grid;
+  min-width: 0;
+}
+
+.profile-who span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-who em {
+  justify-self: start;
+  margin-top: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gold) 18%, transparent);
+  color: var(--gold);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.profile-panel nav,
+.profile-settings {
+  display: grid;
+  padding: 4px 0;
+}
+
+.profile-settings {
+  border-top: 1px solid var(--line);
+}
+
+.profile-panel nav a,
+.profile-settings button,
+.profile-signout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.profile-settings button span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.profile-settings button[aria-checked="true"] span {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.profile-panel form {
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.profile-signout {
+  justify-content: flex-start;
+  color: var(--sell);
+}
+
+/* On phones the Performance button shows just its icon */
+@media (max-width: 520px) {
+  .perf-open span {
+    display: none;
+  }
+}
+
+/* ---- button states: the same everywhere ------------------------------- */
+
+.btn-spinner {
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  margin-right: 0.45em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.12em;
+  animation: btn-spin 0.7s linear infinite;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+button,
+.theme-toggle,
+.google-button {
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    opacity 0.15s,
+    transform 0.08s;
+}
+
+/* Hover: lighter outline or a touch brighter fill */
+.profile-panel nav a:hover,
+.profile-settings button:hover,
+.profile-signout:hover {
+  background: var(--inset);
+}
+
+.login-card button:not(.link-button):not(.admin-remove):hover,
+.account-save:hover:not(:disabled),
+.tool-row button:hover:not(:disabled),
+.tc-replay button:hover,
+.journal-periods button[aria-pressed="true"]:hover {
+  filter: brightness(1.08);
+}
+
+.journal-periods button:hover:not([aria-pressed="true"]),
+.profile-trigger:hover {
+  color: var(--text);
+}
+
+/* Pressed */
+button:active:not(:disabled):not([aria-disabled="true"]),
+.theme-toggle:active,
+.google-button:active {
+  transform: scale(0.97);
+}
+
+/* Keyboard focus: one gold ring */
+button:focus-visible,
+a.theme-toggle:focus-visible,
+.profile-panel nav a:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* Disabled and busy */
+button:disabled,
+button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button[data-busy] {
+  opacity: 0.85;
+  cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-spinner {
+    animation-duration: 2s;
+  }
+
+  button:active:not(:disabled),
+  .theme-toggle:active {
+    transform: none;
+  }
 }

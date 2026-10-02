@@ -13,6 +13,7 @@ import { adoptProfileAccount, sizeEvents, sizePosition, useMyAccount } from "../
 import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
 import Performance from "./Performance";
+import ProfileMenu, { type Me } from "./ProfileMenu";
 import { LotCalculator, PriceAlerts, useAlertWatcher, usePriceAlerts, type PriceAlert } from "./Tools";
 
 const TradingChart = dynamic(() => import("./TradingChart"), { ssr: false });
@@ -120,35 +121,16 @@ function useTheme() {
   return { theme, toggle };
 }
 
-function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
-  const toLight = theme === "dark";
-  return (
-    <button type="button" className="theme-toggle" onClick={onToggle} aria-label={`Switch to ${toLight ? "light" : "dark"} theme`}>
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-        {toLight ? (
-          <>
-            <circle cx="8" cy="8" r="3" />
-            <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6L13 13M3 13l1.4-1.4M11.6 4.4L13 3" />
-          </>
-        ) : (
-          <path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z" />
-        )}
-      </svg>
-      {toLight ? "Light" : "Dark"}
-    </button>
-  );
-}
-
 /** The signed-in member's display name and role; also applies the account size saved on their profile. */
 function useMe() {
-  const [me, setMe] = useState<{ name: string; role: "admin" | "member" } | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
   useEffect(() => {
     let stopped = false;
     fetch("/api/me")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (stopped || !d?.name) return;
-        setMe({ name: d.name, role: d.role });
+        setMe({ name: d.name, role: d.role, email: d.email, avatar: d.avatar });
         adoptProfileAccount(d.account ?? null);
       })
       .catch(() => {});
@@ -706,7 +688,13 @@ function TradeActions({
   children?: React.ReactNode;
 }) {
   const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
   const took = tradeId ? myTrades.taken.get(tradeId) : undefined;
+  const mark = (lotsOrNull: number | null) => {
+    if (!tradeId || saving) return;
+    setSaving(true);
+    void myTrades.mark(tradeId, lotsOrNull).finally(() => setSaving(false));
+  };
   const copy = () => {
     const text = [
       `${side} ${symbol}${lots ? ` ${lots.toFixed(2)} lot` : ""}`,
@@ -730,12 +718,13 @@ function TradeActions({
       {tradeId &&
         myTrades.available &&
         (took ? (
-          <button type="button" aria-pressed="true" onClick={() => void myTrades.mark(tradeId, null)} title="Undo">
-            ✓ You took this ({took.toFixed(2)} lot)
+          <button type="button" aria-pressed="true" data-busy={saving || undefined} onClick={() => mark(null)} title="Undo">
+            {saving && <span className="btn-spinner" aria-hidden />}✓ You took this ({took.toFixed(2)} lot)
           </button>
         ) : (
-          <button type="button" onClick={() => void myTrades.mark(tradeId, lots ?? 0.01)}>
-            I took this trade
+          <button type="button" data-busy={saving || undefined} onClick={() => mark(lots ?? 0.01)}>
+            {saving && <span className="btn-spinner" aria-hidden />}
+            {saving ? "Saving…" : "I took this trade"}
           </button>
         ))}
       {children}
@@ -852,7 +841,6 @@ export default function Dashboard() {
     return sizeEvents(all, account, botState.account);
   }, [journal.available, journal.entries, botState, account]);
   const [perfOpen, setPerfOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false); // the header's menu on phones and tablets
   const [accountOpen, setAccountOpen] = useState(false);
   const closePerf = useCallback(() => setPerfOpen(false), []);
   const [replay, setReplay] = useState<{ open: SignalEvent; close?: SignalEvent; label: string } | null>(null);
@@ -1040,48 +1028,13 @@ export default function Dashboard() {
           <i aria-hidden />
           {status.text}
         </div>
-        <button
-          type="button"
-          className="theme-toggle topbar-menu-toggle"
-          aria-expanded={menuOpen}
-          aria-controls="topbar-actions"
-          onClick={() => setMenuOpen((v) => !v)}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-            {menuOpen ? <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" /> : <path d="M2.5 4h11M2.5 8h11M2.5 12h11" strokeLinecap="round" />}
-          </svg>
-          Menu
-        </button>
-        <nav id="topbar-actions" className="topbar-actions" data-open={menuOpen} aria-label="Site">
-        <a className="theme-toggle" href="/how">
-          How it works
-        </a>
-        <button type="button" className="theme-toggle" aria-haspopup="dialog" onClick={() => setPerfOpen(true)}>
+        <button type="button" className="theme-toggle perf-open" aria-haspopup="dialog" onClick={() => setPerfOpen(true)}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
             <path d="M2 13.5h12M3 11l3.5-4 3 2.5L14 3.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Performance
+          <span>Performance</span>
         </button>
-        <button type="button" className="alert-toggle" aria-pressed={alerts} onClick={toggleAlerts}>
-          {alerts ? "Sound alerts on" : "Turn on sound alerts"}
-        </button>
-        <ThemeToggle theme={theme} onToggle={toggleTheme} />
-        {me && (
-          <a className="theme-toggle" href="/profile" title="Your profile: display name and account size">
-            {me.name}
-          </a>
-        )}
-        {me?.role === "admin" && (
-          <a className="theme-toggle" href="/admin">
-            Members
-          </a>
-        )}
-        <form method="post" action="/auth/signout">
-          <button type="submit" className="theme-toggle">
-            Sign out
-          </button>
-        </form>
-        </nav>
+        <ProfileMenu me={me} theme={theme} onToggleTheme={toggleTheme} alerts={alerts} onToggleAlerts={toggleAlerts} />
       </header>
 
       <div className="workspace">

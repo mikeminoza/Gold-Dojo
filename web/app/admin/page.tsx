@@ -1,3 +1,5 @@
+import AuthShell from "../components/AuthShell";
+import SubmitButton from "../components/SubmitButton";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -32,7 +34,7 @@ export default async function Admin({ searchParams }: PageProps<"/admin">) {
   const message = typeof note === "string" ? NOTES[note] : undefined;
 
   return (
-    <main className="login">
+    <AuthShell>
       <div className="login-card admin-card">
         <h1>Members</h1>
         <p>
@@ -59,14 +61,14 @@ export default async function Admin({ searchParams }: PageProps<"/admin">) {
                 <form method="post" action="/api/admin/members">
                   <input type="hidden" name="action" value={m.blocked ? "unblock" : "block"} />
                   <input type="hidden" name="email" value={m.email} />
-                  <button
-                    type="submit"
+                  <SubmitButton
                     className="admin-remove"
                     data-undo={m.blocked}
                     aria-label={`${m.blocked ? "Unblock" : "Block"} ${m.email}`}
+                    pending={m.blocked ? "Unblocking…" : "Blocking…"}
                   >
                     {m.blocked ? "Unblock" : "Block"}
-                  </button>
+                  </SubmitButton>
                 </form>
               )}
             </li>
@@ -76,6 +78,6 @@ export default async function Admin({ searchParams }: PageProps<"/admin">) {
           Back to the signals
         </Link>
       </div>
-    </main>
+    </AuthShell>
   );
 }

@@ -1,3 +1,5 @@
+import AuthShell from "../components/AuthShell";
+import SubmitButton from "../components/SubmitButton";
 import type { Metadata } from "next";
 import { PASSWORD_MIN } from "../lib/auth";
 
@@ -14,7 +16,7 @@ export default async function Reset({ searchParams }: PageProps<"/reset">) {
   const { error } = await searchParams;
   const message = typeof error === "string" ? ERRORS[error] : undefined;
   return (
-    <main className="login">
+    <AuthShell>
       <form className="login-card login-form" method="post" action="/auth/password">
         <h1>New password</h1>
         <p>Choose a new password for your account.</p>
@@ -29,8 +31,8 @@ export default async function Reset({ searchParams }: PageProps<"/reset">) {
             {message}
           </p>
         )}
-        <button type="submit">Save password</button>
+        <SubmitButton pending="Saving…">Save password</SubmitButton>
       </form>
-    </main>
+    </AuthShell>
   );
 }
