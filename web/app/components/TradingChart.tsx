@@ -263,6 +263,7 @@ export default function TradingChart({
   onTimeframe,
   replay,
   onExitReplay,
+  alertPrices = [],
 }: {
   theme: Theme; // the chart is remounted when this changes
   symbol: string;
@@ -281,6 +282,7 @@ export default function TradingChart({
   /** A past trade to show: the chart switches to the signal timeframe and frames the trade. */
   replay?: { open: SignalEvent; close?: SignalEvent; label: string } | null;
   onExitReplay?: () => void;
+  alertPrices?: number[]; // your price alerts, drawn as dotted lines
 }) {
   const COLORS = PALETTES[theme];
   const [settings, setSettings] = useState<Settings>(loadSettings);
@@ -618,6 +620,7 @@ export default function TradingChart({
       ? `${position.entry}|${position.sl}|${position.tp}`
       : "";
   const rangeKey = range ? `${range.hi}|${range.lo}|${range.forming}` : "";
+  const alertKey = alertPrices.join(",");
   const hlineKey = drawings
     .filter((d) => d.kind === "hline")
     .map((d) => d.id)
@@ -645,9 +648,10 @@ export default function TradingChart({
       add(trade.tp, COLORS.up, "TP");
     }
     for (const d of drawings) if (d.kind === "hline") add(d.price, COLORS.drawing, "", LineStyle.Solid);
+    for (const p of alertPrices) add(p, COLORS.drawing, "Alert", LineStyle.Dotted);
     lines.current = { owner: main, list };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values that change the lines
-  }, [rangeKey, levelsKey, hlineKey, mainVersion, show.range, show.levels, COLORS]);
+  }, [rangeKey, levelsKey, hlineKey, alertKey, mainVersion, show.range, show.levels, COLORS]);
 
   // Replay: frame the trade (fetching older candles first if it's further back than the chart goes)
   const replayShown = useRef<string | null>(null);

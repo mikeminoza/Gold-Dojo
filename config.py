@@ -90,6 +90,11 @@ LOSS_STREAK_LIMIT = 5         # this many losses in a row...
 LOSS_STREAK_PAUSE_DAYS = 7    # ...pauses new signals for a week
 MONTHLY_LOSS_LIMIT_R = 6.0    # losing 6R in a calendar month pauses until next month
 
+# After each session the bot posts a short recap (the trade's result, or why there was none) in chat
+RECAP_TO_CHAT = True
+RECAP_ROOM = "General"
+RECAP_AUTHOR = "Golden Skibidi"   # shown as the sender (24 characters at most)
+
 # Timeframes the website chart can switch between, and how many candles each shows
 CHART_TIMEFRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1"]
 CHART_BARS = 300

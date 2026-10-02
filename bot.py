@@ -25,6 +25,7 @@ import config
 import health
 import live_state
 import loss_guard
+import session_recap
 import news
 import sessions
 import sizing
@@ -232,10 +233,31 @@ class Bot:
             limited = self.loss_pause(time.time())
             if paused:
                 print(f"{datetime.now():%H:%M:%S} skipped {sig.side} ({sig.reason}): news pause for {paused}")
+                self.strat.state.setdefault("skipped", {})[sig.tag] = f"news pause for {paused}"
             elif limited:
                 print(f"{datetime.now():%H:%M:%S} skipped {sig.side} ({sig.reason}): loss limit, {limited[0]}")
+                self.strat.state.setdefault("skipped", {})[sig.tag] = f"loss limit ({limited[0]})"
             else:
                 self.open(sig, df, i)
+        self.post_recaps(df)
+
+    def post_recaps(self, df):
+        """Once a session has ended, post its recap in the website chat (once per session)."""
+        if not config.RECAP_TO_CHAT or "sess_end" not in df or not self.cloud.enabled:
+            return
+        state = self.strat.state
+        done = state.setdefault("recapped", [])
+        now = time.time()
+        ended = df.loc[(df["sess_end"] > 0) & (df["sess_end"] <= now) & (df["sess_end"] > now - 6 * 3600), "sess"]
+        for sess in ended.dropna().unique():
+            if sess in done:
+                continue
+            state["recapped"] = done = (done + [sess])[-20:]
+            text = session_recap.recap(df, sess, self.history, state.get("skipped", {}).get(sess))
+            if text:
+                self.cloud.post_chat(text)
+                print(f"{datetime.now():%H:%M:%S} chat recap: {text}")
+        state["skipped"] = {k: v for k, v in state.get("skipped", {}).items() if k in done[-5:] or k not in done}
 
     # --- website state -----------------------------------------------------
     def publish(self, bid, ask):

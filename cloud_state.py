@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 import requests
 
+import config
 from live_state import _plain
 
 HEARTBEAT_SECONDS = 15
@@ -51,6 +52,8 @@ class CloudPublisher:
         self._journal = []  # signal rows waiting to be saved
         self._memory = None  # latest bot memory to save
         self._memory_sig = None
+        self._chat = []  # bot messages waiting to be posted in the website chat
+        self._room_id = None
         if self.enabled:
             threading.Thread(target=self._run, name="cloud", daemon=True).start()
 
@@ -89,6 +92,39 @@ class CloudPublisher:
                 print(f"{datetime.now():%H:%M:%S} Supabase journal: can't save signals yet ({e}); retrying")
             self._failing = True
             self._stop.wait(RETRY_SECONDS)
+
+    def post_chat(self, body, room=None):
+        """Post a message in the website chat as the bot (queued and retried like the journal)."""
+        if not self.enabled:
+            return
+        with self._lock:
+            self._chat.append((body[:1000], room or config.RECAP_ROOM))
+        self._wake.set()
+
+    def _send_chat(self):
+        with self._lock:
+            queued, self._chat = self._chat, []
+        for i, (body, room) in enumerate(queued):
+            try:
+                if self._room_id is None:
+                    r = requests.get(f"{self.url}/rest/v1/chat_rooms", params={"name": f"eq.{room}", "select": "id"},
+                                     headers=self._headers(), timeout=10)
+                    rows = r.json() if r.ok else []
+                    if not rows:
+                        print(f"Chat room {room!r} not found; recap not posted")
+                        continue
+                    self._room_id = rows[0]["id"]
+                r = requests.post(f"{self.url}/rest/v1/chat_messages", headers=self._headers(),
+                                  data=json.dumps({"room_id": self._room_id, "author": config.RECAP_AUTHOR,
+                                                   "body": body}), timeout=10)
+                if r.status_code >= 300:
+                    raise RuntimeError(f"Supabase answered {r.status_code}: {r.text[:200]}")
+            except (requests.RequestException, RuntimeError, ValueError) as e:
+                with self._lock:
+                    self._chat = queued[i:] + self._chat  # try again on the next pass
+                print(f"{datetime.now():%H:%M:%S} chat recap not posted yet ({e}); retrying")
+                self._stop.wait(RETRY_SECONDS)
+                return
 
     def remember(self, memory):
         """Keep a copy of the bot's memory in Supabase (sent only when it changes)."""
@@ -153,6 +189,7 @@ class CloudPublisher:
             self._wake.clear()
             self._send_journal()
             self._send_memory()
+            self._send_chat()
             with self._lock:
                 state = self._latest
             if state is None:

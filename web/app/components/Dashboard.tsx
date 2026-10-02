@@ -13,6 +13,7 @@ import { adoptProfileAccount, sizeEvents, sizePosition, useMyAccount } from "../
 import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
 import Performance from "./Performance";
+import { LotCalculator, PriceAlerts, useAlertWatcher, usePriceAlerts, type PriceAlert } from "./Tools";
 
 const TradingChart = dynamic(() => import("./TradingChart"), { ssr: false });
 
@@ -905,6 +906,16 @@ export default function Dashboard() {
 
   useSignalAlerts(state?.history, alerts);
 
+  // Price alerts: sound + notification when the live price reaches one
+  const priceAlerts = usePriceAlerts();
+  const onPriceAlert = useCallback((a: PriceAlert) => {
+    chime(a.dir === "above" ? "BUY" : "SELL", false);
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification(`Gold ${a.dir === "above" ? "rose" : "fell"} to ${price(a.price)}`, { body: "Your price alert" });
+    }
+  }, []);
+  useAlertWatcher(state?.bid ?? null, onPriceAlert);
+
   useEffect(() => {
     if (!state) return;
     if (prevBid.current !== null && state.bid !== prevBid.current) {
@@ -1093,6 +1104,7 @@ export default function Dashboard() {
             onTimeframe={setChartTf}
             replay={replay}
             onExitReplay={() => setReplay(null)}
+            alertPrices={priceAlerts.filter((a) => !a.hit).map((a) => a.price)}
           />
         </section>
 
@@ -1193,6 +1205,10 @@ export default function Dashboard() {
           </section>
 
           <NewsWeek state={state} t={t} now={now} />
+
+          <PriceAlerts bid={state.bid} />
+
+          <LotCalculator bid={state.bid} ask={state.ask} account={account} rules={state.account} />
 
           <section className="side-block">
             <h2>Indicators</h2>

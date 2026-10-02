@@ -2829,3 +2829,129 @@ a.login-hint {
     border-radius: 12px;
   }
 }
+
+/* ---- price alerts & lot calculator ------------------------------------ */
+
+.tool-row {
+  display: flex;
+  gap: 8px;
+}
+
+.tool-row input,
+.tool-grid input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--inset);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-row input:focus-visible,
+.tool-grid input:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.tool-grid input[aria-invalid="true"] {
+  border-color: var(--sell);
+}
+
+.tool-row button {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--gold);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tool-row button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tool-hint {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tool-hint[data-error="true"] {
+  color: var(--sell);
+}
+
+.alert-list {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.alert-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--inset);
+  font-variant-numeric: tabular-nums;
+}
+
+.alert-list em {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.alert-list li[data-hit="true"] em {
+  color: var(--buy);
+  font-weight: 600;
+}
+
+.alert-list button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.alert-list button:hover {
+  color: var(--sell);
+}
+
+.tool-sides {
+  display: inline-flex;
+  margin-bottom: 10px;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tool-grid label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tool-grid label span {
+  color: var(--muted);
+  font-weight: 400;
+}
