@@ -1214,6 +1214,7 @@ export default function Dashboard() {
           tz={state.display.tz}
           onClose={closePerf}
           taken={myTrades.taken}
+          swing={state.swing_paper}
         />
       )}
       {chatOpen && <ChatPanel chat={chat} onClose={() => setChatOpen(false)} stamp={t.stamp} now={now} />}

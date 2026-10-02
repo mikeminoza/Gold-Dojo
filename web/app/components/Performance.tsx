@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { lotSize, type useMyAccount } from "../lib/account";
 import { stats, useBacktest, type Result, type Stats } from "../lib/performance";
-import type { LiveState, SignalEvent } from "../lib/types";
+import type { LiveState, SignalEvent, SwingPaper } from "../lib/types";
 import AccountForm from "./AccountForm";
 
-type Tab = "live" | "mine" | "backtest";
+type Tab = "live" | "mine" | "backtest" | "swing";
 
 const money = (n: number, sign = false) =>
   `${sign ? (n >= 0 ? "+" : "−") : n < 0 ? "−" : ""}$${Math.abs(n).toLocaleString("en-US", {
@@ -160,6 +160,69 @@ function Years({ s }: { s: Stats }) {
   );
 }
 
+/** The daily swing candidate, tracked on paper only (swing_paper.py). Results in R: +1R = one risk won. */
+function SwingTab({ swing, tz }: { swing: SwingPaper | null; tz: string }) {
+  if (!swing) return <p className="empty">Paper tracking starts when the bot next restarts.</p>;
+  const r = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}R`;
+  return (
+    <>
+      <p className="perf-about">
+        Not a signal: a {swing.rule}, recorded since {swing.started ? day(swing.started, tz) : "today"} to re-test it
+        later. In the 23-year test it made money but no more than holding gold for the risk (see
+        docs/swing-research.md). It needs wide stops, so it doesn&apos;t fit a small standard account.
+      </p>
+      <dl className="perf-numbers">
+        <div>
+          <dt>Closed paper trades</dt>
+          <dd>{swing.count}</dd>
+        </div>
+        <div>
+          <dt>Result</dt>
+          <dd data-tone={tone(swing.total_r)}>{r(swing.total_r)}</dd>
+        </div>
+        <div>
+          <dt>Win rate</dt>
+          <dd>{swing.win_rate === null ? "–" : `${swing.win_rate}%`}</dd>
+        </div>
+        <div>
+          <dt>Profit factor</dt>
+          <dd>{swing.profit_factor === null ? "–" : factor(swing.profit_factor)}</dd>
+        </div>
+      </dl>
+      <p className="perf-about">
+        {swing.position
+          ? `Open on paper: ${swing.position.side > 0 ? "long" : "short"} from ${swing.position.entry.toFixed(2)} since ${day(swing.position.opened, tz)}, trailing stop ${swing.position.stop.toFixed(2)}.`
+          : "No paper trade open: waiting for a close above the 100-day high or below the 100-day low."}
+      </p>
+      {swing.trades.length > 0 && (
+        <table className="results-split perf-years">
+          <caption>Closed paper trades</caption>
+          <thead>
+            <tr>
+              <th scope="col">Opened</th>
+              <th scope="col">Side</th>
+              <th scope="col">Nights</th>
+              <th scope="col">Exit</th>
+              <th scope="col">Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            {swing.trades.map((t) => (
+              <tr key={t.opened}>
+                <th scope="row">{day(t.opened, tz)}</th>
+                <td>{t.side === "BUY" ? "Long" : "Short"}</td>
+                <td>{t.nights}</td>
+                <td>{t.reason}</td>
+                <td data-tone={tone(t.r)}>{r(t.r)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
+}
+
 export default function Performance({
   events,
   my,
@@ -167,7 +230,9 @@ export default function Performance({
   tz,
   onClose,
   taken,
+  swing,
 }: {
+  swing?: SwingPaper | null;
   taken: Map<string, number>; // trades you marked "I took this" -> lots
   events: SignalEvent[]; // every signal, already sized for the visitor's account
   my: ReturnType<typeof useMyAccount>;
@@ -211,7 +276,7 @@ export default function Performance({
     return stats(results, account.balance, backtest.from);
   }, [backtest, account, rules]);
 
-  const shown = tab === "live" ? live : tab === "mine" ? mine : replay;
+  const shown = tab === "live" ? live : tab === "mine" ? mine : tab === "backtest" ? replay : null;
 
   return (
     <div className="perf-backdrop" onClick={onClose}>
@@ -250,6 +315,9 @@ export default function Performance({
           <button type="button" aria-pressed={tab === "backtest"} onClick={() => setTab("backtest")}>
             Backtest{backtest ? `, ${new Date(backtest.from * 1000).getUTCFullYear()}–${new Date(backtest.to * 1000).getUTCFullYear()}` : ""}
           </button>
+          <button type="button" aria-pressed={tab === "swing"} onClick={() => setTab("swing")}>
+            Swing (paper)
+          </button>
         </div>
 
         {tab === "backtest" && backtest && (
@@ -260,6 +328,7 @@ export default function Performance({
             use these signals for learning and demo trading only.
           </p>
         )}
+        {tab === "swing" && <SwingTab swing={swing ?? null} tz={tz} />}
         {tab === "mine" && (
           <p className="perf-about">
             Only the signals you marked &quot;I took this trade&quot;, at the size you marked them with.
@@ -277,7 +346,7 @@ export default function Performance({
             <Numbers s={shown} />
             <Years s={shown} />
           </>
-        ) : tab === "live" ? (
+        ) : tab === "swing" ? null : tab === "live" ? (
           <p className="empty">No closed trades yet. Results appear here after the first signal closes.</p>
         ) : tab === "mine" ? (
           <p className="empty">

@@ -112,6 +112,8 @@ export type LiveState = {
   news_week?: { time: number; title: string }[]; // this week's high-impact US releases (UTC seconds)
   news_pause_minutes?: number;
   loss_pause?: { reason: string; until: number } | null; // loss limits pausing new signals
+  swing_paper?: SwingPaper | null; // the daily swing candidate, tracked on paper only
+
   indicators: {
     ema_fast: number;
     ema_slow: number;
@@ -124,4 +126,16 @@ export type LiveState = {
   position: Position | null;
   history: SignalEvent[];
   chart: { timeframes: string[]; default: string };
+};
+
+/** swing_paper.py: what the 100-day breakout rule would have done since tracking started (R = result / risk). */
+export type SwingPaper = {
+  rule: string;
+  started: number | null;
+  position: { side: 1 | -1; entry: number; stop: number; risk: number; opened: number } | null;
+  trades: { side: Side; entry: number; exit: number; opened: number; closed: number; nights: number; reason: string; pnl: number; r: number }[];
+  count: number;
+  total_r: number;
+  win_rate: number | null;
+  profit_factor: number | null;
 };

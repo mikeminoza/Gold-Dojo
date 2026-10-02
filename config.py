@@ -98,6 +98,13 @@ RECAP_TO_CHAT = True
 RECAP_ROOM = "General"
 RECAP_AUTHOR = "Golden Skibidi"   # shown as the sender (24 characters at most)
 
+# Paper tracking of the daily swing candidate (swing_paper.py, docs/swing-research.md): recorded only,
+# never shown as a signal. Re-test it against the backtest and buy-and-hold after 6-12 months.
+SWING_PAPER = True
+SWING_CHANNEL_DAYS = 100
+SWING_STOP_ATR = 2.0
+SWING_ATR_PERIOD = 20
+
 # Timeframes the website chart can switch between, and how many candles each shows
 CHART_TIMEFRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1"]
 CHART_BARS = 300

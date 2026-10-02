@@ -26,6 +26,7 @@ import health
 import live_state
 import loss_guard
 import session_recap
+import swing_paper
 import news
 import sessions
 import sizing
@@ -87,7 +88,9 @@ class Bot:
         # Keeps the website's backtest running up to the latest session (needs publish_backtest.py once)
         self.backtest = backtest_refresh.BacktestRefresher(self.cloud, feed.candle_seconds(config.TIMEFRAME))
         self.last_bar_time = None
+        self._swing_mem = None  # set by load()
         self.position, self.history = self.load()
+        self.swing = swing_paper.SwingPaper(self._swing_mem) if config.SWING_PAPER and not demo else None
         self.health = None  # set by main() when running as a web service
 
     # --- persistence -------------------------------------------------------
@@ -106,6 +109,7 @@ class Bot:
                 print("Restored the bot's memory (open trade, sessions traded) from Supabase")
         if not data:
             return None, []
+        self._swing_mem = data.get("swing_paper")
         if "side" in data:  # older state.json held only the position
             return data, []
         data = data or {}
@@ -120,6 +124,8 @@ class Bot:
             "history": self.history,
             "strategy_state": {self.strategy_name: self.strat.state},
         }
+        if self.swing:
+            memory["swing_paper"] = self.swing.memory()
         STATE_FILE.write_text(json.dumps(memory, default=live_state._plain))
         self.cloud.remember(memory)  # a copy in Supabase survives restarts on hosts that wipe their disk
 
@@ -221,6 +227,8 @@ class Bot:
 
     def on_candle_close(self):
         self.df = df = self.prepared()
+        if self.swing:
+            self.swing.update(self.daily_bars())
         i = len(df) - 1
 
         if self.position:
@@ -311,6 +319,7 @@ class Bot:
             if self.news.enabled else [],
             "news_pause_minutes": config.NEWS_PAUSE_MINUTES,
             "loss_pause": {"reason": limited[0], "until": int(limited[1])} if limited else None,
+            "swing_paper": self.swing.summary() if self.swing else None,
             "indicators": {
                 "ema_fast": last["ema_fast"], "ema_slow": last["ema_slow"], "ema_trend": last["ema_trend"],
                 "rsi": last["rsi"], "atr": last["atr"],
