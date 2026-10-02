@@ -20,6 +20,7 @@ export type Sizing = {
 };
 
 export type Position = {
+  trade_id?: string; // the id of the signal that opened it
   size?: Sizing;
   pnl_usd?: number | null;
   side: Side;
@@ -110,6 +111,7 @@ export type LiveState = {
   news: { title: string; time: number; paused: boolean } | null;
   news_week?: { time: number; title: string }[]; // this week's high-impact US releases (UTC seconds)
   news_pause_minutes?: number;
+  loss_pause?: { reason: string; until: number } | null; // loss limits pausing new signals
   indicators: {
     ema_fast: number;
     ema_slow: number;

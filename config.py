@@ -84,6 +84,12 @@ TRADE_WEEKDAYS = {0, 1, 2, 3, 4}  # Mon-Fri
 NEWS_PAUSE = True
 NEWS_PAUSE_MINUTES = 30
 
+# Loss limits (loss_guard.py): pause new signals after a bad run. R = result / risk (-1R = a full loss).
+LOSS_LIMITS = True
+LOSS_STREAK_LIMIT = 5         # this many losses in a row...
+LOSS_STREAK_PAUSE_DAYS = 7    # ...pauses new signals for a week
+MONTHLY_LOSS_LIMIT_R = 6.0    # losing 6R in a calendar month pauses until next month
+
 # Timeframes the website chart can switch between, and how many candles each shows
 CHART_TIMEFRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1"]
 CHART_BARS = 300

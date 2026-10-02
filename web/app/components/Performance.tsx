@@ -6,7 +6,7 @@ import { stats, useBacktest, type Result, type Stats } from "../lib/performance"
 import type { LiveState, SignalEvent } from "../lib/types";
 import AccountForm from "./AccountForm";
 
-type Tab = "live" | "backtest";
+type Tab = "live" | "mine" | "backtest";
 
 const money = (n: number, sign = false) =>
   `${sign ? (n >= 0 ? "+" : "−") : n < 0 ? "−" : ""}$${Math.abs(n).toLocaleString("en-US", {
@@ -166,7 +166,9 @@ export default function Performance({
   rules,
   tz,
   onClose,
+  taken,
 }: {
+  taken: Map<string, number>; // trades you marked "I took this" -> lots
   events: SignalEvent[]; // every signal, already sized for the visitor's account
   my: ReturnType<typeof useMyAccount>;
   rules: LiveState["account"];
@@ -193,6 +195,13 @@ export default function Performance({
     return stats(results, account.balance);
   }, [events, account.balance]);
 
+  const mine = useMemo(() => {
+    const results: Result[] = events
+      .filter((e) => e.type === "close" && e.trade_id && taken.has(e.trade_id))
+      .map((e) => ({ t: e.time, usd: (e.pnl ?? 0) * taken.get(e.trade_id!)! * rules.oz_per_lot }));
+    return stats(results, account.balance);
+  }, [events, taken, account.balance, rules.oz_per_lot]);
+
   const replay = useMemo(() => {
     if (!backtest) return null;
     const results: Result[] = backtest.trades.map((k) => ({
@@ -202,7 +211,7 @@ export default function Performance({
     return stats(results, account.balance, backtest.from);
   }, [backtest, account, rules]);
 
-  const shown = tab === "live" ? live : replay;
+  const shown = tab === "live" ? live : tab === "mine" ? mine : replay;
 
   return (
     <div className="perf-backdrop" onClick={onClose}>
@@ -235,6 +244,9 @@ export default function Performance({
           <button type="button" aria-pressed={tab === "live"} onClick={() => setTab("live")}>
             Live signals
           </button>
+          <button type="button" aria-pressed={tab === "mine"} onClick={() => setTab("mine")}>
+            My trades
+          </button>
           <button type="button" aria-pressed={tab === "backtest"} onClick={() => setTab("backtest")}>
             Backtest{backtest ? `, ${new Date(backtest.from * 1000).getUTCFullYear()}–${new Date(backtest.to * 1000).getUTCFullYear()}` : ""}
           </button>
@@ -245,6 +257,11 @@ export default function Performance({
             The current strategy ({backtest.strategy.name.toLowerCase()}, {backtest.timeframe}) replayed on{" "}
             {day(backtest.from, tz)} – {day(backtest.to, tz)}. {backtest.source}. Past results don&apos;t
             promise future ones. Last run {day(backtest.generated, tz)}.
+          </p>
+        )}
+        {tab === "mine" && (
+          <p className="perf-about">
+            Only the signals you marked &quot;I took this trade&quot;, at the size you marked them with.
           </p>
         )}
         {tab === "live" && (
@@ -261,6 +278,11 @@ export default function Performance({
           </>
         ) : tab === "live" ? (
           <p className="empty">No closed trades yet. Results appear here after the first signal closes.</p>
+        ) : tab === "mine" ? (
+          <p className="empty">
+            None yet. Press &quot;I took this trade&quot; on a signal you trade, and its result shows here once it
+            closes.
+          </p>
         ) : !ready ? (
           <p className="empty">Loading the backtest…</p>
         ) : (

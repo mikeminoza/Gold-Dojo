@@ -24,6 +24,7 @@ import cloud_state
 import config
 import health
 import live_state
+import loss_guard
 import news
 import sessions
 import sizing
@@ -178,6 +179,7 @@ class Bot:
         usd = sizing.money(move, lots) if lots else None
         self.record({"type": "close", "side": pos["side"], "price": price, "entry": pos["entry"],
                      "pnl": move, "reason": reason, "lots": lots, "pnl_usd": usd,
+                     "risk_oz": abs(pos["entry"] - pos["sl"]),  # for results in R (loss limits)
                      "trade_id": pos.get("trade_id"), "session": pos.get("session")})
         self.position = None
         if self.telegram:
@@ -188,6 +190,20 @@ class Bot:
                                  f"Result: {move:+.2f} $/oz{money}")
 
     # --- checks ------------------------------------------------------------
+    def loss_pause(self, now):
+        """(reason, until) while the loss limits pause new signals, else None (see loss_guard.py)."""
+        opens = {e["id"]: e for e in self.history if e["type"] == "open"}
+        closes = []
+        for e in reversed(self.history):  # oldest first
+            if e["type"] != "close":
+                continue
+            risk = e.get("risk_oz")
+            if risk is None and e.get("trade_id") in opens:  # saved before risk_oz existed
+                o = opens[e["trade_id"]]
+                risk = abs(o["price"] - o["sl"]) if o.get("sl") is not None else None
+            closes.append((e["time"], loss_guard.r_multiple(e.get("pnl") or 0, risk)))
+        return loss_guard.pause(closes, now)
+
     def check_sl_tp(self, bid, ask):
         pos = self.position
         if pos["side"] == "BUY":
@@ -213,8 +229,11 @@ class Bot:
         sig = self.strat.entry(df, i)
         if sig and not self.position:
             paused = self.news.pause_reason(pd.Timestamp.now(tz="UTC"))
+            limited = self.loss_pause(time.time())
             if paused:
                 print(f"{datetime.now():%H:%M:%S} skipped {sig.side} ({sig.reason}): news pause for {paused}")
+            elif limited:
+                print(f"{datetime.now():%H:%M:%S} skipped {sig.side} ({sig.reason}): loss limit, {limited[0]}")
             else:
                 self.open(sig, df, i)
 
@@ -229,6 +248,12 @@ class Bot:
         if self.news.enabled:
             item = {"label": f"No major US news within {config.NEWS_PAUSE_MINUTES} min"
                              + (f" ({paused})" if paused else ""), "ok": paused is None}
+            for side in conditions:
+                conditions[side].append(item)
+        limited = self.loss_pause(now.timestamp())
+        if config.LOSS_LIMITS:
+            item = {"label": "Within the loss limits" + (f" (paused: {limited[0]})" if limited else ""),
+                    "ok": limited is None}
             for side in conditions:
                 conditions[side].append(item)
         upcoming = self.news.upcoming(now)
@@ -262,6 +287,7 @@ class Bot:
             "news_week": [{"time": int(w.timestamp()), "title": title} for w, title in self.news.events]
             if self.news.enabled else [],
             "news_pause_minutes": config.NEWS_PAUSE_MINUTES,
+            "loss_pause": {"reason": limited[0], "until": int(limited[1])} if limited else None,
             "indicators": {
                 "ema_fast": last["ema_fast"], "ema_slow": last["ema_slow"], "ema_trend": last["ema_trend"],
                 "rsi": last["rsi"], "atr": last["atr"],

@@ -2683,3 +2683,58 @@ a.login-hint {
   font-style: normal;
   font-weight: 600;
 }
+
+/* ---- copy levels / I took this trade ---------------------------------- */
+
+.trade-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+}
+
+.signal-detail .trade-actions {
+  margin-top: 10px;
+}
+
+.trade-actions > button:not(.history-replay) {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.trade-actions > button:not(.history-replay):hover {
+  border-color: var(--muted);
+}
+
+.trade-actions > button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--buy) 60%, transparent);
+  color: var(--buy);
+}
+
+.trade-actions .history-replay {
+  grid-column: auto;
+  margin-top: 0;
+}
+
+.history-mine {
+  grid-column: 2;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.history-mine[data-tone="profit"] {
+  color: var(--buy);
+}
+
+.history-mine[data-tone="loss"] {
+  color: var(--sell);
+}

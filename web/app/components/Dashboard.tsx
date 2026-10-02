@@ -6,6 +6,7 @@ import type { LiveState, Position, Side, SignalEvent, Sizing, TradeWindow } from
 import type { Theme } from "./TradingChart";
 import { useBotState } from "../lib/useBotState";
 import { useLivePrice, type LivePrice } from "../lib/useLivePrice";
+import { useMyTrades } from "../lib/useMyTrades";
 import { useChat, type ChatMessage } from "../lib/useChat";
 import { journalCsv, useJournal, type JournalEntry } from "../lib/useJournal";
 import { adoptProfileAccount, sizeEvents, sizePosition, useMyAccount } from "../lib/account";
@@ -570,8 +571,10 @@ function Journal({
   t,
   now,
   onReplay,
+  myTrades,
 }: {
   onReplay: (e: SignalEvent) => void;
+  myTrades: MyTrades;
   journal: ReturnType<typeof useJournal>;
   all: SignalEvent[]; // every signal, sized for the visitor's account
   balance: number;
@@ -616,7 +619,15 @@ function Journal({
         </p>
       )}
       <Results events={events} balance={balance} />
-      <History events={events.slice(0, 50)} t={t} now={now} onReplay={onReplay} />
+      <History
+        events={events.slice(0, 50)}
+        t={t}
+        now={now}
+        onReplay={onReplay}
+        symbol={state.symbol}
+        myTrades={myTrades}
+        ozPerLot={state.account.oz_per_lot}
+      />
     </>
   );
 }
@@ -669,6 +680,68 @@ function NewsWeek({ state, t, now }: { state: LiveState; t: TimeFormat; now: num
   );
 }
 
+type MyTrades = ReturnType<typeof useMyTrades>;
+
+/** Copy the trade's levels for pasting into MT5, and mark whether you took it. */
+function TradeActions({
+  tradeId,
+  symbol,
+  side,
+  entry,
+  sl,
+  tp,
+  lots,
+  myTrades,
+  children,
+}: {
+  tradeId?: string | null;
+  symbol: string;
+  side: Side;
+  entry: number;
+  sl: number;
+  tp: number;
+  lots?: number;
+  myTrades: MyTrades;
+  children?: React.ReactNode;
+}) {
+  const [copied, setCopied] = useState(false);
+  const took = tradeId ? myTrades.taken.get(tradeId) : undefined;
+  const copy = () => {
+    const text = [
+      `${side} ${symbol}${lots ? ` ${lots.toFixed(2)} lot` : ""}`,
+      `Entry ${price(entry)}`,
+      `Stop loss ${price(sl)}`,
+      `Take profit ${price(tp)}`,
+    ].join("\n");
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
+  };
+  return (
+    <div className="trade-actions">
+      <button type="button" onClick={copy}>
+        {copied ? "Copied ✓" : "Copy levels"}
+      </button>
+      {tradeId &&
+        myTrades.available &&
+        (took ? (
+          <button type="button" aria-pressed="true" onClick={() => void myTrades.mark(tradeId, null)} title="Undo">
+            ✓ You took this ({took.toFixed(2)} lot)
+          </button>
+        ) : (
+          <button type="button" onClick={() => void myTrades.mark(tradeId, lots ?? 0.01)}>
+            I took this trade
+          </button>
+        ))}
+      {children}
+    </div>
+  );
+}
+
 function ReplayButton({ e, onReplay }: { e: SignalEvent; onReplay?: (e: SignalEvent) => void }) {
   if (!onReplay) return null;
   return (
@@ -683,11 +756,17 @@ function History({
   t,
   now,
   onReplay,
+  symbol,
+  myTrades,
+  ozPerLot,
 }: {
   events: SignalEvent[];
   t: TimeFormat;
   now: number;
   onReplay?: (e: SignalEvent) => void;
+  symbol: string;
+  myTrades: MyTrades;
+  ozPerLot: number;
 }) {
   if (events.length === 0) {
     return <p className="empty">No signals in this period. They&apos;ll appear here as soon as the bot sends one.</p>;
@@ -705,12 +784,24 @@ function History({
                 {e.size && `. ${e.size.lots.toFixed(2)} lot, risk ${usd(e.size.risk)}`}
                 {e.size && e.size.verdict === "skip" && " (above your risk limit)"}
               </span>
-              <ReplayButton e={e} onReplay={onReplay} />
+              <TradeActions
+                tradeId={e.trade_id ?? e.id}
+                symbol={symbol}
+                side={e.side}
+                entry={e.price}
+                sl={e.sl!}
+                tp={e.tp!}
+                lots={e.size?.lots}
+                myTrades={myTrades}
+              >
+                <ReplayButton e={e} onReplay={onReplay} />
+              </TradeActions>
             </li>
           );
         }
         const pnl = e.pnl ?? 0;
         const o = outcome(pnl);
+        const mine = e.trade_id ? myTrades.taken.get(e.trade_id) : undefined;
         return (
           <li key={e.id} data-type="close" data-outcome={o.tone}>
             <time>{t.stamp(e.time, now)}</time>
@@ -724,6 +815,11 @@ function History({
               {e.side === "BUY" ? "Buy" : "Sell"} closed at {price(e.price)}
               {e.reason ? `, ${e.reason.toLowerCase()}` : ""}
             </span>
+            {mine && (
+              <span className="history-mine" data-tone={o.tone}>
+                You took it: {usd(pnl * mine * ozPerLot, true)} at {mine.toFixed(2)} lot
+              </span>
+            )}
             <ReplayButton e={e} onReplay={onReplay} />
           </li>
         );
@@ -747,6 +843,7 @@ export default function Dashboard() {
     return s.position && s.account ? { ...s, position: sizePosition(s.position, account, s.account) } : s;
   }, [botState, live, account]);
   const journal = useJournal();
+  const myTrades = useMyTrades();
   const signals = useMemo(() => {
     if (!botState?.account) return [];
     const usingJournal = journal.available && journal.entries.length > 0;
@@ -1013,9 +1110,25 @@ export default function Dashboard() {
                   {position.expires ? ` Closes at ${hhmm(position.expires)} if still open.` : ""}
                 </p>
                 {position.size && <SizeAdvice size={position.size} />}
+                <TradeActions
+                  tradeId={position.trade_id}
+                  symbol={state.symbol}
+                  side={position.side}
+                  entry={position.entry}
+                  sl={position.sl}
+                  tp={position.tp}
+                  lots={position.size?.lots}
+                  myTrades={myTrades}
+                />
               </div>
             ) : (
               <WaitingStatus state={state} now={now} />
+            )}
+            {state.loss_pause && (
+              <p className="news" data-paused="true">
+                New signals paused by the loss limits ({state.loss_pause.reason}) until{" "}
+                {t.day(state.loss_pause.until, now)} {hhmm(state.loss_pause.until)}.
+              </p>
             )}
             {state.news && (
               <p className="news" data-paused={state.news.paused}>
@@ -1060,6 +1173,7 @@ export default function Dashboard() {
               t={t}
               now={now}
               onReplay={showTrade}
+              myTrades={myTrades}
             />
           </section>
 
@@ -1106,7 +1220,14 @@ export default function Dashboard() {
       </div>
 
       {perfOpen && (
-        <Performance events={signals} my={my} rules={state.account} tz={state.display.tz} onClose={closePerf} />
+        <Performance
+          events={signals}
+          my={my}
+          rules={state.account}
+          tz={state.display.tz}
+          onClose={closePerf}
+          taken={myTrades.taken}
+        />
       )}
       {chatOpen && <ChatPanel chat={chat} onClose={() => setChatOpen(false)} stamp={t.stamp} now={now} />}
       {toast && !(chatOpen && chat.activeId === toast.roomId) && (
