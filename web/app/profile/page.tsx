@@ -1,4 +1,5 @@
 import AuthShell from "../components/AuthShell";
+import AvatarUpload from "../components/AvatarUpload";
 import SubmitButton from "../components/SubmitButton";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -48,6 +49,14 @@ export default async function Profile({ searchParams }: PageProps<"/profile">) {
             {bad}
           </p>
         )}
+
+        <section className="login-form profile-section">
+          <h2>Profile picture</h2>
+          <AvatarUpload
+            me={{ name: me.name ?? me.email, role: me.role, email: me.email, avatar: me.avatar }}
+            uploaded={me.avatarUploaded}
+          />
+        </section>
 
         <form className="login-form profile-section" method="post" action="/api/profile">
           <h2>Display name</h2>

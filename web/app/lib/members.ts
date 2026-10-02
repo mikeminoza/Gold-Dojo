@@ -16,7 +16,8 @@ export type Member = {
   role: "admin" | "member";
   name: string | null;
   account: { balance: number; risk_percent: number } | null; // saved on the profile page
-  avatar: string | null; // Google profile photo, if signed in with Google
+  avatar: string | null; // their uploaded picture, else their Google photo
+  avatarUploaded: boolean;
 };
 
 export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -75,7 +76,8 @@ export async function memberFor(user: User): Promise<Member | null> {
         role: m.role as Member["role"],
         name: p?.name ?? null,
         account,
-        avatar: (user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null) as string | null,
+        avatar: (p?.avatar_url ?? user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null) as string | null,
+        avatarUploaded: Boolean(p?.avatar_url),
       };
   cache.set(user.id, { member, at: Date.now() });
   return member;

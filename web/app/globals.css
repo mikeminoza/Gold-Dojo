@@ -3202,3 +3202,42 @@ button[data-busy] {
     transform: none;
   }
 }
+
+/* ---- profile picture -------------------------------------------------- */
+
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.avatar-upload > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.avatar-actions label {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.avatar-actions label[data-busy] {
+  cursor: progress;
+  opacity: 0.85;
+}
+
+/* the file picker is hidden; show its keyboard focus on the visible button */
+.avatar-actions:has(input:focus-visible) label {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
