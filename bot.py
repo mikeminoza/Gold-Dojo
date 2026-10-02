@@ -23,6 +23,7 @@ import backtest_refresh
 import cloud_state
 import config
 import health
+import health_report
 import live_state
 import loss_guard
 import session_recap
@@ -88,8 +89,9 @@ class Bot:
         # Keeps the website's backtest running up to the latest session (needs publish_backtest.py once)
         self.backtest = backtest_refresh.BacktestRefresher(self.cloud, feed.candle_seconds(config.TIMEFRAME))
         self.last_bar_time = None
-        self._swing_mem = None  # set by load()
+        self._swing_mem = self._report_mem = None  # set by load()
         self.position, self.history = self.load()
+        self.report = health_report.HealthReport(self._report_mem) if config.HEALTH_REPORT and not demo else None
         self.swing = swing_paper.SwingPaper(self._swing_mem) if config.SWING_PAPER and not demo else None
         self.health = None  # set by main() when running as a web service
 
@@ -110,6 +112,7 @@ class Bot:
         if not data:
             return None, []
         self._swing_mem = data.get("swing_paper")
+        self._report_mem = data.get("health_report")
         if "side" in data:  # older state.json held only the position
             return data, []
         data = data or {}
@@ -126,6 +129,8 @@ class Bot:
         }
         if self.swing:
             memory["swing_paper"] = self.swing.memory()
+        if self.report:
+            memory["health_report"] = self.report.memory()
         STATE_FILE.write_text(json.dumps(memory, default=live_state._plain))
         self.cloud.remember(memory)  # a copy in Supabase survives restarts on hosts that wipe their disk
 
@@ -370,8 +375,27 @@ class Bot:
             return False
         return now >= self.next_candle_check
 
+    def post_health_report(self):
+        """Once a day, a short "is the bot healthy" message in the website chat."""
+        if not self.report or not self.cloud.enabled or not self.report.due():
+            return
+        import binance_feed
+        source = binance_feed._printed.get("source") or config.PRICE_FEED
+        nxt = None
+        windows = self.strat.windows(pd.Timestamp.now(tz="UTC"))
+        if windows:
+            w = windows[0]
+            start = pd.Timestamp(w["range_start"] or w["first_entry"], unit="s", tz="UTC").tz_convert(config.DISPLAY_TZ)
+            nxt = f"{w['name']} {start:%a} {strategy.clock12(start)} {config.DISPLAY_TZ_SHORT}"
+        text = self.report.text(self.history, source, nxt)
+        self.cloud.post_chat(text, room=config.HEALTH_REPORT_ROOM)
+        self.report.posted()
+        print(f"{datetime.now():%H:%M:%S} health report: {text}")
+
     def run(self):
         self.start()
+        if self.report:
+            self.report.started()
         self.last_bar_time = self.df["time"].iat[-1]  # don't alert on a stale candle at startup
         self.checked_boundary = 0
         self.next_candle_check = 0.0
@@ -404,10 +428,13 @@ class Bot:
                                 self.next_candle_check = now + CANDLE_RETRY_SECONDS
                         self.save()
                         self.publish(bid, ask)
+                        self.post_health_report()
                     errors = 0
                 except Exception as e:  # keep running through temporary network hiccups / refusals
                     errors += 1
                     print(f"{datetime.now():%H:%M:%S} error: {e}")
+                    if self.report:
+                        self.report.error(e)
                     try:
                         if not self.feed.is_connected():
                             self.feed.connect()

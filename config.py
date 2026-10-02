@@ -98,6 +98,11 @@ RECAP_TO_CHAT = True
 RECAP_ROOM = "General"
 RECAP_AUTHOR = "Golden Skibidi"   # shown as the sender (24 characters at most)
 
+# Once a day the bot posts a short health check (uptime, restarts, errors, price source) in chat
+HEALTH_REPORT = True
+HEALTH_REPORT_ROOM = "Bot status"   # created automatically if it doesn't exist
+HEALTH_REPORT_HOUR = 9              # local hour in DISPLAY_TZ (9 AM PH time, after the New York session)
+
 # Paper tracking of the daily swing candidate (swing_paper.py, docs/swing-research.md): recorded only,
 # never shown as a signal. Re-test it against the backtest and buy-and-hold after 6-12 months.
 SWING_PAPER = True

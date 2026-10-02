@@ -53,7 +53,7 @@ class CloudPublisher:
         self._memory = None  # latest bot memory to save
         self._memory_sig = None
         self._chat = []  # bot messages waiting to be posted in the website chat
-        self._room_id = None
+        self._rooms = {}  # chat room name -> id
         if self.enabled:
             threading.Thread(target=self._run, name="cloud", daemon=True).start()
 
@@ -106,16 +106,9 @@ class CloudPublisher:
             queued, self._chat = self._chat, []
         for i, (body, room) in enumerate(queued):
             try:
-                if self._room_id is None:
-                    r = requests.get(f"{self.url}/rest/v1/chat_rooms", params={"name": f"eq.{room}", "select": "id"},
-                                     headers=self._headers(), timeout=10)
-                    rows = r.json() if r.ok else []
-                    if not rows:
-                        print(f"Chat room {room!r} not found; recap not posted")
-                        continue
-                    self._room_id = rows[0]["id"]
+                room_id = self._room(room)
                 r = requests.post(f"{self.url}/rest/v1/chat_messages", headers=self._headers(),
-                                  data=json.dumps({"room_id": self._room_id, "author": config.RECAP_AUTHOR,
+                                  data=json.dumps({"room_id": room_id, "author": config.RECAP_AUTHOR,
                                                    "body": body}), timeout=10)
                 if r.status_code >= 300:
                     raise RuntimeError(f"Supabase answered {r.status_code}: {r.text[:200]}")
@@ -125,6 +118,22 @@ class CloudPublisher:
                 print(f"{datetime.now():%H:%M:%S} chat recap not posted yet ({e}); retrying")
                 self._stop.wait(RETRY_SECONDS)
                 return
+
+    def _room(self, name):
+        """The id of the chat room called `name`, creating the room if it doesn't exist yet."""
+        if name not in self._rooms:
+            find = lambda: requests.get(f"{self.url}/rest/v1/chat_rooms",  # noqa: E731
+                                        params={"name": f"eq.{name}", "select": "id"},
+                                        headers=self._headers(), timeout=10).json()
+            rows = find()
+            if not rows:
+                requests.post(f"{self.url}/rest/v1/chat_rooms", headers=self._headers(), timeout=10,
+                              data=json.dumps({"name": name, "created_by": config.RECAP_AUTHOR}))
+                rows = find()
+            if not rows:
+                raise RuntimeError(f"couldn't find or create the chat room {name!r}")
+            self._rooms[name] = rows[0]["id"]
+        return self._rooms[name]
 
     def remember(self, memory):
         """Keep a copy of the bot's memory in Supabase (sent only when it changes)."""

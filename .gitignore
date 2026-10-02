@@ -22,3 +22,6 @@ news_cache.json
 
 # research data (big, regenerable: python -m ml.build_memory)
 data/
+
+# research caches (big, rebuildable)
+research/news/cache/
