@@ -2406,3 +2406,280 @@ a.login-hint {
 .login-card .admin-remove[data-undo="true"] {
   color: var(--buy);
 }
+
+.profile-section {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.profile-section h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.login-card .link-button {
+  margin-top: 0;
+  padding: 0;
+  background: none;
+  color: var(--gold);
+  font-weight: 500;
+}
+
+/* Delete button: shows on hover / focus (always on touch screens) */
+.chat-messages li {
+  position: relative;
+}
+
+.chat-delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.chat-messages li[data-mine="true"] .chat-delete {
+  right: auto;
+  left: 2px;
+}
+
+.chat-messages li:hover .chat-delete,
+.chat-delete:focus-visible {
+  opacity: 1;
+}
+
+.chat-delete:hover {
+  color: var(--sell);
+}
+
+@media (hover: none) {
+  .chat-delete {
+    opacity: 0.7;
+  }
+}
+
+/* Long pages (profile, members, how it works) scroll inside themselves on desktop,
+   where the page body doesn't scroll */
+@media (min-width: 1100px) {
+  .login,
+  .how {
+    height: 100dvh;
+    overflow-y: auto;
+  }
+}
+
+/* ---- how it works ----------------------------------------------------- */
+
+.how {
+  padding: 32px 16px 64px;
+}
+
+.how-card {
+  display: grid;
+  gap: 28px;
+  max-width: 720px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.how-back a {
+  color: var(--gold);
+  font-size: 14px;
+}
+
+.how h1 {
+  font-family: var(--display);
+  font-size: clamp(28px, 5vw, 40px);
+  font-weight: 800;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.how-lead {
+  color: var(--muted);
+  font-size: 17px;
+}
+
+.how section {
+  display: grid;
+  gap: 10px;
+}
+
+.how h2 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.how ol,
+.how ul {
+  display: grid;
+  gap: 8px;
+  padding-left: 22px;
+}
+
+.how li::marker {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.how p a {
+  color: var(--gold);
+}
+
+.how-terms {
+  display: grid;
+  gap: 8px;
+}
+
+.how-terms > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) 1fr;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.how-terms dt {
+  font-weight: 600;
+}
+
+.how-terms dd {
+  color: var(--muted);
+}
+
+.how-warning {
+  padding: 18px 20px;
+  border-left: 3px solid var(--sell);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sell) 8%, var(--panel));
+}
+
+@media (max-width: 520px) {
+  .how-terms > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+/* ---- trade replay ----------------------------------------------------- */
+
+.history-replay {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gold);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.tc-replay {
+  position: absolute;
+  z-index: 3;
+  top: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 12px;
+  max-width: calc(100% - 24px);
+  padding: 6px 8px 6px 14px;
+  border: 1px solid color-mix(in srgb, var(--gold) 50%, transparent);
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: 0 4px 16px var(--shadow);
+  font-size: 13px;
+}
+
+.tc-replay > span {
+  color: var(--gold);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+}
+
+.tc-replay button {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---- this week's news ------------------------------------------------- */
+
+.news-week {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.news-week h3 {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.news-week ul {
+  display: grid;
+  gap: 2px;
+  padding: 0;
+  list-style: none;
+}
+
+.news-week ul li {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 2px 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--inset);
+  font-size: 14px;
+}
+
+.news-week time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.news-week li[data-status="past"] {
+  opacity: 0.5;
+}
+
+.news-week li[data-status="now"] {
+  outline: 1px solid var(--gold);
+}
+
+.news-week em {
+  grid-column: 2;
+  color: var(--gold);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+}

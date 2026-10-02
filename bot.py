@@ -258,6 +258,10 @@ class Bot:
             "session": {"open": status["open"], "message": status["message"], "hours": status["hours"]},
             "range": status["range"],
             "news": {"title": upcoming[1], "time": upcoming[0], "paused": paused is not None} if upcoming else None,
+            # this week's high-impact US releases, for the website's news panel
+            "news_week": [{"time": int(w.timestamp()), "title": title} for w, title in self.news.events]
+            if self.news.enabled else [],
+            "news_pause_minutes": config.NEWS_PAUSE_MINUTES,
             "indicators": {
                 "ema_fast": last["ema_fast"], "ema_slow": last["ema_slow"], "ema_trend": last["ema_trend"],
                 "rsi": last["rsi"], "atr": last["atr"],

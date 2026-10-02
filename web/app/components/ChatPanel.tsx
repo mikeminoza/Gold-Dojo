@@ -163,6 +163,23 @@ export default function ChatPanel({
                   </div>
                 )}
                 <p className="chat-bubble">{m.body}</p>
+                {chat.canDelete(m) && (
+                  <button
+                    type="button"
+                    className="chat-delete"
+                    onClick={() => {
+                      if (window.confirm(mine ? "Delete your message?" : `Delete this message from ${m.author}?`)) {
+                        void chat.remove(m);
+                      }
+                    }}
+                    aria-label={mine ? "Delete your message" : `Delete message from ${m.author}`}
+                    title="Delete"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                      <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                )}
                 {m.status === "failed" ? (
                   <button type="button" className="chat-retry" onClick={() => chat.retry(m)} title={m.error}>
                     Not sent · Retry

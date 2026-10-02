@@ -5,7 +5,14 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 
 export type ChatRoom = { id: string; name: string; created_by: string; created_at: string };
-export type ChatMessage = { id: number; room_id: string; author: string; body: string; created_at: string };
+export type ChatMessage = {
+  id: number;
+  room_id: string;
+  author: string;
+  body: string;
+  created_at: string;
+  user_id?: string | null; // the sender's account (older messages don't have it)
+};
 
 /**
  * A message as shown: `key` stays the same from "sending" to "sent" so it doesn't flicker,
@@ -43,6 +50,8 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, roomName: string) => void) {
   const client = supabase();
   const [me, setMe] = useState<string | null>(null);
+  const [meId, setMeId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, ShownMessage[]>>({});
@@ -71,7 +80,12 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
     let stopped = false;
     fetch("/api/me")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => !stopped && d?.name && setMe(d.name))
+      .then((d) => {
+        if (stopped || !d?.name) return;
+        setMe(d.name);
+        setMeId(d.userId ?? null);
+        setIsAdmin(d.role === "admin");
+      })
       .catch(() => {});
     client
       .from("chat_rooms")
@@ -129,6 +143,20 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
         }
         if (!onScreen) notify?.(m, known.find((r) => r.id === m.room_id)?.name ?? "a chat");
       })
+      // A message deleted by its sender or an admin disappears for everyone
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_messages" }, (change) => {
+        const id = Number((change.old as { id?: number }).id);
+        if (!id) return;
+        setMessages((all) => {
+          let changed = false;
+          const next: Record<string, ShownMessage[]> = {};
+          for (const [room, list] of Object.entries(all)) {
+            next[room] = list.filter((x) => x.id !== id);
+            changed ||= next[room].length !== list.length;
+          }
+          return changed ? next : all;
+        });
+      })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_rooms" }, (change) => {
         const r = change.new as ChatRoom;
         setRooms((list) => (list.some((x) => x.id === r.id) ? list : [...list, r]));
@@ -171,7 +199,7 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
     let stopped = false;
     client
       .from("chat_messages")
-      .select("id, room_id, author, body, created_at")
+      .select("*")
       .eq("room_id", activeId)
       .order("created_at", { ascending: false })
       .limit(HISTORY)
@@ -267,6 +295,31 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
     [deliver],
   );
 
+  /** Deletes a message (yours, or anyone's for admins); it's taken off screen right away. */
+  const remove = useCallback(async (message: ShownMessage) => {
+    const take = (all: Record<string, ShownMessage[]>) => ({
+      ...all,
+      [message.room_id]: (all[message.room_id] ?? []).filter((x) => x.key !== message.key),
+    });
+    setMessages(take);
+    const res = await fetch(`/api/chat/messages?id=${message.id}`, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => ({}));
+      setError(data?.error ?? "Couldn't delete the message.");
+      setMessages((all) => {
+        const list = all[message.room_id] ?? [];
+        if (list.some((x) => x.key === message.key)) return all;
+        return { ...all, [message.room_id]: [...list, message].sort((a, b) => a.id - b.id) };
+      });
+    }
+  }, []);
+
+  /** Can I delete this message? Your own, or any if you're an admin. */
+  const canDelete = useCallback(
+    (m: ShownMessage) => !m.status && m.id > 0 && (isAdmin || (meId !== null && m.user_id === meId)),
+    [isAdmin, meId],
+  );
+
   /** Call as you type: others in the chat see "<your name> is typing...". */
   const announceTyping = useCallback(() => {
     const { activeId: room, me: name } = view.current;
@@ -303,6 +356,9 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
     announceTyping,
     typing: activeId ? Object.keys(typing[activeId] ?? {}) : [],
     addRoom,
+    remove,
+    canDelete,
+    isAdmin,
     configured: client !== null,
   };
 }

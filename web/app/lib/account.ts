@@ -4,16 +4,19 @@ import { useSyncExternalStore } from "react";
 import type { LiveState, Position, SignalEvent, Sizing } from "./types";
 
 /**
- * Each visitor's own account size and risk, kept in this browser. Lot sizes, money results and the
+ * Each person's own account size and risk. Saved on their profile (so it follows them to every
+ * device) with a copy in this browser for instant loading. Lot sizes, money results and the
  * Performance page all use it; the bot's own numbers (config.py) are the default.
  */
 export type MyAccount = { balance: number; risk_percent: number };
 type Rules = LiveState["account"];
 
+import { BALANCE_LIMITS, RISK_LIMITS } from "./limits";
+
+export { BALANCE_LIMITS, RISK_LIMITS };
+
 const KEY = "gold-my-account";
 const LOT_STEP = 0.01;
-export const BALANCE_LIMITS = [10, 10_000_000] as const;
-export const RISK_LIMITS = [0.1, 10] as const;
 
 const listeners = new Set<() => void>();
 let cachedRaw: string | null | undefined;
@@ -55,7 +58,30 @@ function subscribe(onChange: () => void) {
   };
 }
 
-function store(value: MyAccount | null) {
+/** Save to the profile; the browser copy already shows it. */
+function upload(value: MyAccount | null) {
+  fetch("/api/account", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(value ?? { balance: null, risk_percent: null }),
+  }).catch(() => {});
+}
+
+/**
+ * The account saved on the profile (from /api/me), applied in this browser. A browser that set one
+ * before profiles kept it hands it up to the profile instead.
+ */
+export function adoptProfileAccount(saved: MyAccount | null) {
+  const local = snapshot();
+  if (saved) {
+    if (!local || local.balance !== saved.balance || local.risk_percent !== saved.risk_percent) store(saved, false);
+  } else if (local) {
+    upload(local);
+  }
+}
+
+function store(value: MyAccount | null, save = true) {
+  if (save) upload(value);
   try {
     if (value) localStorage.setItem(KEY, JSON.stringify(value));
     else localStorage.removeItem(KEY);

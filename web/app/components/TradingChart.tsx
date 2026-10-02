@@ -26,7 +26,7 @@ import {
 } from "lightweight-charts";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { bollinger, ema, rsi, type Point } from "../lib/indicators";
-import { fetchCandles } from "../lib/market";
+import { TF_SECONDS, fetchCandles } from "../lib/market";
 import type { Candle, OpeningRange, Position, SignalEvent } from "../lib/types";
 
 export type Theme = "dark" | "light";
@@ -261,6 +261,8 @@ export default function TradingChart({
   periods,
   theme,
   onTimeframe,
+  replay,
+  onExitReplay,
 }: {
   theme: Theme; // the chart is remounted when this changes
   symbol: string;
@@ -276,6 +278,9 @@ export default function TradingChart({
   position: Position | null;
   periods: [number, number, number];
   onTimeframe?: (tf: string) => void; // tells the page which timeframe is showing
+  /** A past trade to show: the chart switches to the signal timeframe and frames the trade. */
+  replay?: { open: SignalEvent; close?: SignalEvent; label: string } | null;
+  onExitReplay?: () => void;
 }) {
   const COLORS = PALETTES[theme];
   const [settings, setSettings] = useState<Settings>(loadSettings);
@@ -285,7 +290,8 @@ export default function TradingChart({
   const [hover, setHover] = useState<Bar | null>(null);
   const [mainVersion, setMainVersion] = useState(0);
 
-  const tf = settings.tf && timeframes.includes(settings.tf) ? settings.tf : defaultTf;
+  const chosenTf = settings.tf && timeframes.includes(settings.tf) ? settings.tf : defaultTf;
+  const tf = replay ? defaultTf : chosenTf; // replays use the timeframe the signals come from
 
   // Let the page header show the timeframe you picked (and remember across visits)
   useEffect(() => {
@@ -293,6 +299,12 @@ export default function TradingChart({
   }, [tf, onTimeframe]);
   const { type, show } = settings;
   const { candles: raw, error, loadOlder, loadingOlder } = useCandles(tf);
+  // Markers: the recent signals, plus the replayed trade (which may be older than those)
+  const shownHistory = useMemo(() => {
+    if (!replay) return history;
+    const extra = [replay.open, ...(replay.close ? [replay.close] : [])];
+    return [...history.filter((e) => !extra.some((x) => x.id === e.id)), ...extra];
+  }, [history, replay]);
   const loadOlderRef = useRef(loadOlder);
   useEffect(() => {
     loadOlderRef.current = loadOlder;
@@ -573,7 +585,7 @@ export default function TradingChart({
       for (const k of candles) if (k.t <= t) hit = k.t;
       return hit;
     };
-    const markers: SeriesMarker<Time>[] = history
+    const markers: SeriesMarker<Time>[] = shownHistory
       .filter((e) => e.time >= candles[0].t)
       .map((e): SeriesMarker<Time> => {
         const buy = e.side === "BUY";
@@ -597,10 +609,14 @@ export default function TradingChart({
       .sort((a, b) => (a.time as number) - (b.time as number));
     m.setMarkers(markers);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `at` only depends on offset, part of dataKey
-  }, [history, dataKey, mainVersion, show.markers, COLORS]);
+  }, [shownHistory, dataKey, mainVersion, show.markers, COLORS]);
 
   // Horizontal lines: opening range, trade levels, and horizontal-line drawings
-  const levelsKey = position ? `${position.entry}|${position.sl}|${position.tp}` : "";
+  const levelsKey = replay
+    ? `replay|${replay.open.id}`
+    : position
+      ? `${position.entry}|${position.sl}|${position.tp}`
+      : "";
   const rangeKey = range ? `${range.hi}|${range.lo}|${range.forming}` : "";
   const hlineKey = drawings
     .filter((d) => d.kind === "hline")
@@ -618,15 +634,47 @@ export default function TradingChart({
       add(range.hi, COLORS.range, "Range high", style);
       add(range.lo, COLORS.range, "Range low", style);
     }
-    if (show.levels && position) {
-      add(position.entry, COLORS.gold, "Entry", LineStyle.Solid);
-      add(position.sl, COLORS.down, "SL");
-      add(position.tp, COLORS.up, "TP");
+    const trade = replay
+      ? replay.open.sl != null && replay.open.tp != null
+        ? { entry: replay.open.price, sl: replay.open.sl, tp: replay.open.tp }
+        : null
+      : position;
+    if ((show.levels || replay) && trade) {
+      add(trade.entry, COLORS.gold, "Entry", LineStyle.Solid);
+      add(trade.sl, COLORS.down, "SL");
+      add(trade.tp, COLORS.up, "TP");
     }
     for (const d of drawings) if (d.kind === "hline") add(d.price, COLORS.drawing, "", LineStyle.Solid);
     lines.current = { owner: main, list };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values that change the lines
   }, [rangeKey, levelsKey, hlineKey, mainVersion, show.range, show.levels, COLORS]);
+
+  // Replay: frame the trade (fetching older candles first if it's further back than the chart goes)
+  const replayShown = useRef<string | null>(null);
+  const replayTried = useRef<number | null>(null);
+  useEffect(() => {
+    const c = chartRef.current;
+    if (!c || candles.length === 0) return;
+    if (!replay) {
+      if (replayShown.current) {
+        replayShown.current = null;
+        c.timeScale().scrollToRealTime();
+      }
+      return;
+    }
+    if (replayShown.current === replay.open.id || loadingOlder) return;
+    const step = TF_SECONDS[tf] ?? 1800;
+    const from = replay.open.time - 24 * step;
+    const to = Math.min((replay.close?.time ?? replay.open.time) + 24 * step, candles[candles.length - 1].t);
+    if (candles[0].t > from && replayTried.current !== candles[0].t) {
+      replayTried.current = candles[0].t; // if nothing older arrives, show what there is
+      void loadOlderRef.current();
+      return;
+    }
+    replayShown.current = replay.open.id;
+    c.timeScale().setVisibleRange({ from: at(Math.max(from, candles[0].t)), to: at(to) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `at` only depends on offset
+  }, [replay, candles, tf, loadingOlder]);
 
   // Trend-line drawings: a two-point line series each, snapped to this timeframe's candles
   const trendKey = drawings
@@ -761,7 +809,10 @@ export default function TradingChart({
       <div className="tc-toolbar" role="toolbar" aria-label="Chart tools">
         <div className="tc-group" role="group" aria-label="Timeframe">
           {timeframes.map((t) => (
-            <button key={t} type="button" aria-pressed={t === tf} onClick={() => update({ tf: t })}>
+            <button key={t} type="button" aria-pressed={t === tf} onClick={() => {
+                onExitReplay?.();
+                update({ tf: t });
+              }}>
               {t}
             </button>
           ))}
@@ -884,6 +935,15 @@ export default function TradingChart({
           </p>
         )}
         {hint && <p className="tc-hint">{hint}</p>}
+        {replay && (
+          <div className="tc-replay" role="status">
+            <span>Replay</span>
+            <strong>{replay.label}</strong>
+            <button type="button" onClick={onExitReplay}>
+              Back to live
+            </button>
+          </div>
+        )}
         {loadingOlder && <p className="tc-older">Loading older candles…</p>}
         {(!raw || gap === null) && <p className="tc-status">{error ?? `Loading ${tf} candles…`}</p>}
       </div>

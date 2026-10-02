@@ -108,6 +108,8 @@ export type LiveState = {
   session: { open: boolean; message: string; hours: string };
   range: OpeningRange | null;
   news: { title: string; time: number; paused: boolean } | null;
+  news_week?: { time: number; title: string }[]; // this week's high-impact US releases (UTC seconds)
+  news_pause_minutes?: number;
   indicators: {
     ema_fast: number;
     ema_slow: number;

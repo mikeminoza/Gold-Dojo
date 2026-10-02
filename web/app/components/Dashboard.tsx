@@ -8,7 +8,7 @@ import { useBotState } from "../lib/useBotState";
 import { useLivePrice, type LivePrice } from "../lib/useLivePrice";
 import { useChat, type ChatMessage } from "../lib/useChat";
 import { journalCsv, useJournal, type JournalEntry } from "../lib/useJournal";
-import { sizeEvents, sizePosition, useMyAccount } from "../lib/account";
+import { adoptProfileAccount, sizeEvents, sizePosition, useMyAccount } from "../lib/account";
 import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
 import Performance from "./Performance";
@@ -137,14 +137,18 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
   );
 }
 
-/** The signed-in member's display name and role. */
+/** The signed-in member's display name and role; also applies the account size saved on their profile. */
 function useMe() {
   const [me, setMe] = useState<{ name: string; role: "admin" | "member" } | null>(null);
   useEffect(() => {
     let stopped = false;
     fetch("/api/me")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => !stopped && d?.name && setMe({ name: d.name, role: d.role }))
+      .then((d) => {
+        if (stopped || !d?.name) return;
+        setMe({ name: d.name, role: d.role });
+        adoptProfileAccount(d.account ?? null);
+      })
       .catch(() => {});
     return () => {
       stopped = true;
@@ -565,7 +569,9 @@ function Journal({
   state,
   t,
   now,
+  onReplay,
 }: {
+  onReplay: (e: SignalEvent) => void;
   journal: ReturnType<typeof useJournal>;
   all: SignalEvent[]; // every signal, sized for the visitor's account
   balance: number;
@@ -610,12 +616,79 @@ function Journal({
         </p>
       )}
       <Results events={events} balance={balance} />
-      <History events={events.slice(0, 50)} t={t} now={now} />
+      <History events={events.slice(0, 50)} t={t} now={now} onReplay={onReplay} />
     </>
   );
 }
 
-function History({ events, t, now }: { events: SignalEvent[]; t: TimeFormat; now: number }) {
+/** This week's major US releases by day, in PH time; signals pause around each one. */
+function NewsWeek({ state, t, now }: { state: LiveState; t: TimeFormat; now: number }) {
+  const events = state.news_week;
+  if (!events) return null;
+  const pause = (state.news_pause_minutes ?? 30) * 60;
+  const days = new Map<string, { time: number; title: string }[]>();
+  for (const e of [...events].sort((a, b) => a.time - b.time)) {
+    const day = t.day(e.time, now);
+    days.set(day, [...(days.get(day) ?? []), e]);
+  }
+  return (
+    <section className="side-block">
+      <h2>
+        Major US news this week <span className="tz-note">{state.display.label}</span>
+      </h2>
+      {events.length === 0 ? (
+        <p className="empty">No high-impact US releases on the calendar this week.</p>
+      ) : (
+        <>
+          <ol className="news-week">
+            {[...days].map(([day, list]) => (
+              <li key={day}>
+                <h3>{day}</h3>
+                <ul>
+                  {list.map((e) => {
+                    const status = now > e.time + pause ? "past" : now >= e.time - pause ? "now" : "soon";
+                    return (
+                      <li key={`${e.time}-${e.title}`} data-status={status}>
+                        <time>{t.bare(e.time)}</time>
+                        <span>{e.title}</span>
+                        {status === "now" && <em>Signals paused</em>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            ))}
+          </ol>
+          <p className="note">
+            New signals pause {state.news_pause_minutes ?? 30} minutes before and after each release. Source: Forex
+            Factory calendar.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ReplayButton({ e, onReplay }: { e: SignalEvent; onReplay?: (e: SignalEvent) => void }) {
+  if (!onReplay) return null;
+  return (
+    <button type="button" className="history-replay" onClick={() => onReplay(e)}>
+      Show on chart
+    </button>
+  );
+}
+
+function History({
+  events,
+  t,
+  now,
+  onReplay,
+}: {
+  events: SignalEvent[];
+  t: TimeFormat;
+  now: number;
+  onReplay?: (e: SignalEvent) => void;
+}) {
   if (events.length === 0) {
     return <p className="empty">No signals in this period. They&apos;ll appear here as soon as the bot sends one.</p>;
   }
@@ -632,6 +705,7 @@ function History({ events, t, now }: { events: SignalEvent[]; t: TimeFormat; now
                 {e.size && `. ${e.size.lots.toFixed(2)} lot, risk ${usd(e.size.risk)}`}
                 {e.size && e.size.verdict === "skip" && " (above your risk limit)"}
               </span>
+              <ReplayButton e={e} onReplay={onReplay} />
             </li>
           );
         }
@@ -650,6 +724,7 @@ function History({ events, t, now }: { events: SignalEvent[]; t: TimeFormat; now
               {e.side === "BUY" ? "Buy" : "Sell"} closed at {price(e.price)}
               {e.reason ? `, ${e.reason.toLowerCase()}` : ""}
             </span>
+            <ReplayButton e={e} onReplay={onReplay} />
           </li>
         );
       })}
@@ -681,6 +756,20 @@ export default function Dashboard() {
   const [perfOpen, setPerfOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const closePerf = useCallback(() => setPerfOpen(false), []);
+  const [replay, setReplay] = useState<{ open: SignalEvent; close?: SignalEvent; label: string } | null>(null);
+  /** Show a past trade on the chart: its open, close, entry / stop / target. */
+  const showTrade = (e: SignalEvent) => {
+    const tradeId = e.type === "open" ? (e.trade_id ?? e.id) : e.trade_id;
+    const open = e.type === "open" ? e : signals.find((x) => x.type === "open" && (x.trade_id ?? x.id) === tradeId);
+    if (!open) return;
+    const close = signals.find((x) => x.type === "close" && x.trade_id === (open.trade_id ?? open.id));
+    const side = open.side === "BUY" ? "Buy" : "Sell";
+    const result = close
+      ? `${outcome(close.pnl ?? 0).label} ${close.pnl_usd != null ? usd(close.pnl_usd, true) : `${signed(close.pnl ?? 0)} per oz`}`
+      : "still open";
+    setReplay({ open, close, label: `${side} at ${price(open.price)}, ${result}` });
+    document.querySelector(".chart-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
   const [alerts, setAlerts] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chartTf, setChartTf] = useState<string | null>(null); // the timeframe picked on the chart
@@ -842,6 +931,9 @@ export default function Dashboard() {
           <i aria-hidden />
           {status.text}
         </div>
+        <a className="theme-toggle" href="/how">
+          How it works
+        </a>
         <button type="button" className="theme-toggle" aria-haspopup="dialog" onClick={() => setPerfOpen(true)}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
             <path d="M2 13.5h12M3 11l3.5-4 3 2.5L14 3.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -853,7 +945,7 @@ export default function Dashboard() {
         </button>
         <ThemeToggle theme={theme} onToggle={toggleTheme} />
         {me && (
-          <a className="theme-toggle" href="/welcome" title="Change your display name">
+          <a className="theme-toggle" href="/profile" title="Your profile: display name and account size">
             {me.name}
           </a>
         )}
@@ -887,6 +979,8 @@ export default function Dashboard() {
             position={position}
             periods={state.indicators.periods}
             onTimeframe={setChartTf}
+            replay={replay}
+            onExitReplay={() => setReplay(null)}
           />
         </section>
 
@@ -958,8 +1052,18 @@ export default function Dashboard() {
             <h2>
               Signals <span className="tz-note">{state.display.label}</span>
             </h2>
-            <Journal journal={journal} all={signals} balance={account.balance} state={state} t={t} now={now} />
+            <Journal
+              journal={journal}
+              all={signals}
+              balance={account.balance}
+              state={state}
+              t={t}
+              now={now}
+              onReplay={showTrade}
+            />
           </section>
+
+          <NewsWeek state={state} t={t} now={now} />
 
           <section className="side-block">
             <h2>Indicators</h2>

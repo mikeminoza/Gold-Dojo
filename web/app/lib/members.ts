@@ -10,7 +10,13 @@ import { supabaseServer } from "./supabaseServer";
  * row in `members` (role, blocked); each person's display name is in `profiles`. Both are read here
  * with the secret key, and never by the browser.
  */
-export type Member = { userId: string; email: string; role: "admin" | "member"; name: string | null };
+export type Member = {
+  userId: string;
+  email: string;
+  role: "admin" | "member";
+  name: string | null;
+  account: { balance: number; risk_percent: number } | null; // saved on the profile page
+};
 
 export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 export const supabaseKey =
@@ -49,7 +55,7 @@ export async function memberFor(user: User): Promise<Member | null> {
   if (!user.email_confirmed_at) return null; // email + password accounts must confirm their email first
   const [{ data: found, error }, { data: p }] = await Promise.all([
     db.from("members").select("role, blocked").eq("email", email).maybeSingle(),
-    db.from("profiles").select("name").eq("user_id", user.id).maybeSingle(),
+    db.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
   ]);
   if (error) throw new Error(`members lookup failed: ${error.message}`); // don't cache a failure
   let m = found;
@@ -59,7 +65,10 @@ export async function memberFor(user: User): Promise<Member | null> {
     if (e) throw new Error(`couldn't add member: ${e.message}`);
     m = { role: "member", blocked: false };
   }
-  const member = m.blocked ? null : { userId: user.id, email, role: m.role as Member["role"], name: p?.name ?? null };
+  const account = p?.balance && p?.risk_percent ? { balance: p.balance, risk_percent: p.risk_percent } : null;
+  const member = m.blocked
+    ? null
+    : { userId: user.id, email, role: m.role as Member["role"], name: p?.name ?? null, account };
   cache.set(user.id, { member, at: Date.now() });
   return member;
 }
