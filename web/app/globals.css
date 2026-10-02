@@ -3241,3 +3241,14 @@ button[data-busy] {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
+
+/* Lot calculator fields: always aligned; two per row when space is tight */
+.tool-grid {
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  align-items: end;
+}
+
+.tool-grid label {
+  min-width: 0;
+  white-space: nowrap;
+}

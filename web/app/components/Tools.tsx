@@ -210,18 +210,22 @@ export function LotCalculator({
           />
         </label>
         <label htmlFor={`${id}-target`}>
-          Take profit <span>(optional)</span>
+          Target
           <input
             id={`${id}-target`}
             type="number"
             inputMode="decimal"
             step="0.01"
-            placeholder="2 × risk"
+            placeholder="2× risk"
+            aria-describedby={`${id}-target-hint`}
             value={targetText}
             onChange={(e) => setTargetText(e.target.value)}
           />
         </label>
       </div>
+      <p id={`${id}-target-hint`} className="sr-only">
+        Optional. Leave empty for a target of twice the risk.
+      </p>
       {wrongSide && (
         <p className="tool-hint" data-error="true">
           For a {side === "BUY" ? "buy" : "sell"}, the stop goes {side === "BUY" ? "below" : "above"} the entry.
