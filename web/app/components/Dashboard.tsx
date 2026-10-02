@@ -851,6 +851,7 @@ export default function Dashboard() {
     return sizeEvents(all, account, botState.account);
   }, [journal.available, journal.entries, botState, account]);
   const [perfOpen, setPerfOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false); // the header's menu on phones and tablets
   const [accountOpen, setAccountOpen] = useState(false);
   const closePerf = useCallback(() => setPerfOpen(false), []);
   const [replay, setReplay] = useState<{ open: SignalEvent; close?: SignalEvent; label: string } | null>(null);
@@ -1028,6 +1029,19 @@ export default function Dashboard() {
           <i aria-hidden />
           {status.text}
         </div>
+        <button
+          type="button"
+          className="theme-toggle topbar-menu-toggle"
+          aria-expanded={menuOpen}
+          aria-controls="topbar-actions"
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+            {menuOpen ? <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" /> : <path d="M2.5 4h11M2.5 8h11M2.5 12h11" strokeLinecap="round" />}
+          </svg>
+          Menu
+        </button>
+        <nav id="topbar-actions" className="topbar-actions" data-open={menuOpen} aria-label="Site">
         <a className="theme-toggle" href="/how">
           How it works
         </a>
@@ -1056,6 +1070,7 @@ export default function Dashboard() {
             Sign out
           </button>
         </form>
+        </nav>
       </header>
 
       <div className="workspace">

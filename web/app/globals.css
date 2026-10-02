@@ -2738,3 +2738,94 @@ a.login-hint {
 .history-mine[data-tone="loss"] {
   color: var(--sell);
 }
+
+/* ---- responsive: header menu, results, signal list -------------------- */
+
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.topbar-menu-toggle {
+  display: none;
+}
+
+/* Results numbers: as many per row as fit, never squashed labels */
+.results dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  gap: 12px 16px;
+  width: 100%;
+}
+
+.results dt {
+  white-space: nowrap;
+}
+
+.results-net {
+  width: 100%;
+}
+
+@media (max-width: 1099px) {
+  /* Phones and tablets: the header's links fold into a Menu button */
+  .topbar-menu-toggle {
+    display: flex;
+    margin-left: auto;
+  }
+
+  .topbar-actions {
+    display: none;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+
+  .topbar-actions[data-open="true"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+
+  .topbar-actions > *,
+  .topbar-actions form button {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar {
+    gap: 10px 14px;
+  }
+
+  .topbar-quote {
+    gap: 10px;
+  }
+
+  .instrument-strategy {
+    display: none; /* the signal card says it anyway */
+  }
+
+  .history li {
+    grid-template-columns: 56px 1fr;
+    gap: 2px 10px;
+    padding-left: 10px;
+  }
+
+  .results {
+    padding: 14px;
+  }
+
+  .results-net strong {
+    font-size: 22px;
+  }
+
+  .tc-replay {
+    border-radius: 12px;
+  }
+}
