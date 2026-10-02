@@ -1,0 +1,3 @@
+ATR-stop groups (N1, no trend filter), same seeds, fake paths with 12 vs 240 steps per minute:
+   12 steps/min: N1 1ATR 2R +0.040 (se 0.009); N1 1ATR 2h +0.103 (se 0.023); N1 1ATR EOS +0.082 (se 0.025); N1 2ATR 2R +0.003 (se 0.011); N1 2ATR 2h +0.029 (se 0.017); N1 2ATR EOS +0.009 (se 0.020)
+  240 steps/min: N1 1ATR 2R +0.015 (se 0.009); N1 1ATR 2h +0.048 (se 0.019); N1 1ATR EOS +0.046 (se 0.024); N1 2ATR 2R +0.018 (se 0.009); N1 2ATR 2h +0.017 (se 0.015); N1 2ATR EOS +0.011 (se 0.017)

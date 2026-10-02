@@ -1,0 +1,559 @@
+{
+ "run": "2026-10-02T06:25:05.480015+00:00",
+ "results": [
+  {
+   "label": "finalist",
+   "row": {
+    "id": "FOMC N3 W=30 2R",
+    "trades": 59,
+    "win_%": 52.5,
+    "pf": 1.41,
+    "total_R": 6.2,
+    "result_$": 117.14,
+    "drop_%": -12.7,
+    "losing_years": 3,
+    "years": 8,
+    "loss_streak": 4,
+    "spread_R": 0.035,
+    "slip_R": 0.015,
+    "gross_R": 0.154,
+    "skip_lots": 43,
+    "longs": 33
+   },
+   "stress": {
+    "id": "FOMC N3 W=30 2R",
+    "trades": 59,
+    "win_%": 52.5,
+    "pf": 1.31,
+    "total_R": 4.8,
+    "result_$": 99.2,
+    "drop_%": -13.8,
+    "losing_years": 3,
+    "years": 8,
+    "loss_streak": 4,
+    "spread_R": 0.034,
+    "slip_R": 0.022,
+    "gross_R": 0.154,
+    "skip_lots": 43,
+    "longs": 33
+   },
+   "random": [
+    87.8,
+    0.9638020547282165,
+    1.4502476321975428
+   ],
+   "non_event": {
+    "trades": 1274,
+    "win_%": 33.7,
+    "pf": 0.53,
+    "total_R": -264.5,
+    "avg_R": -0.208,
+    "result_$": -1275.39,
+    "drop_%": -283.3,
+    "losing_years": 7,
+    "years": 8,
+    "loss_streak": 21,
+    "spread_R": 0.107,
+    "slip_R": 0.051,
+    "gross_R": -0.049,
+    "skip_lots": 171,
+    "longs": 669
+   },
+   "neighbours": [
+    {
+     "id": "FOMC N3 W=15 2R",
+     "trades": 59,
+     "win_%": 47.5,
+     "pf": 1.2,
+     "total_R": 3.7,
+     "result_$": 66.27,
+     "drop_%": -16.0,
+     "losing_years": 3,
+     "years": 8,
+     "loss_streak": 6,
+     "spread_R": 0.037,
+     "slip_R": 0.017,
+     "gross_R": 0.115,
+     "skip_lots": 43,
+     "longs": 31
+    },
+    {
+     "id": "FOMC N3 W=30 2h",
+     "trades": 59,
+     "win_%": 54.2,
+     "pf": 1.44,
+     "total_R": 6.3,
+     "result_$": 53.84,
+     "drop_%": -13.1,
+     "losing_years": 3,
+     "years": 8,
+     "loss_streak": 6,
+     "spread_R": 0.032,
+     "slip_R": 0.015,
+     "gross_R": 0.155,
+     "skip_lots": 43,
+     "longs": 33
+    }
+   ],
+   "checks": {
+    "pf>1.2": "True",
+    ">=40 trades": true,
+    "drop<30%": "True",
+    "random>=90": false,
+    "stress pf>1": "True",
+    "beats non-event": "True"
+   },
+   "robust": false,
+   "per_year": [
+    {
+     "entry_time": 2019,
+     "trades": 7,
+     "pf": 0.51,
+     "R": -0.7,
+     "$": -9.46
+    },
+    {
+     "entry_time": 2020,
+     "trades": 7,
+     "pf": 0.72,
+     "R": -0.4,
+     "$": -9.51
+    },
+    {
+     "entry_time": 2021,
+     "trades": 8,
+     "pf": 3.39,
+     "R": 1.4,
+     "$": 29.85
+    },
+    {
+     "entry_time": 2022,
+     "trades": 8,
+     "pf": 0.19,
+     "R": -2.9,
+     "$": -38.29
+    },
+    {
+     "entry_time": 2023,
+     "trades": 7,
+     "pf": 1.18,
+     "R": 0.5,
+     "$": 6.36
+    },
+    {
+     "entry_time": 2024,
+     "trades": 8,
+     "pf": 1.81,
+     "R": 1.8,
+     "$": 11.68
+    },
+    {
+     "entry_time": 2025,
+     "trades": 8,
+     "pf": 4.11,
+     "R": 3.8,
+     "$": 29.28
+    },
+    {
+     "entry_time": 2026,
+     "trades": 6,
+     "pf": 2.71,
+     "R": 2.8,
+     "$": 97.23
+    }
+   ]
+  },
+  {
+   "label": "extra (no verdict weight)",
+   "row": {
+    "id": "FOMC N1 W=30 m=0.5 stop=ext 2R",
+    "trades": 56,
+    "win_%": 46.4,
+    "pf": 0.99,
+    "total_R": -0.2,
+    "result_$": 159.84,
+    "drop_%": -14.2,
+    "losing_years": 3,
+    "years": 8,
+    "loss_streak": 5,
+    "spread_R": 0.063,
+    "slip_R": 0.029,
+    "gross_R": 0.088,
+    "skip_lots": 22,
+    "longs": 28
+   },
+   "stress": {
+    "id": "FOMC N1 W=30 m=0.5 stop=ext 2R",
+    "trades": 56,
+    "win_%": 46.4,
+    "pf": 0.93,
+    "total_R": -2.0,
+    "result_$": 144.72,
+    "drop_%": -15.0,
+    "losing_years": 3,
+    "years": 8,
+    "loss_streak": 5,
+    "spread_R": 0.061,
+    "slip_R": 0.042,
+    "gross_R": 0.097,
+    "skip_lots": 22,
+    "longs": 28
+   },
+   "random": [
+    70.89999999999999,
+    0.8574469791915516,
+    1.2287145366647594
+   ],
+   "non_event": {
+    "trades": 628,
+    "win_%": 34.6,
+    "pf": 0.6,
+    "total_R": -139.2,
+    "avg_R": -0.222,
+    "result_$": -609.9,
+    "drop_%": -130.1,
+    "losing_years": 8,
+    "years": 8,
+    "loss_streak": 12,
+    "spread_R": 0.123,
+    "slip_R": 0.055,
+    "gross_R": -0.044,
+    "skip_lots": 61,
+    "longs": 311
+   },
+   "neighbours": [
+    {
+     "id": "FOMC N1 W=15 m=0.5 stop=ext 2R",
+     "trades": 54,
+     "win_%": 48.1,
+     "pf": 0.95,
+     "total_R": -1.4,
+     "result_$": 85.55,
+     "drop_%": -13.8,
+     "losing_years": 3,
+     "years": 8,
+     "loss_streak": 8,
+     "spread_R": 0.058,
+     "slip_R": 0.054,
+     "gross_R": 0.086,
+     "skip_lots": 22,
+     "longs": 33
+    },
+    {
+     "id": "FOMC N1 W=30 m=1 stop=ext 2R",
+     "trades": 52,
+     "win_%": 46.2,
+     "pf": 0.99,
+     "total_R": -0.3,
+     "result_$": 137.99,
+     "drop_%": -14.2,
+     "losing_years": 3,
+     "years": 8,
+     "loss_streak": 5,
+     "spread_R": 0.055,
+     "slip_R": 0.026,
+     "gross_R": 0.075,
+     "skip_lots": 21,
+     "longs": 26
+    },
+    {
+     "id": "FOMC N1 W=30 m=0.5 stop=1ATR 2R",
+     "trades": 9,
+     "win_%": 33.3,
+     "pf": 0.96,
+     "total_R": -0.2,
+     "result_$": -0.88,
+     "drop_%": -3.4,
+     "losing_years": 2,
+     "years": 3,
+     "loss_streak": 4,
+     "spread_R": 0.176,
+     "slip_R": 0.053,
+     "gross_R": 0.203,
+     "skip_lots": 0,
+     "longs": 4
+    },
+    {
+     "id": "FOMC N1 W=30 m=0.5 stop=ext 2h",
+     "trades": 56,
+     "win_%": 44.6,
+     "pf": 0.99,
+     "total_R": -0.4,
+     "result_$": 133.71,
+     "drop_%": -17.4,
+     "losing_years": 3,
+     "years": 8,
+     "loss_streak": 5,
+     "spread_R": 0.06,
+     "slip_R": 0.029,
+     "gross_R": 0.082,
+     "skip_lots": 22,
+     "longs": 28
+    }
+   ],
+   "checks": {
+    "pf>1.2": "False",
+    ">=40 trades": true,
+    "drop<30%": "True",
+    "random>=90": false,
+    "stress pf>1": "False",
+    "beats non-event": "True"
+   },
+   "robust": false,
+   "per_year": [
+    {
+     "entry_time": 2019,
+     "trades": 8,
+     "pf": 1.76,
+     "R": 1.7,
+     "$": 10.24
+    },
+    {
+     "entry_time": 2020,
+     "trades": 7,
+     "pf": 0.39,
+     "R": -2.5,
+     "$": -17.14
+    },
+    {
+     "entry_time": 2021,
+     "trades": 5,
+     "pf": 1.92,
+     "R": 1.1,
+     "$": 18.09
+    },
+    {
+     "entry_time": 2022,
+     "trades": 8,
+     "pf": 0.28,
+     "R": -5.1,
+     "$": -44.28
+    },
+    {
+     "entry_time": 2023,
+     "trades": 7,
+     "pf": 0.44,
+     "R": -2.3,
+     "$": 8.99
+    },
+    {
+     "entry_time": 2024,
+     "trades": 8,
+     "pf": 1.36,
+     "R": 1.4,
+     "$": 20.21
+    },
+    {
+     "entry_time": 2025,
+     "trades": 8,
+     "pf": 1.72,
+     "R": 2.9,
+     "$": 62.3
+    },
+    {
+     "entry_time": 2026,
+     "trades": 5,
+     "pf": 3.26,
+     "R": 2.5,
+     "$": 101.43
+    }
+   ]
+  },
+  {
+   "label": "extra (no verdict weight)",
+   "row": {
+    "id": "ALL N4 N1 W=30 m=1 stop=2ATR EOS +trend",
+    "trades": 83,
+    "win_%": 14.5,
+    "pf": 0.69,
+    "total_R": -22.8,
+    "result_$": -77.1,
+    "drop_%": -27.1,
+    "losing_years": 5,
+    "years": 8,
+    "loss_streak": 17,
+    "spread_R": 0.122,
+    "slip_R": 0.059,
+    "gross_R": -0.093,
+    "skip_lots": 6,
+    "longs": 61
+   },
+   "stress": {
+    "id": "ALL N4 N1 W=30 m=1 stop=2ATR EOS +trend",
+    "trades": 83,
+    "win_%": 14.5,
+    "pf": 0.64,
+    "total_R": -27.1,
+    "result_$": -96.17,
+    "drop_%": -30.8,
+    "losing_years": 6,
+    "years": 8,
+    "loss_streak": 17,
+    "spread_R": 0.122,
+    "slip_R": 0.088,
+    "gross_R": -0.056,
+    "skip_lots": 6,
+    "longs": 61
+   },
+   "random": [
+    25.7,
+    0.8183575769729778,
+    1.1011343592662968
+   ],
+   "non_event": {
+    "trades": 709,
+    "win_%": 24.4,
+    "pf": 0.74,
+    "total_R": -138.1,
+    "avg_R": -0.195,
+    "result_$": -884.13,
+    "drop_%": -182.8,
+    "losing_years": 7,
+    "years": 8,
+    "loss_streak": 17,
+    "spread_R": 0.115,
+    "slip_R": 0.056,
+    "gross_R": -0.023,
+    "skip_lots": 60,
+    "longs": 479
+   },
+   "neighbours": [
+    {
+     "id": "ALL N4 N1 W=15 m=1 stop=2ATR EOS +trend",
+     "trades": 82,
+     "win_%": 12.2,
+     "pf": 0.58,
+     "total_R": -31.0,
+     "result_$": -18.95,
+     "drop_%": -37.3,
+     "losing_years": 5,
+     "years": 8,
+     "loss_streak": 21,
+     "spread_R": 0.12,
+     "slip_R": 0.121,
+     "gross_R": -0.137,
+     "skip_lots": 7,
+     "longs": 65
+    },
+    {
+     "id": "ALL N4 N1 W=30 m=0.5 stop=2ATR EOS +trend",
+     "trades": 88,
+     "win_%": 15.9,
+     "pf": 0.69,
+     "total_R": -23.7,
+     "result_$": -81.58,
+     "drop_%": -28.0,
+     "losing_years": 7,
+     "years": 8,
+     "loss_streak": 17,
+     "spread_R": 0.123,
+     "slip_R": 0.059,
+     "gross_R": -0.086,
+     "skip_lots": 6,
+     "longs": 66
+    },
+    {
+     "id": "ALL N4 N1 W=30 m=1 stop=1ATR EOS +trend",
+     "trades": 25,
+     "win_%": 12.0,
+     "pf": 1.12,
+     "total_R": 2.7,
+     "result_$": 18.04,
+     "drop_%": -8.8,
+     "losing_years": 5,
+     "years": 6,
+     "loss_streak": 11,
+     "spread_R": 0.184,
+     "slip_R": 0.061,
+     "gross_R": 0.356,
+     "skip_lots": 0,
+     "longs": 21
+    },
+    {
+     "id": "ALL N4 N1 W=30 m=1 stop=2ATR 2h +trend",
+     "trades": 83,
+     "win_%": 20.5,
+     "pf": 0.78,
+     "total_R": -15.2,
+     "result_$": -43.48,
+     "drop_%": -19.0,
+     "losing_years": 5,
+     "years": 8,
+     "loss_streak": 13,
+     "spread_R": 0.119,
+     "slip_R": 0.059,
+     "gross_R": -0.006,
+     "skip_lots": 6,
+     "longs": 61
+    }
+   ],
+   "checks": {
+    "pf>1.2": "False",
+    ">=40 trades": true,
+    "drop<30%": "True",
+    "random>=90": false,
+    "stress pf>1": "False",
+    "beats non-event": "False"
+   },
+   "robust": false,
+   "per_year": [
+    {
+     "entry_time": 2019,
+     "trades": 2,
+     "pf": 0.0,
+     "R": -2.1,
+     "$": -7.54
+    },
+    {
+     "entry_time": 2020,
+     "trades": 7,
+     "pf": 0.0,
+     "R": -7.2,
+     "$": -28.35
+    },
+    {
+     "entry_time": 2021,
+     "trades": 12,
+     "pf": 0.63,
+     "R": -3.8,
+     "$": -24.09
+    },
+    {
+     "entry_time": 2022,
+     "trades": 16,
+     "pf": 0.62,
+     "R": -5.9,
+     "$": -14.82
+    },
+    {
+     "entry_time": 2023,
+     "trades": 10,
+     "pf": 1.01,
+     "R": 0.1,
+     "$": 9.75
+    },
+    {
+     "entry_time": 2024,
+     "trades": 13,
+     "pf": 0.53,
+     "R": -5.8,
+     "$": -25.57
+    },
+    {
+     "entry_time": 2025,
+     "trades": 13,
+     "pf": 1.09,
+     "R": 0.8,
+     "$": 15.88
+    },
+    {
+     "entry_time": 2026,
+     "trades": 10,
+     "pf": 1.16,
+     "R": 1.3,
+     "$": -2.36
+    }
+   ]
+  }
+ ]
+}

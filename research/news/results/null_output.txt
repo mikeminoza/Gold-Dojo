@@ -1,0 +1,31 @@
+no-peeking: 9424 signals re-computed with all data from the entry minute on perturbed; 0 changed (must be 0)
+daily trend with D1 cut at the event day: 0 differences (must be 0)
+null test: 96 independent fake walks (10 years each, real 2009-2018 event times), 552 variants in 26 groups; zero spread and slippage
+       group  variants  trades   avg_R     se     z
+  N1 1ATR 2R        24  339134  0.0434 0.0046  9.43
+  N1 1ATR 2h        24  339134  0.1225 0.0139  8.81
+ N1 1ATR EOS        24  338731  0.1382 0.0174  7.94
+  N1 2ATR 2R        24  339720  0.0154 0.0052  2.96
+  N1 2ATR 2h        24  339720  0.0457 0.0094  4.86
+ N1 2ATR EOS        24  338943  0.0531 0.0114  4.66
+   N1 ext 2R        24  336958  0.0022 0.0052  0.42
+   N1 ext 2h        24  338680  0.0078 0.0053  1.47
+  N1 ext EOS        24  336282  0.0106 0.0064  1.66
+  N2 fade 2h        24  264246  0.0291 0.0071  4.10
+ N2 fade EOS        24  264204  0.0312 0.0072  4.33
+ N3 range 2R        12  139557 -0.0008 0.0040 -0.20
+ N3 range 2h        12  140596 -0.0058 0.0029 -2.00
+N3 range EOS        12  139479 -0.0005 0.0041 -0.12
+  N4 1ATR 2R        24  166014  0.0439 0.0064  6.86
+  N4 1ATR 2h        24  166014  0.1165 0.0200  5.82
+ N4 1ATR EOS        24  165873  0.1323 0.0236  5.61
+  N4 2ATR 2R        24  166354  0.0206 0.0078  2.64
+  N4 2ATR 2h        24  166354  0.0477 0.0140  3.41
+ N4 2ATR EOS        24  166098  0.0601 0.0166  3.62
+   N4 ext 2R        24  165350  0.0007 0.0070  0.10
+   N4 ext 2h        24  165862  0.0062 0.0078  0.79
+  N4 ext EOS        24  165095  0.0087 0.0090  0.97
+ N4 range 2R        12   68736  0.0007 0.0061  0.11
+ N4 range 2h        12   69032 -0.0054 0.0043 -1.26
+N4 range EOS        12   68705  0.0016 0.0062  0.26
+all variants together: avg R +0.0414

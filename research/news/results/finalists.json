@@ -1,0 +1,99 @@
+{
+ "finalists": [
+  {
+   "family": "N3",
+   "scope": "FOMC",
+   "w": 30,
+   "m": 0.0,
+   "stop": "range",
+   "exit": "2R",
+   "trend": false,
+   "base": ""
+  }
+ ],
+ "n4": {
+  "NFP": {
+   "family": "N4",
+   "scope": "NFP",
+   "w": 30,
+   "m": 0.5,
+   "stop": "2ATR",
+   "exit": "2h",
+   "trend": true,
+   "base": "N1"
+  },
+  "CPI": {
+   "family": "N4",
+   "scope": "CPI",
+   "w": 30,
+   "m": 0.0,
+   "stop": "range",
+   "exit": "2R",
+   "trend": true,
+   "base": "N3"
+  },
+  "FOMC": {
+   "family": "N4",
+   "scope": "FOMC",
+   "w": 30,
+   "m": 0.5,
+   "stop": "ext",
+   "exit": "2R",
+   "trend": true,
+   "base": "N1"
+  },
+  "ALL": {
+   "family": "N4",
+   "scope": "ALL",
+   "w": 30,
+   "m": 1.0,
+   "stop": "2ATR",
+   "exit": "EOS",
+   "trend": true,
+   "base": "N1"
+  }
+ },
+ "best_per_family": {
+  "N1": {
+   "family": "N1",
+   "scope": "FOMC",
+   "w": 15,
+   "m": 1.0,
+   "stop": "1ATR",
+   "exit": "EOS",
+   "trend": false,
+   "base": ""
+  },
+  "N2": {
+   "family": "N2",
+   "scope": "CPI",
+   "w": 30,
+   "m": 1.0,
+   "stop": "ext",
+   "exit": "EOS",
+   "trend": false,
+   "base": ""
+  },
+  "N3": {
+   "family": "N3",
+   "scope": "FOMC",
+   "w": 30,
+   "m": 0.0,
+   "stop": "range",
+   "exit": "2R",
+   "trend": false,
+   "base": ""
+  },
+  "N4": {
+   "family": "N4",
+   "scope": "FOMC",
+   "w": 30,
+   "m": 0.5,
+   "stop": "ext",
+   "exit": "2R",
+   "trend": true,
+   "base": "N1"
+  }
+ },
+ "frozen": "2026-10-02T06:23:45.563969+00:00"
+}
