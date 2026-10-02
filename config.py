@@ -54,6 +54,9 @@ ORB_RANGE_MINUTES = 60      # the opening range = first 60 minutes of the sessio
 ORB_RR = 2.0                # take profit = 2 x the risk
 ORB_MAX_STOP_ATR = 1.0      # cap the stop at 1 x ATR when the range is very wide
 ORB_MIN_STOP_ATR = 0.5      # and keep it at least 0.5 x ATR when the range is tiny
+# Skip a trade whose stop ends up closer than this ($ per oz) to the actual entry price: by then the
+# spread is most of the risk and the suggested lot size would be dangerously big.
+MIN_STOP_DISTANCE = 2.0
 DAILY_TREND_EMA = 50        # only buy above the 50-day EMA, only sell below it
 
 # ======================================================================

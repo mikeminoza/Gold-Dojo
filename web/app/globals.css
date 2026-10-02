@@ -3252,3 +3252,14 @@ button[data-busy] {
   min-width: 0;
   white-space: nowrap;
 }
+
+.how-notice {
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-radius: 10px;
+  background: var(--next-bg);
+}
+
+.note a {
+  color: var(--gold);
+}

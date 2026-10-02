@@ -27,9 +27,10 @@ class Signal:
 
 
 def levels(side, entry, stop, rr):
-    """Stop loss and take profit for an actual entry price. None if price already ran past the stop."""
+    """Stop loss and take profit for an actual entry price. None if price already ran past the stop,
+    or so close to it that the trade would be mostly spread (and the lot size would balloon)."""
     risk = entry - stop if side == "BUY" else stop - entry
-    if risk <= 0:
+    if risk < config.MIN_STOP_DISTANCE:
         return None
     return stop, entry + rr * risk if side == "BUY" else entry - rr * risk
 

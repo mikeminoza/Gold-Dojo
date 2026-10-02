@@ -151,7 +151,8 @@ class Bot:
         entry = ask if sig.side == "BUY" else bid
         lv = strategy.levels(sig.side, entry, sig.stop, sig.rr)
         if lv is None:
-            print(f"{datetime.now():%H:%M:%S} skipped {sig.side}: price already past the stop")
+            print(f"{datetime.now():%H:%M:%S} skipped {sig.side}: price already at or too close to the stop "
+                  f"(under {config.MIN_STOP_DISTANCE:g} $/oz away)")
             return
         sl, tp = lv
         size = sizing.lot_size(entry, sl, tp)

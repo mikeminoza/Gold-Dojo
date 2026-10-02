@@ -255,8 +255,9 @@ export default function Performance({
         {tab === "backtest" && backtest && (
           <p className="perf-about">
             The current strategy ({backtest.strategy.name.toLowerCase()}, {backtest.timeframe}) replayed on{" "}
-            {day(backtest.from, tz)} – {day(backtest.to, tz)}. {backtest.source}. Past results don&apos;t
-            promise future ones. Last run {day(backtest.generated, tz)}.
+            {day(backtest.from, tz)} – {day(backtest.to, tz)}. {backtest.source}. Last run{" "}
+            {day(backtest.generated, tz)}. A longer test on 23 years of real gold prices found no reliable edge, so
+            use these signals for learning and demo trading only.
           </p>
         )}
         {tab === "mine" && (

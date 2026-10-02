@@ -16,6 +16,10 @@ export default function How() {
           A bot watches the gold price (XAUUSD) and posts <strong>Buy</strong> and <strong>Sell</strong> signals
           here. It never places trades: you decide whether to follow a signal, in your own broker account.
         </p>
+        <p className="how-notice">
+          <strong>For learning and demo trading only.</strong> A 23-year test found this strategy has no reliable
+          edge (see &quot;How it has done&quot; below). Don&apos;t trade these signals with money you need.
+        </p>
 
         <section>
           <h2>The strategy: New York session breakout</h2>
@@ -88,11 +92,26 @@ export default function How() {
         <section>
           <h2>How it has done</h2>
           <p>
-            The <strong>Performance</strong> button shows two things: the bot&apos;s live signals so far, and a{" "}
-            <strong>backtest</strong>, the same rules replayed on gold prices since 2020. Be aware: in that backtest
-            the strategy lost money from 2020 to 2024 and only made money in 2025–26, during a strong gold rally.
-            Results over many trades matter; any single trade, win or loss, tells you little. Win rates around 40%
-            are normal for this kind of strategy, because wins are bigger than losses.
+            We replayed these exact rules on 23 years of real gold prices (2003–2026), tuning nothing on the
+            recent years:
+          </p>
+          <ul>
+            <li>
+              <strong>2003–2018:</strong> it lost money in 15 of 16 years. Before costs it was a coin flip; the
+              spread on each trade then made it a steady loser.
+            </li>
+            <li>
+              <strong>2019–2026:</strong> roughly break-even overall (about 44% wins), with 4 losing years and a
+              worst drop of about half the account. Almost all of the profit came from the 2025 gold rally.
+            </li>
+            <li>
+              Filters, other exits, adding the London session and a second strategy were all tested too; none
+              made it reliably profitable.
+            </li>
+          </ul>
+          <p>
+            So treat the signals as a way to learn how session breakouts behave, and practise on a demo account. The{" "}
+            <strong>Performance</strong> button shows the live results so far and a shorter backtest (2020 onwards).
           </p>
         </section>
 

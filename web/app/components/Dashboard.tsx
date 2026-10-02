@@ -1198,7 +1198,10 @@ export default function Dashboard() {
                 <dd>{state.indicators.atr.toFixed(2)}</dd>
               </div>
             </dl>
-            <p className="note">Signals only. Nothing here places trades.</p>
+            <p className="note">
+              Signals only, for learning and demo trading: a 23-year test found no reliable edge.{" "}
+              <a href="/how">How it has done</a>
+            </p>
           </section>
         </aside>
       </div>
