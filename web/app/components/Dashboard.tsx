@@ -109,16 +109,50 @@ function useTheme() {
     () => (document.documentElement.dataset.theme === "light" ? "light" : "dark"),
     () => "dark",
   );
-  const toggle = () => {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
+  // What was chosen: "system" (no saved choice) follows the device's light / dark setting
+  const choice = useSyncExternalStore<ThemeChoice>(
+    (onChange) => {
+      themeListeners.add(onChange);
+      window.addEventListener("storage", onChange);
+      return () => {
+        themeListeners.delete(onChange);
+        window.removeEventListener("storage", onChange);
+      };
+    },
+    savedTheme,
+    () => "system",
+  );
+  // While on "system", switch along with the device (e.g. phones going dark at night)
+  useEffect(() => {
+    if (choice !== "system") return;
+    const media = matchMedia("(prefers-color-scheme: light)");
+    const apply = () => (document.documentElement.dataset.theme = media.matches ? "light" : "dark");
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [choice]);
+  const choose = (next: ThemeChoice) => {
     try {
-      localStorage.setItem("gold-theme", next);
+      if (next === "system") localStorage.removeItem("gold-theme");
+      else localStorage.setItem("gold-theme", next);
     } catch {
       // storage unavailable - the choice just won't be remembered
     }
+    if (next !== "system") document.documentElement.dataset.theme = next;
+    themeListeners.forEach((l) => l());
   };
-  return { theme, toggle };
+  return { theme, choice, choose };
+}
+
+export type ThemeChoice = Theme | "system";
+const themeListeners = new Set<() => void>();
+function savedTheme(): ThemeChoice {
+  try {
+    const t = localStorage.getItem("gold-theme");
+    return t === "light" || t === "dark" ? t : "system";
+  } catch {
+    return "system";
+  }
 }
 
 /** The signed-in member's display name and role; also applies the account size saved on their profile. */
@@ -888,7 +922,7 @@ export default function Dashboard() {
     // Ask once for desktop notifications, while the person is clicking (browsers require that)
     if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
   }
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { theme, choice: themeChoice, choose: chooseTheme } = useTheme();
   const prevBid = useRef<number | null>(null);
   const [tickDir, setTickDir] = useState<"up" | "down" | null>(null);
 
@@ -1034,7 +1068,13 @@ export default function Dashboard() {
           </svg>
           <span>Performance</span>
         </button>
-        <ProfileMenu me={me} theme={theme} onToggleTheme={toggleTheme} alerts={alerts} onToggleAlerts={toggleAlerts} />
+        <ProfileMenu
+          me={me}
+          themeChoice={themeChoice}
+          onTheme={chooseTheme}
+          alerts={alerts}
+          onToggleAlerts={toggleAlerts}
+        />
       </header>
 
       <div className="workspace">

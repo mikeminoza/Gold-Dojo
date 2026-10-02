@@ -42,17 +42,37 @@ export function Avatar({ me, size = 32 }: { me: Me; size?: number }) {
   );
 }
 
+const THEMES: ["dark" | "light" | "system", string, React.ReactNode][] = [
+  ["dark", "Dark", <path key="d" d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z" />],
+  [
+    "light",
+    "Light",
+    <g key="l">
+      <circle cx="8" cy="8" r="3" />
+      <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6L13 13M3 13l1.4-1.4M11.6 4.4L13 3" />
+    </g>,
+  ],
+  [
+    "system",
+    "System",
+    <g key="s">
+      <rect x="2" y="3" width="12" height="8.5" rx="1.5" />
+      <path d="M6 14h4M8 11.5V14" />
+    </g>,
+  ],
+];
+
 /** Your avatar in the header; opens a menu with your profile, settings and sign out. */
 export default function ProfileMenu({
   me,
-  theme,
-  onToggleTheme,
+  themeChoice,
+  onTheme,
   alerts,
   onToggleAlerts,
 }: {
   me: Me | null;
-  theme: "dark" | "light";
-  onToggleTheme: () => void;
+  themeChoice: "dark" | "light" | "system";
+  onTheme: (choice: "dark" | "light" | "system") => void;
   alerts: boolean;
   onToggleAlerts: () => void;
 }) {
@@ -116,12 +136,32 @@ export default function ProfileMenu({
             <a href="/how">How it works</a>
           </nav>
           <div className="profile-settings">
-            <button type="button" role="switch" aria-checked={alerts} onClick={onToggleAlerts}>
-              Sound alerts <span>{alerts ? "On" : "Off"}</span>
+            <button type="button" role="switch" aria-checked={alerts} onClick={onToggleAlerts} className="switch-row">
+              <span>
+                Sound alerts
+                <small>Chime and notification on new signals</small>
+              </span>
+              <i className="switch" aria-hidden />
             </button>
-            <button type="button" role="switch" aria-checked={theme === "light"} onClick={onToggleTheme}>
-              Light theme <span>{theme === "light" ? "On" : "Off"}</span>
-            </button>
+            <div className="theme-row">
+              <span id="theme-label">Theme</span>
+              <div className="theme-segments" role="radiogroup" aria-labelledby="theme-label">
+                {THEMES.map(([value, label, icon]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={themeChoice === value}
+                    onClick={() => onTheme(value)}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                      {icon}
+                    </svg>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           <form method="post" action="/auth/signout">
             <SubmitButton className="profile-signout" pending="Signing out…">

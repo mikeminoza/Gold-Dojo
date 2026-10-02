@@ -3263,3 +3263,99 @@ button[data-busy] {
 .note a {
   color: var(--gold);
 }
+
+/* ---- menu switches: sound on/off and the theme picker ------------------ */
+
+.profile-settings .switch-row > span {
+  display: grid;
+  gap: 1px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.profile-settings .switch-row small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* an iOS-style track and thumb */
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 35%, transparent);
+  transition: background-color 0.2s;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s;
+}
+
+[aria-checked="true"] > .switch {
+  background: var(--gold);
+}
+
+[aria-checked="true"] > .switch::after {
+  transform: translateX(16px);
+}
+
+.theme-row {
+  display: grid;
+  gap: 8px;
+  padding: 9px 10px;
+  font-size: 14px;
+}
+
+.theme-segments {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--inset);
+}
+
+.theme-segments button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.theme-segments button:hover:not([aria-checked="true"]) {
+  color: var(--text);
+}
+
+.theme-segments button[aria-checked="true"] {
+  background: var(--panel);
+  color: var(--gold);
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switch::after {
+    transition: none;
+  }
+}
