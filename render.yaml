@@ -2,7 +2,7 @@
 # Render -> New -> Blueprint -> pick this GitHub repo. See docs/render-deploy.md.
 services:
   - type: web                       # free plan only runs web services; the bot serves /health
-    name: golden-skibidi-bot
+    name: gold-dojo-bot
     runtime: python
     region: singapore               # close to the Philippines; Binance's price data works there
     plan: free
