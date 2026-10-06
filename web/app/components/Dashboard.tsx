@@ -2,17 +2,19 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { LiveState, Position, Side, SignalEvent, Sizing, TradeWindow } from "../lib/types";
+import type { LiveState, Position, Side, SignalEvent, Sizing, TradeContext, TradeWindow } from "../lib/types";
 import type { Theme } from "./TradingChart";
 import { useBotState } from "../lib/useBotState";
 import { useLivePrice, type LivePrice } from "../lib/useLivePrice";
 import { useMyTrades } from "../lib/useMyTrades";
+import { useDraggable } from "../lib/useDraggable";
 import { useChat, type ChatMessage } from "../lib/useChat";
 import { journalCsv, useJournal, type JournalEntry } from "../lib/useJournal";
 import { tradeRs } from "../lib/performance";
 import { adoptProfileAccount, sizeEvents, sizePosition, useMyAccount } from "../lib/account";
 import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
+import TradeSpark from "./TradeSpark";
 import Performance from "./Performance";
 import ProfileMenu, { type Me } from "./ProfileMenu";
 import { LotCalculator, PriceAlerts, useAlertWatcher, usePriceAlerts, type PriceAlert } from "./Tools";
@@ -551,6 +553,7 @@ function fromJournal(e: JournalEntry, account: LiveState["account"]): SignalEven
     trade_id: e.trade_id,
     mfe_r: e.mfe_r ?? null,
     mae_r: e.mae_r ?? null,
+    context: e.context ?? null,
     size:
       e.type === "open" && e.lots != null
         ? {
@@ -578,7 +581,9 @@ function Journal({
   now,
   onReplay,
   myTrades,
+  gap,
 }: {
+  gap: number;
   onReplay: (e: SignalEvent) => void;
   myTrades: MyTrades;
   journal: ReturnType<typeof useJournal>;
@@ -636,6 +641,7 @@ function Journal({
         myTrades={myTrades}
         ozPerLot={state.account.oz_per_lot}
         position={state.position}
+        gap={gap}
       />
     </>
   );
@@ -770,6 +776,25 @@ function ReplayButton({ e, onReplay }: { e: SignalEvent; onReplay?: (e: SignalEv
 const FIRST_TRADES = 8; // shown at first; "Show more" adds MORE_TRADES at a time
 const MORE_TRADES = 10;
 
+/** Plain-words tags for the market at a signal: how wide the range was and how strong the trend. */
+function ContextTags({ ctx }: { ctx: TradeContext }) {
+  const tags: string[] = [];
+  if (ctx.range_atr != null) {
+    tags.push(ctx.range_atr < 1 ? "Narrow range" : ctx.range_atr > 2 ? "Wide range" : "Normal range");
+  }
+  if (ctx.trend_pct != null) {
+    tags.push(ctx.trend_pct < 1 ? "Weak trend" : ctx.trend_pct > 3 ? "Strong trend" : "Moderate trend");
+  }
+  if (tags.length === 0) return null;
+  return (
+    <p className="trade-tags">
+      {tags.map((tag) => (
+        <span key={tag}>{tag}</span>
+      ))}
+    </p>
+  );
+}
+
 /** A trade: its opening signal and, once it has ended, its close. */
 type Trade = { id: string; open?: SignalEvent; close?: SignalEvent; time: number };
 
@@ -807,7 +832,9 @@ function TradeCard({
   myTrades,
   ozPerLot,
   onReplay,
+  gap,
 }: {
+  gap: number;
   trade: Trade;
   live: Position | null; // the open trade's live result, when this is it
   t: TimeFormat;
@@ -861,7 +888,9 @@ function TradeCard({
       </button>
       {open && (
         <div className="trade-details" id={detailsId}>
+          {o && <TradeSpark open={o} close={c} gap={gap} />}
           {o?.reason && <p>{o.reason}.</p>}
+          {o?.context && <ContextTags ctx={o.context} />}
           {o?.sl != null && o.tp != null && (
             <p>
               Stop {price(o.sl)} · Target {price(o.tp)}
@@ -919,7 +948,9 @@ function History({
   myTrades,
   ozPerLot,
   position,
+  gap,
 }: {
+  gap: number;
   events: SignalEvent[];
   t: TimeFormat;
   now: number;
@@ -957,6 +988,7 @@ function History({
                 myTrades={myTrades}
                 ozPerLot={ozPerLot}
                 onReplay={onReplay}
+                gap={gap}
               />
             ))}
           </ul>
@@ -1034,6 +1066,7 @@ export default function Dashboard() {
     }
   }, []);
   const chat = useChat(chatOpen, onIncoming);
+  const fab = useDraggable("gold-chat-fab", 58); // the chat button can be dragged out of the way
 
   // The pop-up preview disappears after a few seconds
   useEffect(() => {
@@ -1322,6 +1355,7 @@ export default function Dashboard() {
               now={now}
               onReplay={showTrade}
               myTrades={myTrades}
+              gap={live?.gapReady ? live.gap : 0}
             />
           </section>
 
@@ -1399,7 +1433,10 @@ export default function Dashboard() {
         className="chat-fab"
         aria-pressed={chatOpen}
         aria-label={chatOpen ? "Close chat" : chat.totalUnread ? `Open chat, ${chat.totalUnread} unread` : "Open chat"}
-        onClick={() => (chatOpen ? setChatOpen(false) : openChat())}
+        title="Chat (drag to move)"
+        style={fab.style}
+        {...fab.handlers}
+        onClick={fab.guardClick(() => (chatOpen ? setChatOpen(false) : openChat()))}
       >
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
           {chatOpen ? (

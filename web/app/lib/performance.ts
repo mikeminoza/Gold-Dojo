@@ -134,3 +134,31 @@ export function tradeRs(events: SignalEvent[]) {
   return rs;
 }
 
+
+/** One closed trade for the analysis: result in R plus what the market looked like at its signal. */
+export type TradeRow = { r: number; side: "BUY" | "SELL"; weekday: number | null; rangeAtr: number | null; trendPct: number | null };
+
+export function tradeRows(events: SignalEvent[], tz: string): TradeRow[] {
+  const opens = new Map<string, SignalEvent>();
+  for (const e of events) if (e.type === "open") opens.set(e.trade_id ?? e.id, e);
+  const weekday = (t: number) =>
+    ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(
+      new Date(t * 1000).toLocaleDateString("en-US", { timeZone: tz, weekday: "short" }),
+    );
+  const rows: TradeRow[] = [];
+  for (const e of events) {
+    if (e.type !== "close" || !e.trade_id) continue;
+    const o = opens.get(e.trade_id);
+    if (!o || o.sl == null) continue;
+    const risk = Math.abs(o.price - o.sl);
+    if (!risk) continue;
+    rows.push({
+      r: (e.pnl ?? 0) / risk,
+      side: o.side,
+      weekday: o.context?.weekday ?? weekday(o.time),
+      rangeAtr: o.context?.range_atr ?? null,
+      trendPct: o.context?.trend_pct ?? null,
+    });
+  }
+  return rows;
+}

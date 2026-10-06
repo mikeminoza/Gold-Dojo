@@ -22,7 +22,7 @@ from live_state import _plain
 HEARTBEAT_SECONDS = 15
 RETRY_SECONDS = 5
 ROW_ID = "live"
-NEWER_COLUMNS = ("mfe_r", "mae_r")  # journal columns added by supabase/analysis.sql
+NEWER_COLUMNS = ("mfe_r", "mae_r", "context")  # journal columns added by supabase/analysis.sql
 MEMORY_ROW = "memory"  # the bot's own memory (open trade, sessions traded), for restarts
 
 # Fields that change every tick; they don't count as "something changed"
@@ -248,5 +248,6 @@ def journal_row(event):
         "reason": event.get("reason"),
         "mfe_r": event.get("mfe_r"),
         "mae_r": event.get("mae_r"),
+        "context": event.get("context"),
         "created_at": datetime.fromtimestamp(event["time"], timezone.utc).isoformat(),
     }

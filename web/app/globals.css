@@ -3587,3 +3587,173 @@ button[data-busy] {
 .perf-check[data-verdict="better"] {
   border-left-color: var(--buy);
 }
+
+/* ---- trade mini chart, context tags, R distribution ------------------- */
+
+.spark {
+  display: grid;
+  gap: 4px;
+}
+
+.spark svg {
+  display: block;
+  width: 100%;
+  height: 90px;
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.spark-loading {
+  height: 90px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--panel), var(--inset), var(--panel));
+  background-size: 200% 100%;
+  animation: spark-shimmer 1.2s linear infinite;
+}
+
+@keyframes spark-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.spark-line {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.spark[data-won="true"] .spark-line {
+  stroke: var(--buy);
+}
+
+.spark[data-won="false"] .spark-line {
+  stroke: var(--sell);
+}
+
+.spark-tp,
+.spark-sl,
+.spark-entry {
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.spark-tp {
+  stroke: var(--buy);
+}
+
+.spark-sl {
+  stroke: var(--sell);
+}
+
+.spark-entry {
+  stroke: var(--gold);
+  stroke-dasharray: none;
+}
+
+.spark-span {
+  fill: color-mix(in srgb, var(--gold) 8%, transparent);
+}
+
+.spark figcaption {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.spark-key::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.spark-key-tp::before {
+  background: var(--buy);
+}
+
+.spark-key-entry::before {
+  background: var(--gold);
+}
+
+.spark-key-sl::before {
+  background: var(--sell);
+}
+
+.trade-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trade-tags span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.perf-tabs {
+  flex-wrap: wrap;
+}
+
+.r-dist {
+  display: grid;
+  gap: 6px;
+}
+
+.r-dist figcaption {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.r-bar {
+  display: grid;
+  grid-template-columns: 150px 1fr 28px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.r-bar i {
+  height: 12px;
+  min-width: 2px;
+  border-radius: 4px;
+  background: var(--buy);
+}
+
+.r-bar[data-loss] i {
+  background: var(--sell);
+}
+
+.r-bar strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 520px) {
+  .r-bar {
+    grid-template-columns: 110px 1fr 24px;
+    font-size: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spark-loading {
+    animation: none;
+  }
+}
+
+/* The chat button can be dragged anywhere (it snaps to the nearer side) */
+.chat-fab {
+  touch-action: none;
+}
+
+.chat-fab[data-dragging] {
+  transform: scale(1.08);
+  cursor: grabbing;
+  transition: none;
+}

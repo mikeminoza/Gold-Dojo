@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { lotSize, type useMyAccount } from "../lib/account";
-import { stats, tradeRs, useBacktest, type Result, type Stats } from "../lib/performance";
+import { stats, tradeRows, tradeRs, useBacktest, type Result, type Stats, type TradeRow } from "../lib/performance";
 import type { LiveState, SignalEvent, SwingPaper } from "../lib/types";
 import AccountForm from "./AccountForm";
 
-type Tab = "live" | "mine" | "backtest" | "swing";
+type Tab = "live" | "mine" | "analysis" | "backtest" | "swing";
 
 const money = (n: number, sign = false) =>
   `${sign ? (n >= 0 ? "+" : "−") : n < 0 ? "−" : ""}$${Math.abs(n).toLocaleString("en-US", {
@@ -223,6 +223,106 @@ function SwingTab({ swing, tz }: { swing: SwingPaper | null; tz: string }) {
   );
 }
 
+const BUCKETS: [string, (r: number) => boolean][] = [
+  ["Full loss (−1R)", (r) => r <= -0.9],
+  ["Small loss", (r) => r > -0.9 && r < 0],
+  ["Small win (0 to +1R)", (r) => r >= 0 && r < 1],
+  ["Good win (+1 to +2R)", (r) => r >= 1 && r < 1.9],
+  ["Full target (+2R)", (r) => r >= 1.9],
+];
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function Breakdown({ title, groups }: { title: string; groups: [string, TradeRow[]][] }) {
+  const shown = groups.filter(([, rows]) => rows.length > 0);
+  if (shown.length < 2) return null;
+  return (
+    <table className="results-split perf-years">
+      <caption>{title}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Group</th>
+          <th scope="col">Trades</th>
+          <th scope="col">Win rate</th>
+          <th scope="col">Avg</th>
+          <th scope="col">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {shown.map(([name, rows]) => {
+          const total = rows.reduce((a, x) => a + x.r, 0);
+          const sign = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}R`;
+          return (
+            <tr key={name}>
+              <th scope="row">{name}</th>
+              <td>{rows.length}</td>
+              <td>{Math.round((100 * rows.filter((x) => x.r > 0).length) / rows.length)}%</td>
+              <td data-tone={tone(total)}>{sign(total / rows.length)}</td>
+              <td data-tone={tone(total)}>{sign(total)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+/** Where the live trades' results land, and how they split by side, weekday, range size and trend. */
+function AnalysisTab({ rows }: { rows: TradeRow[] }) {
+  if (rows.length === 0) {
+    return <p className="empty">No closed trades to analyse yet. This fills in as signals close.</p>;
+  }
+  const most = Math.max(...BUCKETS.map(([, f]) => rows.filter((x) => f(x.r)).length), 1);
+  const by = (key: (x: TradeRow) => string | null, order: string[]) =>
+    order.map((name) => [name, rows.filter((x) => key(x) === name)] as [string, TradeRow[]]);
+  const withContext = rows.filter((x) => x.rangeAtr !== null).length;
+  return (
+    <>
+      <p className="perf-about">
+        Results of the live signals in R (1R = the stop distance, so −1R is a full loss and +2R the full target).
+        {rows.length < 30 && ` Only ${rows.length} trades so far: treat the splits below as early hints, not answers.`}
+      </p>
+      <figure className="r-dist">
+        <figcaption>How trades ended</figcaption>
+        {BUCKETS.map(([label, f]) => {
+          const n = rows.filter((x) => f(x.r)).length;
+          return (
+            <div key={label} className="r-bar" data-loss={label.includes("loss") || undefined}>
+              <span>{label}</span>
+              <i style={{ width: `${(100 * n) / most}%` }} aria-hidden />
+              <strong>{n}</strong>
+            </div>
+          );
+        })}
+      </figure>
+      <Breakdown title="By direction" groups={by((x) => (x.side === "BUY" ? "Buy" : "Sell"), ["Buy", "Sell"])} />
+      <Breakdown
+        title="By weekday"
+        groups={by((x) => (x.weekday === null ? null : WEEKDAYS[x.weekday]), WEEKDAYS.slice(0, 5))}
+      />
+      <Breakdown
+        title="By opening-range width"
+        groups={by(
+          (x) => (x.rangeAtr === null ? null : x.rangeAtr < 1 ? "Narrow (< 1 ATR)" : x.rangeAtr > 2 ? "Wide (> 2 ATR)" : "Normal"),
+          ["Narrow (< 1 ATR)", "Normal", "Wide (> 2 ATR)"],
+        )}
+      />
+      <Breakdown
+        title="By daily trend strength"
+        groups={by(
+          (x) => (x.trendPct === null ? null : x.trendPct < 1 ? "Weak (< 1%)" : x.trendPct > 3 ? "Strong (> 3%)" : "Moderate"),
+          ["Weak (< 1%)", "Moderate", "Strong (> 3%)"],
+        )}
+      />
+      {withContext < rows.length && (
+        <p className="perf-about">
+          Range and trend splits use only the {withContext} trades recorded since the bot started saving that
+          context.
+        </p>
+      )}
+    </>
+  );
+}
+
 export default function Performance({
   events,
   my,
@@ -298,6 +398,7 @@ export default function Performance({
   }, [backtest, account, rules]);
 
   const shown = tab === "live" ? live : tab === "mine" ? mine : tab === "backtest" ? replay : null;
+  const rows = useMemo(() => tradeRows(events, tz), [events, tz]);
 
   return (
     <div className="perf-backdrop" onClick={onClose}>
@@ -333,6 +434,9 @@ export default function Performance({
           <button type="button" aria-pressed={tab === "mine"} onClick={() => setTab("mine")}>
             My trades
           </button>
+          <button type="button" aria-pressed={tab === "analysis"} onClick={() => setTab("analysis")}>
+            Analysis
+          </button>
           <button type="button" aria-pressed={tab === "backtest"} onClick={() => setTab("backtest")}>
             Backtest{backtest ? `, ${new Date(backtest.from * 1000).getUTCFullYear()}–${new Date(backtest.to * 1000).getUTCFullYear()}` : ""}
           </button>
@@ -350,6 +454,7 @@ export default function Performance({
           </p>
         )}
         {tab === "swing" && <SwingTab swing={swing ?? null} tz={tz} />}
+        {tab === "analysis" && <AnalysisTab rows={rows} />}
         {tab === "mine" && (
           <p className="perf-about">
             Only the signals you marked &quot;I took this trade&quot;, at the size you marked them with.
@@ -390,7 +495,7 @@ export default function Performance({
             <Numbers s={shown} />
             <Years s={shown} />
           </>
-        ) : tab === "swing" ? null : tab === "live" ? (
+        ) : tab === "swing" || tab === "analysis" ? null : tab === "live" ? (
           <p className="empty">No closed trades yet. Results appear here after the first signal closes.</p>
         ) : tab === "mine" ? (
           <p className="empty">

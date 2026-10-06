@@ -173,7 +173,7 @@ class Bot:
                          "reason": sig.reason, "size": size}
         session = sig.tag[:-11] if sig.tag and len(sig.tag) > 11 else None  # "New York-2026-09-29" -> "New York"
         self.record({"type": "open", "side": sig.side, "price": entry, "sl": sl, "tp": tp, "reason": sig.reason,
-                     "size": size, "session": session})
+                     "size": size, "session": session, "context": self.context(sig, df, i)})
         self.position["trade_id"] = self.history[0]["id"]
         self.position["session"] = session
         if self.telegram:
@@ -184,6 +184,22 @@ class Bot:
                                  f"Take profit: {fmt(tp)}\n"
                                  f"Size: <b>{size['lots']:.2f} lot</b> (risk ${size['risk']:.2f}, "
                                  f"target ${size['reward']:.2f}){warning}")
+
+    @staticmethod
+    def context(sig, df, i):
+        """The market at the signal, for the website's breakdowns: how wide the opening range was (in ATR),
+        how strong the daily trend was in the trade's direction (% from its average), and the weekday."""
+        row = df.iloc[i]
+        ctx = {"weekday": int(row["time"].tz_convert(config.DISPLAY_TZ).weekday())}
+        try:
+            if row.get("atr") and pd.notna(row.get("range_hi")):
+                ctx["range_atr"] = round(float((row["range_hi"] - row["range_lo"]) / row["atr"]), 2)
+            if pd.notna(row.get("daily_ema")) and row["daily_ema"]:
+                sign = 1 if sig.side == "BUY" else -1
+                ctx["trend_pct"] = round(float(sign * (row["daily_close"] - row["daily_ema"]) / row["daily_ema"] * 100), 2)
+        except (KeyError, TypeError, ZeroDivisionError):
+            pass
+        return ctx
 
     @staticmethod
     def _excursions(pos, final):
