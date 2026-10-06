@@ -1001,10 +1001,9 @@ export default function TradingChart({
           (error ? (
             <p className="tc-status">{error}</p>
           ) : (
-            <div className="tc-skeleton" role="status" aria-label={`Loading ${tf} candles`}>
-              {Array.from({ length: 28 }, (_, i) => (
-                <i key={i} style={{ height: `${30 + ((i * 37) % 45)}%` }} />
-              ))}
+            <div className="tc-loading" role="status">
+              <span className="tc-spinner" aria-hidden />
+              Loading {tf} candles…
             </div>
           ))}
       </div>

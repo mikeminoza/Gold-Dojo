@@ -4714,3 +4714,32 @@ button[data-busy] {
     animation: none;
   }
 }
+
+/* Chart loading state: a spinner and a line of text in the middle of the chart */
+.tc-loading {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-base);
+  pointer-events: none;
+}
+
+.tc-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid color-mix(in srgb, var(--gold) 25%, transparent);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: btn-spin 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tc-spinner {
+    animation-duration: 2.4s;
+  }
+}
