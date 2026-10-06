@@ -1,0 +1,4 @@
+hand check on real data (A A1 dir=none k=1 rf=on, London day 2010-10-07, finalists frozen 2026-10-06 03:18):
+  Asia range (mid, 00:00-07:00 London) 1344.339 - 1355.383; signal bar close (mid) 1357.284 at 2010-10-07 07:45:00+01:00; side +1; D1 ATR 13.73 (width 11.04); M15 ATR14 1.596
+  entry minute 2010-10-07 06:45:00+00:00 bid/ask open 1357.056/1357.612 -> fill 1357.712; risk 2.000; stop 1355.712; target 1361.712; exit SL 2010-10-07 07:08:00+00:00 at 1355.612; R -1.0500
+  engine: fill 1357.712, risk 2.000, exit SL at 1355.612, R -1.0500 -> MATCH

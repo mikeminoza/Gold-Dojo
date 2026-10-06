@@ -1,0 +1,27 @@
+  2003: 104,058 minutes
+  2004: 204,789 minutes
+  2005: 275,250 minutes
+  2006: 331,843 minutes
+  2007: 346,941 minutes
+  2008: 362,210 minutes
+  2009: 363,585 minutes
+  2010: 365,764 minutes
+  2011: 363,850 minutes
+  2012: 361,583 minutes
+  2013: 351,209 minutes
+  2014: 343,673 minutes
+  2015: 352,480 minutes
+  2016: 354,259 minutes
+  2017: 352,815 minutes
+  2018: 353,805 minutes
+  2019: 352,090 minutes
+  2020: 352,736 minutes
+  2021: 353,026 minutes
+  2022: 353,133 minutes
+  2023: 351,589 minutes
+  2024: 354,632 minutes
+  2025: 351,795 minutes
+  2026: 263,964 minutes
+  M15: 560,762 mid bars
+  M30: 281,650 mid bars
+  H1: 141,193 mid bars

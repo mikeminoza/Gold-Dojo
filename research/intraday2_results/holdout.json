@@ -1,0 +1,117 @@
+{
+ "run_utc": "2026-10-06 03:19",
+ "role": {
+  "A A1 dir=none k=1.5 rf=on": "reference (no verdict weight)",
+  "B H1 N=8 dir=ema stop=1.0ATR 2R": "reference (no verdict weight)"
+ },
+ "checks": {
+  "A A1 dir=none k=1.5 rf=on": {
+   "metrics": {
+    "trades": 233,
+    "per_yr": 30.1,
+    "win_%": 27.9,
+    "pf": 0.73,
+    "total_R": -45.7,
+    "avg_R": -0.196,
+    "drop_R": -48.7,
+    "drop_%": -48.7,
+    "result_$": -202.45,
+    "drop_$%": -52.3,
+    "losing_years": 6,
+    "years": 8,
+    "loss_streak": 12,
+    "spread_R": 0.092,
+    "skip_lots": 51,
+    "floored": 20,
+    "longs": 134,
+    "tp_%": 27.0
+   },
+   "random": {
+    "pctl": 23.8,
+    "median": 0.8,
+    "p90": 0.93
+   },
+   "pf_cost15": 0.64,
+   "max_year_share": null,
+   "checks": {
+    "pf>1.2": "False",
+    "trades>=60": true,
+    "drop<30%": false,
+    "random>=90": false,
+    "pf_costx1.5>1.0": "False",
+    "no_year>50%": false
+   },
+   "robust": false
+  },
+  "B H1 N=8 dir=ema stop=1.0ATR 2R": {
+   "metrics": {
+    "trades": 113,
+    "per_yr": 14.6,
+    "win_%": 32.7,
+    "pf": 0.67,
+    "total_R": -23.9,
+    "avg_R": -0.211,
+    "drop_R": -31.6,
+    "drop_%": -31.6,
+    "result_$": -78.64,
+    "drop_$%": -35.4,
+    "losing_years": 6,
+    "years": 8,
+    "loss_streak": 8,
+    "spread_R": 0.089,
+    "skip_lots": 9,
+    "floored": 4,
+    "longs": 77,
+    "tp_%": 15.9
+   },
+   "random": {
+    "pctl": 39.7,
+    "median": 0.7,
+    "p90": 0.88
+   },
+   "pf_cost15": 0.62,
+   "max_year_share": null,
+   "checks": {
+    "pf>1.2": "False",
+    "trades>=60": true,
+    "drop<30%": false,
+    "random>=90": false,
+    "pf_costx1.5>1.0": "False",
+    "no_year>50%": false
+   },
+   "robust": false
+  }
+ },
+ "ny": {
+  "trades": 726,
+  "per_yr": 93.7,
+  "win_%": 40.5,
+  "pf": 0.82,
+  "total_R": -64.8,
+  "avg_R": -0.089,
+  "drop_R": -82.9,
+  "drop_%": -82.9,
+  "result_$": -203.8,
+  "drop_$%": -75.0,
+  "losing_years": 6,
+  "years": 8,
+  "loss_streak": 12,
+  "spread_R": 0.087,
+  "skip_lots": 97,
+  "floored": 0,
+  "longs": 486,
+  "tp_%": 11.8
+ },
+ "corr": {
+  "A A1 dir=none k=1.5 rf=on": {
+   "daily": 0.008,
+   "monthly": 0.068,
+   "same_day_trades": 89
+  },
+  "B H1 N=8 dir=ema stop=1.0ATR 2R": {
+   "daily": 0.046,
+   "monthly": -0.106,
+   "same_day_trades": 58
+  }
+ }
+}

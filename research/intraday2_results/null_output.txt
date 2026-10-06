@@ -1,0 +1,24 @@
+hand check (fake prices, $0.30 spread, $0.10 slippage), A A1 dir=none k=1.5 rf=off, London day 2013-02-20:
+  Asia range 1380.680-1393.643; first M15 close outside at 2013-02-20 07:30:00+00:00; side -1; entry 1379.782 (ask/bid open +/- slip); ATR14 2.882; risk 4.323; stop 1384.105; target 1371.136; exit SL at 1384.205; R -1.0231
+  engine: side -1; entry 1379.782; risk 4.323; exit SL at 1384.205; R -1.0231 -> MATCH
+no-peeking: 12 cut times, 65 variants: 105967 signals up to the cut compared, 0 differ (must be 0); 33421 trades closed before the cut compared, 0 differ (must be 0)
+null test: 24 independent driftless random walks (3 years of 24 h minutes each), zero spread and slippage, no news pause; 65 variants in 17 groups
+               group  variants  trades  floored_%   avg_R     se     z
+            A A1 k=1         4   25137        0.0  0.0157 0.0180  0.87
+          A A1 k=1.5         4   25137        0.0  0.0025 0.0213  0.12
+            A A2 k=1         4   25213        0.0  0.0165 0.0183  0.90
+          A A2 k=1.5         4   25213        0.0  0.0023 0.0226  0.10
+ B H1 stop=1.0ATR 2R         4    5998        0.0 -0.0172 0.0231 -0.74
+ B H1 stop=1.0ATR 3R         4    5998        0.0 -0.0287 0.0226 -1.27
+ B H1 stop=1.5ATR 2R         4    5994        0.0 -0.0209 0.0178 -1.17
+ B H1 stop=1.5ATR 3R         4    5994        0.0 -0.0273 0.0200 -1.36
+    B H1 stop=mid 2R         4    5991        0.0 -0.0184 0.0181 -1.02
+    B H1 stop=mid 3R         4    5991        0.0 -0.0193 0.0198 -0.97
+B M30 stop=1.0ATR 2R         4   11242        0.0 -0.0173 0.0217 -0.80
+B M30 stop=1.0ATR 3R         4   11240        0.0 -0.0054 0.0266 -0.20
+B M30 stop=1.5ATR 2R         4   11221        0.0 -0.0059 0.0228 -0.26
+B M30 stop=1.5ATR 3R         4   11216        0.0 -0.0116 0.0249 -0.47
+   B M30 stop=mid 2R         4   11201        0.0 -0.0144 0.0207 -0.70
+   B M30 stop=mid 3R         4   11198        0.0 -0.0020 0.0229 -0.09
+             NY live         1    6796        0.0 -0.0130 0.0112 -1.16
+all variants together: avg R -0.0034
