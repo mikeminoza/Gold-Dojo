@@ -420,12 +420,12 @@ function SessionSchedule({ state, now, t }: { state: LiveState; now: number; t: 
 }
 
 /** Totals over the closed trades the page knows about (the bot keeps the most recent ones). */
+/** One line of totals for the closed trades in the period: net result, then the counts. */
 function Results({ events, balance }: { events: SignalEvent[]; balance: number }) {
   const closed = events.filter((e) => e.type === "close");
   if (closed.length === 0) return null;
   const pnls = closed.map((e) => e.pnl ?? 0);
   const wins = pnls.filter((p) => outcome(p).tone === "profit").length;
-  const losses = pnls.filter((p) => outcome(p).tone === "loss").length;
   const net = pnls.reduce((a, b) => a + b, 0);
   // Money totals only when every closed trade carries its suggested size
   const sized = closed.every((e) => e.pnl_usd != null);
@@ -434,46 +434,20 @@ function Results({ events, balance }: { events: SignalEvent[]; balance: number }
   return (
     <div className="results">
       <p className="results-net">
-        <span className="outcome" data-tone={o.tone}>
-          {o.tone === "even" ? "Break-even overall" : `Net ${o.label.toLowerCase()}`}
-        </span>
-        {netUsd !== null ? (
-          <>
-            <strong data-tone={o.tone}>{usd(netUsd, true)}</strong>
-            <span>
-              {netUsd >= 0 ? "+" : "−"}
-              {Math.abs((100 * netUsd) / balance).toFixed(1)}% of the account at the suggested sizes
-            </span>
-          </>
-        ) : (
-          <>
-            <strong data-tone={o.tone}>{signed(net)} per oz</strong>
-            <span>{perLot(net)} on 1 lot</span>
-          </>
+        <strong data-tone={o.tone}>{netUsd !== null ? usd(netUsd, true) : `${signed(net)}/oz`}</strong>
+        {netUsd !== null && (
+          <span data-tone={o.tone}>
+            {netUsd >= 0 ? "+" : "−"}
+            {Math.abs((100 * netUsd) / balance).toFixed(1)}%
+          </span>
         )}
       </p>
-      <dl>
-        <div>
-          <dt>Closed trades</dt>
-          <dd>{closed.length}</dd>
-        </div>
-        <div>
-          <dt>Profit</dt>
-          <dd data-tone="profit">{wins}</dd>
-        </div>
-        <div>
-          <dt>Loss</dt>
-          <dd data-tone="loss">{losses}</dd>
-        </div>
-        <div>
-          <dt>Win rate</dt>
-          <dd>{Math.round((100 * wins) / closed.length)}%</dd>
-        </div>
-        <div>
-          <dt>Profit factor</dt>
-          <dd title="Money won divided by money lost. Above 1 means profitable.">{profitFactor(closed)}</dd>
-        </div>
-      </dl>
+      <p className="results-line">
+        {closed.length} {closed.length === 1 ? "trade" : "trades"} · {wins} won ·{" "}
+        {Math.round((100 * wins) / closed.length)}% win rate ·{" "}
+        <abbr title="Profit factor: money won divided by money lost. Above 1 means profitable.">PF</abbr>{" "}
+        {profitFactor(closed)}
+      </p>
       <SessionSplit closed={closed} />
     </div>
   );
@@ -637,13 +611,15 @@ function Journal({
       )}
       <Results events={events} balance={balance} />
       <History
-        events={events.slice(0, 50)}
+        events={events.slice(0, 100)}
         t={t}
         now={now}
+        tz={state.display.tz}
         onReplay={onReplay}
         symbol={state.symbol}
         myTrades={myTrades}
         ozPerLot={state.account.oz_per_lot}
+        position={state.position}
       />
     </>
   );
@@ -775,80 +751,190 @@ function ReplayButton({ e, onReplay }: { e: SignalEvent; onReplay?: (e: SignalEv
   );
 }
 
+/** A trade: its opening signal and, once it has ended, its close. */
+type Trade = { id: string; open?: SignalEvent; close?: SignalEvent; time: number };
+
+/** Pair each close with the signal that opened it, newest trade first. */
+function toTrades(events: SignalEvent[]): Trade[] {
+  const trades = new Map<string, Trade>();
+  for (const e of events) {
+    const id = e.type === "open" ? (e.trade_id ?? e.id) : (e.trade_id ?? e.id);
+    const t = trades.get(id) ?? { id, time: e.time };
+    if (e.type === "open") {
+      t.open = e;
+      t.time = e.time;
+    } else {
+      t.close = e;
+      if (!t.open) t.time = e.time;
+    }
+    trades.set(id, t);
+  }
+  return [...trades.values()].sort((a, b) => b.time - a.time);
+}
+
+/** "Today", "Yesterday" or "Mon, Oct 5", in the display time zone. */
+function dayLabel(time: number, now: number, tz: string) {
+  const key = (t: number) => new Date(t * 1000).toLocaleDateString("en-CA", { timeZone: tz });
+  if (key(time) === key(now)) return "Today";
+  if (key(time) === key(now - 86400)) return "Yesterday";
+  return new Date(time * 1000).toLocaleDateString("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" });
+}
+
+function TradeCard({
+  trade,
+  live,
+  t,
+  symbol,
+  myTrades,
+  ozPerLot,
+  onReplay,
+}: {
+  trade: Trade;
+  live: Position | null; // the open trade's live result, when this is it
+  t: TimeFormat;
+  symbol: string;
+  myTrades: MyTrades;
+  ozPerLot: number;
+  onReplay?: (e: SignalEvent) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const { open: o, close: c } = trade;
+  const side = (o ?? c)!.side;
+  const entry = o?.price ?? c?.entry;
+  const pnl = c ? (c.pnl ?? 0) : live ? live.pnl : null;
+  const money = c ? c.pnl_usd : live?.pnl_usd;
+  const lots = c?.lots ?? o?.size?.lots;
+  const risk = o?.sl != null && entry != null ? Math.abs(entry - o.sl) : null;
+  const r = pnl != null && risk ? pnl / risk : null;
+  const tone = pnl == null ? "even" : outcome(pnl).tone;
+  const mine = myTrades.taken.get(trade.id);
+  const ended = c?.reason?.replace(/ hit$/, "") ?? (live ? "Open now" : "Open");
+  const detailsId = `trade-${trade.id}`;
+
+  return (
+    <li className="trade" data-tone={tone} data-open={!c || undefined}>
+      <button
+        type="button"
+        className="trade-row"
+        aria-expanded={open}
+        aria-controls={detailsId}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="trade-side" data-side={side}>
+          {side}
+        </span>
+        <span className="trade-prices">
+          {entry != null ? price(entry) : "–"}
+          <span aria-hidden> → </span>
+          <span className="sr-only"> to </span>
+          {c ? price(c.price) : <em>{live ? "live" : "open"}</em>}
+        </span>
+        <span className="trade-result">
+          {money != null ? usd(money, true) : pnl != null ? `${signed(pnl)}/oz` : "–"}
+        </span>
+        <span className="trade-meta">
+          {t.bare(trade.time)} · {!c && <i className="trade-live" aria-hidden />}
+          {ended}
+          {lots ? ` · ${lots.toFixed(2)} lot` : ""}
+          {r != null && ` · ${r >= 0 ? "+" : "−"}${Math.abs(r).toFixed(1)}R`}
+          {mine && <span className="trade-mine"> · ✓ You took it</span>}
+        </span>
+      </button>
+      {open && (
+        <div className="trade-details" id={detailsId}>
+          {o?.reason && <p>{o.reason}.</p>}
+          {o?.sl != null && o.tp != null && (
+            <p>
+              Stop {price(o.sl)} · Target {price(o.tp)}
+              {o.size && ` · risk ${usd(o.size.risk)}`}
+              {o.size?.verdict === "skip" && " (above your risk limit)"}
+            </p>
+          )}
+          {c && (
+            <p>
+              Closed {t.bare(c.time)} at {price(c.price)}: {resultText(c.pnl ?? 0, c.pnl_usd, c.lots)}
+            </p>
+          )}
+          {mine && c && (
+            <p className="history-mine" data-tone={tone}>
+              Your result: {usd((c.pnl ?? 0) * mine * ozPerLot, true)} at {mine.toFixed(2)} lot
+            </p>
+          )}
+          {o && o.sl != null && o.tp != null ? (
+            <TradeActions
+              tradeId={trade.id}
+              symbol={symbol}
+              side={side}
+              entry={o.price}
+              sl={o.sl}
+              tp={o.tp}
+              lots={o.size?.lots}
+              myTrades={myTrades}
+            >
+              <ReplayButton e={o} onReplay={onReplay} />
+            </TradeActions>
+          ) : (
+            <ReplayButton e={(o ?? c)!} onReplay={onReplay} />
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** Trades grouped by day; tap one for its details and actions. */
 function History({
   events,
   t,
   now,
+  tz,
   onReplay,
   symbol,
   myTrades,
   ozPerLot,
+  position,
 }: {
   events: SignalEvent[];
   t: TimeFormat;
   now: number;
+  tz: string;
   onReplay?: (e: SignalEvent) => void;
   symbol: string;
   myTrades: MyTrades;
   ozPerLot: number;
+  position: Position | null;
 }) {
-  if (events.length === 0) {
+  const trades = toTrades(events);
+  if (trades.length === 0) {
     return <p className="empty">No signals in this period. They&apos;ll appear here as soon as the bot sends one.</p>;
   }
+  const days = new Map<string, Trade[]>();
+  for (const tr of trades) {
+    const label = dayLabel(tr.time, now, tz);
+    days.set(label, [...(days.get(label) ?? []), tr]);
+  }
   return (
-    <ol className="history">
-      {events.map((e) => {
-        if (e.type === "open") {
-          return (
-            <li key={e.id} data-type="open" data-side={e.side}>
-              <time>{t.stamp(e.time, now)}</time>
-              <span className="history-what">{describe(e)}</span>
-              <span className="history-detail">
-                {e.reason ? `${e.reason}. ` : ""}Stop {price(e.sl!)}, target {price(e.tp!)}
-                {e.size && `. ${e.size.lots.toFixed(2)} lot, risk ${usd(e.size.risk)}`}
-                {e.size && e.size.verdict === "skip" && " (above your risk limit)"}
-              </span>
-              <TradeActions
-                tradeId={e.trade_id ?? e.id}
+    <div className="trades">
+      {[...days].map(([label, list]) => (
+        <section key={label} aria-label={label}>
+          <h3 className="trade-day">{label}</h3>
+          <ul>
+            {list.map((tr) => (
+              <TradeCard
+                key={tr.id}
+                trade={tr}
+                live={!tr.close && position?.trade_id === tr.id ? position : null}
+                t={t}
                 symbol={symbol}
-                side={e.side}
-                entry={e.price}
-                sl={e.sl!}
-                tp={e.tp!}
-                lots={e.size?.lots}
                 myTrades={myTrades}
-              >
-                <ReplayButton e={e} onReplay={onReplay} />
-              </TradeActions>
-            </li>
-          );
-        }
-        const pnl = e.pnl ?? 0;
-        const o = outcome(pnl);
-        const mine = e.trade_id ? myTrades.taken.get(e.trade_id) : undefined;
-        return (
-          <li key={e.id} data-type="close" data-outcome={o.tone}>
-            <time>{t.stamp(e.time, now)}</time>
-            <span className="history-what">
-              <span className="outcome" data-tone={o.tone}>
-                {o.label}
-              </span>
-              {resultText(pnl, e.pnl_usd, e.lots)}
-            </span>
-            <span className="history-detail">
-              {e.side === "BUY" ? "Buy" : "Sell"} closed at {price(e.price)}
-              {e.reason ? `, ${e.reason.toLowerCase()}` : ""}
-            </span>
-            {mine && (
-              <span className="history-mine" data-tone={o.tone}>
-                You took it: {usd(pnl * mine * ozPerLot, true)} at {mine.toFixed(2)} lot
-              </span>
-            )}
-            <ReplayButton e={e} onReplay={onReplay} />
-          </li>
-        );
-      })}
-    </ol>
+                ozPerLot={ozPerLot}
+                onReplay={onReplay}
+              />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }
 

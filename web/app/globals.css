@@ -3359,3 +3359,188 @@ button[data-busy] {
     transition: none;
   }
 }
+
+/* ---- signals list: one card per trade, grouped by day ----------------- */
+
+.results {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+}
+
+.results-net {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.results-net span[data-tone="profit"] {
+  color: var(--buy);
+}
+
+.results-net span[data-tone="loss"] {
+  color: var(--sell);
+}
+
+.results-line {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.results-line abbr {
+  text-decoration: none;
+  cursor: help;
+}
+
+.trades {
+  display: grid;
+  gap: 14px;
+}
+
+.trades ul {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.trade-day {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.trade {
+  --tone: var(--muted);
+  border: 1px solid var(--inset-border);
+  border-left: 3px solid var(--tone);
+  border-radius: 10px;
+  background: var(--inset);
+  overflow: hidden;
+}
+
+.trade[data-tone="profit"] {
+  --tone: var(--buy);
+}
+
+.trade[data-tone="loss"] {
+  --tone: var(--sell);
+}
+
+.trade[data-open] {
+  --tone: var(--gold);
+}
+
+.trade-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 2px 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trade-row:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.trade-side {
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.trade-side[data-side="BUY"] {
+  background: color-mix(in srgb, var(--buy) 18%, transparent);
+  color: var(--buy);
+}
+
+.trade-side[data-side="SELL"] {
+  background: color-mix(in srgb, var(--sell) 18%, transparent);
+  color: var(--sell);
+}
+
+.trade-prices {
+  overflow: hidden;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trade-prices em {
+  color: var(--gold);
+  font-style: normal;
+}
+
+.trade-result {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--tone);
+}
+
+.trade[data-open] .trade-result {
+  color: var(--text);
+}
+
+.trade-meta {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.trade-mine {
+  color: var(--buy);
+  font-weight: 600;
+}
+
+.trade-live {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 2px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.trade-details {
+  display: grid;
+  gap: 6px;
+  padding: 0 12px 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.trade-details .trade-actions {
+  grid-column: auto;
+  margin-top: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trade-live {
+    animation: none;
+  }
+}
