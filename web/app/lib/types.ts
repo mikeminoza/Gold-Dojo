@@ -72,7 +72,13 @@ export type SignalEvent = {
 };
 
 /** The market when a signal came: opening range width in ATR, daily trend strength (%), weekday (0 = Mon). */
-export type TradeContext = { weekday?: number; range_atr?: number; trend_pct?: number };
+export type TradeContext = {
+  weekday?: number;
+  range_atr?: number;
+  trend_pct?: number;
+  cost_pct?: number; // spread + slippage as % of the stop (paper-tracked cost filter)
+  cost_keep?: boolean; // whether the cost filter would have kept the trade
+};
 
 /** One replayed trade from publish_backtest.py. Times are UTC seconds; pnl is $ per oz after spread. */
 export type BacktestTrade = {

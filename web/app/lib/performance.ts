@@ -136,7 +136,14 @@ export function tradeRs(events: SignalEvent[]) {
 
 
 /** One closed trade for the analysis: result in R plus what the market looked like at its signal. */
-export type TradeRow = { r: number; side: "BUY" | "SELL"; weekday: number | null; rangeAtr: number | null; trendPct: number | null };
+export type TradeRow = {
+  r: number;
+  side: "BUY" | "SELL";
+  weekday: number | null;
+  rangeAtr: number | null;
+  trendPct: number | null;
+  costKeep: boolean | null; // paper-tracked cost filter: would it have kept this trade?
+};
 
 export function tradeRows(events: SignalEvent[], tz: string): TradeRow[] {
   const opens = new Map<string, SignalEvent>();
@@ -158,6 +165,7 @@ export function tradeRows(events: SignalEvent[], tz: string): TradeRow[] {
       weekday: o.context?.weekday ?? weekday(o.time),
       rangeAtr: o.context?.range_atr ?? null,
       trendPct: o.context?.trend_pct ?? null,
+      costKeep: o.context?.cost_keep ?? null,
     });
   }
   return rows;

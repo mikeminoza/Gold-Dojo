@@ -313,6 +313,13 @@ function AnalysisTab({ rows }: { rows: TradeRow[] }) {
           ["Weak (< 1%)", "Moderate", "Strong (> 3%)"],
         )}
       />
+      <Breakdown
+        title="Cost filter (paper test: would it have kept the trade?)"
+        groups={by(
+          (x) => (x.costKeep === null ? null : x.costKeep ? "Kept (costs ≤ 8% of stop)" : "Skipped (costs > 8%)"),
+          ["Kept (costs ≤ 8% of stop)", "Skipped (costs > 8%)"],
+        )}
+      />
       {withContext < rows.length && (
         <p className="perf-about">
           Range and trend splits use only the {withContext} trades recorded since the bot started saving that

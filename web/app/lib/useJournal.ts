@@ -25,7 +25,7 @@ export type JournalEntry = {
   created_at: string;
   mfe_r?: number | null; // furthest in our favour before closing, in R (after supabase/analysis.sql)
   mae_r?: number | null; // furthest against us, in R
-  context?: { weekday?: number; range_atr?: number; trend_pct?: number } | null;
+  context?: { weekday?: number; range_atr?: number; trend_pct?: number; cost_pct?: number; cost_keep?: boolean } | null;
 };
 
 // Everything, so newer columns (mfe_r, mae_r) come along once supabase/analysis.sql has added them

@@ -30,3 +30,11 @@ def test_trade_excursions_in_r():
     for bid in (2003.0, 2008.0, 1998.0, 2001.0):  # up to +8, down to -2
         b.check_sl_tp(bid, bid + 0.3)
     assert bot.Bot._excursions(pos, 1.0) == {"mfe_r": 1.6, "mae_r": -0.4}
+
+
+def test_cost_tag_marks_expensive_trades():
+    import bot
+    # spread 0.50 + 0.20 slippage = 0.70 on an $11.74 stop = 6.0% -> kept at the 8% filter
+    assert bot.Bot.cost_tag(4163.14, 4163.64, 4163.14, 4174.88) == {"cost_pct": 6.0, "cost_keep": True}
+    # same costs on a $5 stop = 14% -> the filter would skip it
+    assert bot.Bot.cost_tag(2000.0, 2000.5, 2000.0, 1995.0)["cost_keep"] is False

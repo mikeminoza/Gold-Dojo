@@ -785,6 +785,7 @@ function ContextTags({ ctx }: { ctx: TradeContext }) {
   if (ctx.trend_pct != null) {
     tags.push(ctx.trend_pct < 1 ? "Weak trend" : ctx.trend_pct > 3 ? "Strong trend" : "Moderate trend");
   }
+  if (ctx.cost_pct != null) tags.push(`Costs ${ctx.cost_pct}% of stop`);
   if (tags.length === 0) return null;
   return (
     <p className="trade-tags">

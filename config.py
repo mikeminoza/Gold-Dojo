@@ -57,6 +57,11 @@ ORB_MIN_STOP_ATR = 0.5      # and keep it at least 0.5 x ATR when the range is t
 # Skip a trade whose stop ends up closer than this ($ per oz) to the actual entry price: by then the
 # spread is most of the risk and the suggested lot size would be dangerously big.
 MIN_STOP_DISTANCE = 2.0
+# Paper-tracked cost filter (docs/cost-filter-research.md): each signal is TAGGED with whether
+# (spread + COST_SLIPPAGE) would exceed COST_FILTER_PCT % of its stop. It never skips a signal;
+# the Analysis tab compares tagged groups on fresh data before anyone decides to use it.
+COST_FILTER_PCT = 8.0
+COST_SLIPPAGE = 0.20
 DAILY_TREND_EMA = 50        # only buy above the 50-day EMA, only sell below it
 
 # ======================================================================

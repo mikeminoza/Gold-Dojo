@@ -177,7 +177,8 @@ class Bot:
                          "reason": sig.reason, "size": size}
         session = sig.tag[:-11] if sig.tag and len(sig.tag) > 11 else None  # "New York-2026-09-29" -> "New York"
         self.record({"type": "open", "side": sig.side, "price": entry, "sl": sl, "tp": tp, "reason": sig.reason,
-                     "size": size, "session": session, "context": self.context(sig, df, i)})
+                     "size": size, "session": session,
+                     "context": {**self.context(sig, df, i), **self.cost_tag(bid, ask, entry, sl)}})
         self.position["trade_id"] = self.history[0]["id"]
         self.position["session"] = session
         if self.telegram:
@@ -188,6 +189,16 @@ class Bot:
                                  f"Take profit: {fmt(tp)}\n"
                                  f"Size: <b>{size['lots']:.2f} lot</b> (risk ${size['risk']:.2f}, "
                                  f"target ${size['reward']:.2f}){warning}")
+
+    @staticmethod
+    def cost_tag(bid, ask, entry, sl):
+        """Paper-tracked cost filter: the trade's cost as a % of its stop, and whether the filter
+        (config.COST_FILTER_PCT) would have kept it. Recorded only; nothing is skipped."""
+        stop = abs(entry - sl)
+        if not stop:
+            return {}
+        pct = 100 * ((ask - bid) + config.COST_SLIPPAGE) / stop
+        return {"cost_pct": round(pct, 1), "cost_keep": pct <= config.COST_FILTER_PCT}
 
     @staticmethod
     def context(sig, df, i):
