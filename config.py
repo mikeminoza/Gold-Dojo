@@ -112,6 +112,14 @@ HEALTH_REPORT_HOUR = 9              # local hour in DISPLAY_TZ (9 AM PH time, af
 # supabase/market-data.sql): fresh, unseen data for testing future strategy ideas.
 RECORD_MARKET_DATA = True
 
+# Safety checks (guards.py)
+MAX_TOTAL_RISK_PCT = 3.0      # never more than this % of the account at risk in open trades together
+DRIFT_MIN_TRADES = 20         # judge live vs backtest only after this many closed trades
+DRIFT_PERCENTILE = 5          # live total below the 5th percentile of backtest stretches = alarm
+DRIFT_AUTO_PAUSE = True       # the alarm also pauses new New York signals until results recover
+SILENCE_PRICE_SECONDS = 600   # alarm: no real gold price for 10 min during market hours
+SILENCE_CANDLE_SECONDS = 5400 # alarm: no new candle processed for 90 min during market hours
+
 # Daily trend mode (trend_daily.py): two long-only daily rules, forward-tested on paper and shown to
 # members. Announced in chat when a paper trade opens or closes.
 DAILY_TREND = True

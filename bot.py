@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,6 +24,7 @@ import backtest_refresh
 import cloud_state
 import config
 import health
+import guards
 import health_report
 import live_state
 import loss_guard
@@ -99,6 +101,9 @@ class Bot:
                          if config.RECORD_MARKET_DATA and not demo else None)
         self.swing = swing_paper.SwingPaper(self._swing_mem) if config.SWING_PAPER and not demo else None
         self.trend = trend_daily.DailyTrend(self._trend_mem) if config.DAILY_TREND and not demo else None
+        self.silence = guards.Silence()
+        self.drift = {}            # rule -> {"percentile", "alarm"} from the daily drift check
+        self.drift_checked = 0.0
         self.health = None  # set by main() when running as a web service
 
     # --- persistence -------------------------------------------------------
@@ -299,15 +304,108 @@ class Bot:
         if sig and not self.position:
             paused = self.news.pause_reason(pd.Timestamp.now(tz="UTC"))
             limited = self.loss_pause(time.time())
+            capped = self.risk_cap_reason(sig, df, i)
+            drifting = config.DRIFT_AUTO_PAUSE and self.drift.get("ny", {}).get("alarm")
             if paused:
                 print(f"{datetime.now():%H:%M:%S} skipped {sig.side} ({sig.reason}): news pause for {paused}")
                 self.strat.state.setdefault("skipped", {})[sig.tag] = f"news pause for {paused}"
             elif limited:
                 print(f"{datetime.now():%H:%M:%S} skipped {sig.side} ({sig.reason}): loss limit, {limited[0]}")
                 self.strat.state.setdefault("skipped", {})[sig.tag] = f"loss limit ({limited[0]})"
+            elif capped:
+                print(f"{datetime.now():%H:%M:%S} skipped {sig.side} ({sig.reason}): risk cap, {capped}")
+                self.strat.state.setdefault("skipped", {})[sig.tag] = f"risk cap ({capped})"
+            elif drifting:
+                print(f"{datetime.now():%H:%M:%S} skipped {sig.side} ({sig.reason}): drift alarm")
+                self.strat.state.setdefault("skipped", {})[sig.tag] = "drift alarm (live results far below the backtest)"
             else:
                 self.open(sig, df, i)
         self.post_recaps(df)
+
+    def trend_positions(self):
+        return [x.position for x in self.trend.rules.values() if x.position] if self.trend else []
+
+    def risk_cap_reason(self, sig, df, i):
+        """Would this New York signal push total open risk over MAX_TOTAL_RISK_PCT?"""
+        close = float(df["close"].iat[i])
+        if abs(close - sig.stop) <= 0:
+            return None
+        new = sizing.lot_size(close, sig.stop, close)["risk_percent"]
+        return guards.risk_cap_reason(self.position, self.trend_positions(), new)
+
+    def check_drift(self):
+        """Once a day: are live results (New York signals, Daily trend paper trades) within what the
+        backtests expect? Posts in the Bot status chat when an alarm starts or clears."""
+        if time.time() - self.drift_checked < 86400 or not self.cloud.enabled:
+            return
+        self.drift_checked = time.time()
+        try:
+            ny = self.backtest._load() or {}
+            ny_pool = [k["pnl"] / abs(k["entry"] - k["sl"]) for k in ny.get("trades", []) if k["entry"] != k["sl"]]
+            live = [r for _, r in self.closed_rs()]
+            checks = {"ny": ("New York signals", live, ny_pool)}
+            if self.trend:
+                bt = self.cloud_row("daily_trend_backtest") or {}
+                for rule, x in self.trend.rules.items():
+                    pool = [r for _, r in (bt.get("rules", {}).get(rule, {}).get("trades") or [])]
+                    checks[rule] = (f"Daily trend {trend_daily.RULES[rule]}", [t["r"] for t in x.trades], pool)
+        except Exception as e:  # never let this disturb the bot
+            print(f"drift check skipped ({e})")
+            return
+        for key, (name, live_rs, pool) in checks.items():
+            verdict = guards.drift_verdict(live_rs, pool)
+            if verdict is None:
+                continue
+            pct, alarm = verdict
+            was = self.drift.get(key, {}).get("alarm")
+            self.drift[key] = {"percentile": pct, "alarm": alarm}
+            if alarm and not was:
+                pause = " New New York signals are paused until it recovers." if key == "ny" and config.DRIFT_AUTO_PAUSE else ""
+                self.cloud.post_chat(f"Drift alarm, {name}: after {len(live_rs)} trades, live results are worse than "
+                                     f"{100 - pct}% of what the backtest produces over the same number of trades. "
+                                     f"Something may differ live (prices, timing or costs).{pause}",
+                                     room=config.HEALTH_REPORT_ROOM)
+            elif was and not alarm:
+                self.cloud.post_chat(f"Drift alarm cleared, {name}: live results are back within the backtest's "
+                                     f"normal range ({pct}th percentile).", room=config.HEALTH_REPORT_ROOM)
+
+    def cloud_row(self, row_id):
+        r = requests.get(f"{self.cloud.url}/rest/v1/bot_state", params={"id": f"eq.{row_id}", "select": "data"},
+                         headers=self.cloud._headers(), timeout=20)
+        rows = r.json() if r.ok else []
+        return rows[0]["data"] if rows else None
+
+    def closed_rs(self):
+        """(close time, R) of the New York trades in the bot's memory, oldest first."""
+        opens = {e["id"]: e for e in self.history if e["type"] == "open"}
+        out = []
+        for e in reversed(self.history):
+            if e["type"] != "close":
+                continue
+            risk = e.get("risk_oz")
+            if risk is None and e.get("trade_id") in opens and opens[e["trade_id"]].get("sl") is not None:
+                risk = abs(opens[e["trade_id"]]["price"] - opens[e["trade_id"]]["sl"])
+            out.append((e["time"], loss_guard.r_multiple(e.get("pnl") or 0, risk)))
+        return out
+
+    def watch_silence(self, real):
+        """Silence alarm: posts once when prices or candles stop during market hours, and on recovery."""
+        now = time.time()
+        if real:
+            self.silence.price(now)
+        if now - getattr(self, "_silence_checked", 0) < 60 or not self.cloud.enabled:
+            return
+        self._silence_checked = now
+        market_open = getattr(self.feed, "market_open", None)
+        is_open = bool(market_open and market_open(pd.Timestamp.now(tz="UTC")))
+        step = self.feed.candle_seconds(config.TIMEFRAME)
+        last_end = self.last_bar_time.timestamp() + step if self.last_bar_time is not None else None
+        # the first candle after a weekend or the daily break needs time to arrive
+        reopened = is_open and market_open and not market_open(pd.Timestamp(now - 2 * step, unit="s", tz="UTC"))
+        msg = self.silence.check(now, is_open and not reopened, last_end)
+        if msg:
+            print(f"{datetime.now():%H:%M:%S} {msg}")
+            self.cloud.post_chat(msg, room=config.HEALTH_REPORT_ROOM)
 
     def announce_trend(self, e):
         """Daily trend paper trades are announced in chat (they're a forward test, not live trades)."""
@@ -352,6 +450,15 @@ class Bot:
                              + (f" ({paused})" if paused else ""), "ok": paused is None}
             for side in conditions:
                 conditions[side].append(item)
+        open_risk = guards.open_risk_pct(self.position, self.trend_positions())
+        item = {"label": f"Open risk {open_risk:.1f}% (cap {config.MAX_TOTAL_RISK_PCT:g}%)",
+                "ok": open_risk + config.RISK_PERCENT <= config.MAX_TOTAL_RISK_PCT}
+        for side in conditions:
+            conditions[side].append(item)
+        if config.DRIFT_AUTO_PAUSE and self.drift.get("ny", {}).get("alarm"):
+            for side in conditions:
+                conditions[side].append({"label": "Live results back within the backtest's range (drift alarm)",
+                                         "ok": False})
         limited = self.loss_pause(now.timestamp())
         if config.LOSS_LIMITS:
             item = {"label": "Within the loss limits" + (f" (paused: {limited[0]})" if limited else ""),
@@ -509,6 +616,8 @@ class Bot:
                         self.save()
                         self.publish(bid, ask)
                         self.post_health_report()
+                        self.check_drift()
+                        self.watch_silence(real)
                     errors = 0
                 except Exception as e:  # keep running through temporary network hiccups / refusals
                     errors += 1
