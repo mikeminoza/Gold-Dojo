@@ -1,0 +1,52 @@
+equivalence vs intraday2 engine (X=none, m=$2, $0.30 spread, $0.10 slippage): 401 trades in 5 rules, 0 rules differ (must be 0)
+
+filter check (fake prices, variable spread): 0 kept trades with expected cost > X x risk (must be 0); signal spread vs mid_bars spread of the signal bar: 1786 compared, 0 differ (must be 0)
+  kept trades per X (all 5 rules, m=$2): none 412, 5% 44, 8% 125, 12% 321
+  filter skips (NY m=2 X=8%): {'cost filter': 498}
+
+no-peeking: 12 cut times, 40 specs (5 rules x 2 min stops x 4 X); minutes after the cut deleted and everything rebuilt: 5677 trades closed before the cut compared, 0 differ (must be 0)
+
+null test: 24 driftless random walks (3 years of 24 h minutes each), random spread (hourly level ~$0.30, independent of price), $0.10 slippage, no news pause; both min stops pooled.
+Gross R (before spread, slippage, commission) must average ~0 for every rule and X; net R is gross minus costs.
+cost rule    X  trades  gross_R/trade     se     z  net_R/trade
+base   NY none   13416        -0.0073 0.0103 -0.71      -0.1280
+base   NY   5%       0         0.0000 0.0000   NaN       0.0000
+base   NY   8%    1663        -0.0738 0.0256 -2.88      -0.1868
+base   NY  12%    9596        -0.0003 0.0123 -0.03      -0.1165
+base   S1 none    1352        -0.0706 0.0534 -1.32      -0.1464
+base   S1   5%       6         0.0501 0.0947  0.53       0.9836
+base   S1   8%     550         0.0339 0.0629  0.54      -0.0663
+base   S1  12%    1184        -0.0640 0.0512 -1.25      -0.1323
+base   S2 none    1352        -0.0021 0.0377 -0.06      -0.0457
+base   S2   5%     892         0.0353 0.0346  1.02      -0.0099
+base   S2   8%    1304        -0.0082 0.0386 -0.21      -0.0501
+base   S2  12%    1348        -0.0063 0.0387 -0.16      -0.0495
+base   S3 none    1352        -0.0064 0.0373 -0.17      -0.0497
+base   S3   5%     892         0.0338 0.0359  0.94      -0.0099
+base   S3   8%    1304        -0.0135 0.0379 -0.36      -0.0552
+base   S3  12%    1348        -0.0105 0.0383 -0.27      -0.0536
+base   S4 none    1352        -0.0094 0.0466 -0.20      -0.0582
+base   S4   5%     424         0.0263 0.0645  0.41      -0.0286
+base   S4   8%    1184        -0.0128 0.0463 -0.28      -0.0560
+base   S4  12%    1338        -0.0193 0.0479 -0.40      -0.0669
+ low   NY none   13280        -0.0067 0.0102 -0.66      -0.1017
+ low   NY   5%       0         0.0000 0.0000   NaN       0.0000
+ low   NY   8%     142        -0.2162 0.1033 -2.09      -0.2306
+ low   NY  12%   13260        -0.0068 0.0102 -0.67      -0.1017
+ low   S1 none    1352        -0.0798 0.0534 -1.50      -0.1339
+ low   S1   5%       0         0.0000 0.0000   NaN       0.0000
+ low   S1   8%    1344        -0.0767 0.0535 -1.43      -0.1305
+ low   S1  12%    1352        -0.0798 0.0534 -1.50      -0.1339
+ low   S2 none    1352        -0.0034 0.0386 -0.09      -0.0373
+ low   S2   5%    1330         0.0057 0.0384  0.15      -0.0271
+ low   S2   8%    1352        -0.0034 0.0386 -0.09      -0.0373
+ low   S2  12%    1352        -0.0034 0.0386 -0.09      -0.0373
+ low   S3 none    1352        -0.0094 0.0376 -0.25      -0.0431
+ low   S3   5%    1330        -0.0004 0.0373 -0.01      -0.0330
+ low   S3   8%    1352        -0.0094 0.0376 -0.25      -0.0431
+ low   S3  12%    1352        -0.0094 0.0376 -0.25      -0.0431
+ low   S4 none    1352        -0.0114 0.0462 -0.25      -0.0471
+ low   S4   5%    1212        -0.0111 0.0497 -0.22      -0.0394
+ low   S4   8%    1352        -0.0114 0.0462 -0.25      -0.0471
+ low   S4  12%    1352        -0.0114 0.0462 -0.25      -0.0471
+max |z| = 2.88 over 40 groups
