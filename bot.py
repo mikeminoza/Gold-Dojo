@@ -26,6 +26,7 @@ import health
 import health_report
 import live_state
 import loss_guard
+import market_recorder
 import session_recap
 import swing_paper
 import news
@@ -92,6 +93,8 @@ class Bot:
         self._swing_mem = self._report_mem = None  # set by load()
         self.position, self.history = self.load()
         self.report = health_report.HealthReport(self._report_mem) if config.HEALTH_REPORT and not demo else None
+        self.recorder = (market_recorder.MinuteRecorder(getattr(feed, "gap", None))
+                         if config.RECORD_MARKET_DATA and not demo else None)
         self.swing = swing_paper.SwingPaper(self._swing_mem) if config.SWING_PAPER and not demo else None
         self.health = None  # set by main() when running as a web service
 
@@ -445,6 +448,8 @@ class Bot:
                     tick = self.feed.get_tick(self.symbol)
                     if tick:
                         bid, ask = tick
+                        if self.recorder and (row := self.recorder.tick(bid, ask)):
+                            self.cloud.record_minute(row)
                         if self.position:
                             self.check_sl_tp(bid, ask)
                         now = time.time()

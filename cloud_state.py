@@ -55,6 +55,9 @@ class CloudPublisher:
         self._memory_sig = None
         self._chat = []  # bot messages waiting to be posted in the website chat
         self._rooms = {}  # chat room name -> id
+        self._minutes = []  # live market minutes waiting to be saved
+        self._minutes_sent = time.time()
+        self._minutes_paused_until = 0.0
         if self.enabled:
             threading.Thread(target=self._run, name="cloud", daemon=True).start()
 
@@ -123,6 +126,37 @@ class CloudPublisher:
                 print(f"{datetime.now():%H:%M:%S} chat recap not posted yet ({e}); retrying")
                 self._stop.wait(RETRY_SECONDS)
                 return
+
+    def record_minute(self, row):
+        """Queue one minute of live prices (saved in batches every few minutes)."""
+        if not self.enabled or time.time() < self._minutes_paused_until:
+            return
+        with self._lock:
+            self._minutes = (self._minutes + [row])[-2000:]  # cap if Supabase is down for a long time
+
+    def _send_minutes(self):
+        with self._lock:
+            rows = self._minutes
+        if not rows or (len(rows) < 5 and time.time() - self._minutes_sent < 300):
+            return
+        try:
+            headers = {**self._headers(), "Prefer": "resolution=ignore-duplicates,return=minimal"}
+            r = requests.post(f"{self.url}/rest/v1/market_minutes?on_conflict=minute", headers=headers,
+                              data=json.dumps(rows), timeout=15)
+            if r.status_code == 404 or "PGRST205" in r.text:
+                print("market_minutes table missing: run supabase/market-data.sql to start saving live data; "
+                      "trying again in an hour")
+                with self._lock:
+                    self._minutes = []
+                self._minutes_paused_until = time.time() + 3600
+                return
+            if r.status_code >= 300:
+                raise RuntimeError(f"Supabase answered {r.status_code}: {r.text[:200]}")
+            with self._lock:
+                self._minutes = self._minutes[len(rows):]
+            self._minutes_sent = time.time()
+        except (requests.RequestException, RuntimeError) as e:
+            print(f"{datetime.now():%H:%M:%S} market data not saved yet ({e}); retrying")
 
     def _room(self, name):
         """The id of the chat room called `name`, creating the room if it doesn't exist yet."""
@@ -204,6 +238,7 @@ class CloudPublisher:
             self._send_journal()
             self._send_memory()
             self._send_chat()
+            self._send_minutes()
             with self._lock:
                 state = self._latest
             if state is None:

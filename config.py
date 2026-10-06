@@ -103,6 +103,10 @@ HEALTH_REPORT = True
 HEALTH_REPORT_ROOM = "Bot status"   # created automatically if it doesn't exist
 HEALTH_REPORT_HOUR = 9              # local hour in DISPLAY_TZ (9 AM PH time, after the New York session)
 
+# Save a one-minute summary of live prices and spreads to Supabase (market_recorder.py,
+# supabase/market-data.sql): fresh, unseen data for testing future strategy ideas.
+RECORD_MARKET_DATA = True
+
 # Paper tracking of the daily swing candidate (swing_paper.py, docs/swing-research.md): recorded only,
 # never shown as a signal. Re-test it against the backtest and buy-and-hold after 6-12 months.
 SWING_PAPER = True
