@@ -3790,3 +3790,16 @@ button[data-busy] {
     font-size: 18px;
   }
 }
+
+/* The header icon matches the theme */
+.brand-light {
+  display: none;
+}
+
+:root[data-theme="light"] .brand-dark {
+  display: none;
+}
+
+:root[data-theme="light"] .brand-light {
+  display: inline;
+}

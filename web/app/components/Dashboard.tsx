@@ -1197,7 +1197,9 @@ export default function Dashboard() {
       <header className="topbar">
         <div className="instrument">
           {/* eslint-disable-next-line @next/next/no-img-element -- the site icon, an SVG */}
-          <img src="/icon.svg" alt="" width={28} height={28} className="brand-mark" />
+          <img src="/icon-dark.svg" alt="" width={28} height={28} className="brand-mark brand-dark" />
+          {/* eslint-disable-next-line @next/next/no-img-element -- the site icon, an SVG */}
+          <img src="/icon-light.svg" alt="" width={28} height={28} className="brand-mark brand-light" />
           <strong>Gold Dojo</strong>
           <span>
             {state.symbol}, {chartTf ?? state.chart.default} chart
