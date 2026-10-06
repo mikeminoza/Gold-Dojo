@@ -3544,3 +3544,10 @@ button[data-busy] {
     animation: none;
   }
 }
+
+.trades-more {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+}

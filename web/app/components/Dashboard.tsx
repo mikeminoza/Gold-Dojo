@@ -611,7 +611,8 @@ function Journal({
       )}
       <Results events={events} balance={balance} />
       <History
-        events={events.slice(0, 100)}
+        key={period}
+        events={events}
         t={t}
         now={now}
         tz={state.display.tz}
@@ -750,6 +751,9 @@ function ReplayButton({ e, onReplay }: { e: SignalEvent; onReplay?: (e: SignalEv
     </button>
   );
 }
+
+const FIRST_TRADES = 8; // shown at first; "Show more" adds MORE_TRADES at a time
+const MORE_TRADES = 10;
 
 /** A trade: its opening signal and, once it has ended, its close. */
 type Trade = { id: string; open?: SignalEvent; close?: SignalEvent; time: number };
@@ -904,8 +908,10 @@ function History({
   ozPerLot: number;
   position: Position | null;
 }) {
-  const trades = toTrades(events);
-  if (trades.length === 0) {
+  const [limit, setLimit] = useState(FIRST_TRADES);
+  const all = toTrades(events);
+  const trades = all.slice(0, limit);
+  if (all.length === 0) {
     return <p className="empty">No signals in this period. They&apos;ll appear here as soon as the bot sends one.</p>;
   }
   const days = new Map<string, Trade[]>();
@@ -934,6 +940,20 @@ function History({
           </ul>
         </section>
       ))}
+      {(all.length > limit || limit > FIRST_TRADES) && (
+        <div className="trades-more">
+          {all.length > limit && (
+            <button type="button" className="journal-csv" onClick={() => setLimit((n) => n + MORE_TRADES)}>
+              Show {Math.min(MORE_TRADES, all.length - limit)} more ({all.length - limit} left)
+            </button>
+          )}
+          {limit > FIRST_TRADES && (
+            <button type="button" className="link-button" onClick={() => setLimit(FIRST_TRADES)}>
+              Show less
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
