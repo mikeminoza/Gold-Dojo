@@ -3803,3 +3803,41 @@ button[data-busy] {
 :root[data-theme="light"] .brand-light {
   display: inline;
 }
+
+/* "Waking up the bot" screen */
+.setup-live {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.setup-live i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: live-pulse 1.4s ease-in-out infinite;
+}
+
+.setup details {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.setup summary {
+  cursor: pointer;
+  color: var(--gold);
+}
+
+.setup details ul {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding-left: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-live i {
+    animation: none;
+  }
+}

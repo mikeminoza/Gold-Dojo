@@ -1156,14 +1156,29 @@ export default function Dashboard() {
     return (
       <main className="page">
         <div className="setup">
-          <h1>Waiting for the bot</h1>
+          <h1>Waking up the bot</h1>
           <p>
-            The bot hasn&apos;t sent anything to Supabase yet. On your PC, check that <code>.env</code> has{" "}
-            <code>SUPABASE_URL</code> and <code>SUPABASE_SECRET_KEY</code>, then from the <code>trading-bot</code>{" "}
-            folder run:
+            The bot hasn&apos;t checked in yet. It runs on a free server that sleeps when idle, so waking up can take
+            up to a minute. This page updates by itself the moment it does.
           </p>
-          <pre>.venv\Scripts\python bot.py</pre>
-          <p>This page updates on its own as soon as the bot starts.</p>
+          <p className="setup-live" role="status">
+            <i aria-hidden /> Waiting for the first update…
+          </p>
+          {me?.role === "admin" && (
+            <details>
+              <summary>Still nothing after a few minutes?</summary>
+              <ul>
+                <li>
+                  Open the bot&apos;s <code>/health</code> page on Render: it should say <code>&quot;ok&quot;: true</code>.
+                </li>
+                <li>
+                  On Render, check the service is <strong>Live</strong>, not suspended, and that its{" "}
+                  <code>SUPABASE_URL</code> and <code>SUPABASE_SECRET_KEY</code> are set.
+                </li>
+                <li>The pingers (cron-job.org, UptimeRobot) should show green.</li>
+              </ul>
+            </details>
+          )}
         </div>
       </main>
     );
@@ -1173,12 +1188,14 @@ export default function Dashboard() {
     return (
       <main className="page">
         <div className="setup">
-          <h1>Restart the bot</h1>
+          <h1>Updating the bot</h1>
           <p>
-            The running bot is an older version than this page. Stop it with Ctrl+C in its terminal, then start it
-            again:
+            The bot is on an older version than this page and is restarting with the update. This page refreshes by
+            itself in a minute or two.
           </p>
-          <pre>.venv\Scripts\python bot.py</pre>
+          <p className="setup-live" role="status">
+            <i aria-hidden /> Waiting for the new version…
+          </p>
         </div>
       </main>
     );
