@@ -14,6 +14,7 @@ import { tradeRs } from "../lib/performance";
 import { adoptProfileAccount, sizeEvents, sizePosition, useMyAccount } from "../lib/account";
 import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
+import Performance from "./Performance";
 import NotificationCenter, { type Notice } from "./NotificationCenter";
 import StatusStrip from "./StatusStrip";
 import BottomBar, { type SideTab } from "./BottomBar";
@@ -169,7 +170,7 @@ function savedTheme(): ThemeChoice {
 }
 
 /** The signed-in member's display name and role; also applies the account size saved on their profile. */
-export function useMe() {
+function useMe() {
   const [me, setMe] = useState<Me | null>(null);
   useEffect(() => {
     let stopped = false;
@@ -544,7 +545,7 @@ function periodStart(period: Period, now: number, offset: number) {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000 - offset;
 }
 
-export function fromJournal(e: JournalEntry, account: LiveState["account"]): SignalEvent {
+function fromJournal(e: JournalEntry, account: LiveState["account"]): SignalEvent {
   const riskPercent = e.risk != null ? (100 * e.risk) / account.balance : 0;
   return {
     id: e.event_id,
@@ -1063,6 +1064,8 @@ export default function Dashboard() {
     return sizeEvents(all, account, botState.account);
   }, [journal.available, journal.entries, botState, account]);
   // Sidebar tab (remembered in this browser)
+  const [perfOpen, setPerfOpen] = useState(false); // the Performance pop-up
+  const closePerf = useCallback(() => setPerfOpen(false), []);
   const [sideTab, setSideTab] = useState<SideTab>(() => {
     try {
       const v = localStorage.getItem("gold-side-tab");
@@ -1339,12 +1342,12 @@ export default function Dashboard() {
           <i aria-hidden />
           {status.text}
         </div>
-        <a className="theme-toggle perf-open" href="/performance">
+        <button type="button" className="theme-toggle perf-open" aria-haspopup="dialog" onClick={() => setPerfOpen(true)}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
             <path d="M2 13.5h12M3 11l3.5-4 3 2.5L14 3.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span>Performance</span>
-        </a>
+        </button>
         <NotificationCenter notices={notices} stamp={(time) => t.stamp(time, now)} />
         <ProfileMenu
           me={me}
@@ -1621,6 +1624,17 @@ export default function Dashboard() {
         unread={chat.totalUnread}
       />
       <Toaster />
+      {perfOpen && (
+        <Performance
+          events={signals}
+          my={my}
+          rules={state.account}
+          tz={state.display.tz}
+          onClose={closePerf}
+          taken={myTrades.taken}
+          swing={me?.role === "admin" ? (state.swing_paper ?? null) : undefined}
+        />
+      )}
       <Tour />
       {chatOpen && (
         <ChatPanel

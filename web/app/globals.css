@@ -4541,34 +4541,6 @@ button[data-busy] {
   }
 }
 
-/* ---- Performance as a page ---- */
-
-.perf-page {
-  min-height: 100dvh;
-  padding: var(--space-6) var(--gutter) calc(var(--bottom-bar) + 40px);
-  background: var(--bg);
-}
-
-.perf-page .perf {
-  width: min(960px, 100%);
-  max-height: none;
-  margin: 0 auto;
-  overflow: visible;
-}
-
-.perf-back {
-  justify-self: start;
-  color: var(--gold);
-  font-size: var(--text-md);
-}
-
-@media (min-width: 1100px) {
-  .perf-page {
-    height: 100dvh;
-    overflow-y: auto;
-  }
-}
-
 /* ---- the chart on phones: one compact toolbar row, a taller chart ---- */
 
 @media (max-width: 760px) {
