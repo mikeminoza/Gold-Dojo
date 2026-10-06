@@ -119,6 +119,7 @@ export type LiveState = {
   news_pause_minutes?: number;
   loss_pause?: { reason: string; until: number } | null; // loss limits pausing new signals
   swing_paper?: SwingPaper | null; // the daily swing candidate, tracked on paper only
+  real_candles?: number | null; // % of the last day of signal candles built from real XAUUSD prices
 
   indicators: {
     ema_fast: number;

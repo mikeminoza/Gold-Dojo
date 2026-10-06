@@ -31,7 +31,7 @@ function savedGap(): number | null {
 }
 
 const STREAM = `wss://data-stream.binance.vision/ws/${PAXG.toLowerCase()}@bookTicker`;
-const SPOT_EVERY_MS = 15_000;
+const SPOT_EVERY_MS = 10_000; // real XAUUSD level and spread (shared via Vercel's 5 s cache)
 const UI_EVERY_MS = 250; // at most 4 screen updates a second
 const GAP_SMOOTHING = 0.2;
 const GAP_STEP = 0.25; // only move the chart's shift when the gap drifts this far

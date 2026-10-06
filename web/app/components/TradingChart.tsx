@@ -27,6 +27,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { bollinger, ema, rsi, type Point } from "../lib/indicators";
 import { TF_SECONDS, fetchCandles } from "../lib/market";
+import { useRealMinutes, withRealPrices } from "../lib/useRealMinutes";
 import type { Candle, OpeningRange, Position, SignalEvent } from "../lib/types";
 
 export type Theme = "dark" | "light";
@@ -337,10 +338,13 @@ export default function TradingChart({
 
   // The chart ticks with every live price, between the candle refreshes from the bot:
   // the newest candle follows the price, and when its time is up a new candle starts right away.
+  const realMinutes = useRealMinutes();
   const candles = useMemo(() => {
     if (!raw || raw.length === 0 || gap === null) return [];
     const r2 = (n: number) => Math.round(n * 100) / 100;
-    const fetched = gap ? raw.map((k) => ({ ...k, o: r2(k.o - gap), h: r2(k.h - gap), l: r2(k.l - gap), c: r2(k.c - gap) })) : raw;
+    const shifted = gap ? raw.map((k) => ({ ...k, o: r2(k.o - gap), h: r2(k.h - gap), l: r2(k.l - gap), c: r2(k.c - gap) })) : raw;
+    // Recent candles from the real XAUUSD prices the bot recorded; older ones stay PAXG adjusted to spot
+    const fetched = withRealPrices(shifted, realMinutes, TF_SECONDS[tf] ?? 1800);
     const last = fetched[fetched.length - 1];
     const step = fetched.length > 1 ? last.t - fetched[fetched.length - 2].t : 60;
     if (priceTime >= last.t + 2 * step) return fetched; // market closed (e.g. weekend): leave the last candle alone
@@ -348,14 +352,14 @@ export default function TradingChart({
       return [...fetched, { t: last.t + step, o: bid, h: bid, l: bid, c: bid, v: 0 }];
     }
     return [...fetched.slice(0, -1), { ...last, c: bid, h: Math.max(last.h, bid), l: Math.min(last.l, bid) }];
-  }, [raw, gap, bid, priceTime]);
+  }, [raw, gap, bid, priceTime, realMinutes, tf]);
 
   const at = (t: number) => (t + offset) as UTCTimestamp;
   // Identifies the candle set apart from the newest candle: when it changes, series are redrawn in full
   // instead of just updating the newest point. Includes the first candle's prices so a shift of the
   // whole history (e.g. a new PAXG-to-spot adjustment) also redraws.
   const dataKey = candles.length
-    ? `${tf}|${candles.length}|${candles[0].t}|${candles[0].o}|${candles[0].c}|${offset}`
+    ? `${tf}|${candles.length}|${candles[0].t}|${candles[0].o}|${candles[0].c}|${offset}|${realMinutes.size}`
     : "";
 
   // --- chart ---------------------------------------------------------------

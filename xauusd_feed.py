@@ -13,6 +13,7 @@ import requests
 
 import binance_feed as paxg
 import config
+import real_candles
 
 SPOT_URL = "https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD"
 SPOT_MIN_INTERVAL = 1.0      # seconds between spot requests (be polite to a public feed)
@@ -97,7 +98,25 @@ def _to_spot(df):
 
 
 def get_bars(symbol, timeframe, count, include_forming=False):
-    return _to_spot(paxg.get_bars(config.BINANCE_SYMBOL, timeframe, count, include_forming))
+    """Candles: PAXG shifted to spot, with every candle the bot recorded real XAUUSD prices for
+    replaced by the real prices (real_candles.py)."""
+    bars = _to_spot(paxg.get_bars(config.BINANCE_SYMBOL, timeframe, count, include_forming))
+    bars, real = real_candles.overlay(bars, timeframe)
+    if timeframe == config.TIMEFRAME and len(bars):
+        recent = bars.tail(48)  # the last day or so of signal candles
+        _, real_recent = real_candles.overlay(recent, timeframe)
+        _state["real_share"] = round(100 * real_recent / len(recent))
+    return bars
+
+
+def real_share():
+    """How much of the last day of signal candles uses real XAUUSD prices (0-100), or None."""
+    return _state.get("real_share")
+
+
+def tick_is_real():
+    """True when the last price came from the real spot feed (not the PAXG fallback)."""
+    return bool(_state.get("tick_real"))
 
 
 def get_chart_bars(symbol, timeframe, count):
@@ -108,6 +127,7 @@ def get_tick(symbol):
     """(bid, ask) of XAUUSD: the real spot quote, or PAXG shifted to spot as a fallback."""
     _measure_gap()
     spot = _spot_quote()
+    _state["tick_real"] = bool(spot)
     if spot:
         return spot
     pbid, pask = paxg.get_tick(config.BINANCE_SYMBOL)

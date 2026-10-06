@@ -3841,3 +3841,7 @@ button[data-busy] {
     animation: none;
   }
 }
+
+.real-share {
+  color: var(--gold);
+}

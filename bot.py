@@ -27,6 +27,7 @@ import health_report
 import live_state
 import loss_guard
 import market_recorder
+import real_candles
 import session_recap
 import swing_paper
 import news
@@ -359,6 +360,8 @@ class Bot:
             "news_pause_minutes": config.NEWS_PAUSE_MINUTES,
             "loss_pause": {"reason": limited[0], "until": int(limited[1])} if limited else None,
             "swing_paper": self.swing.summary() if self.swing else None,
+            # share of the last day of signal candles built from real XAUUSD prices (None: PAXG-only feed)
+            "real_candles": getattr(self.feed, "real_share", lambda: None)(),
             "indicators": {
                 "ema_fast": last["ema_fast"], "ema_slow": last["ema_slow"], "ema_trend": last["ema_trend"],
                 "rsi": last["rsi"], "atr": last["atr"],
@@ -427,6 +430,13 @@ class Bot:
         print(f"{datetime.now():%H:%M:%S} health report: {text}")
 
     def run(self):
+        if self.recorder:
+            # Real prices recorded before a restart, so candles stay real across restarts
+            saved = self.cloud.load_minutes()
+            for row in saved:
+                real_candles.add(row)
+            if saved:
+                print(f"Loaded {len(saved)} saved minutes of real XAUUSD prices")
         self.start()
         if self.report:
             self.report.started()
@@ -448,8 +458,10 @@ class Bot:
                     tick = self.feed.get_tick(self.symbol)
                     if tick:
                         bid, ask = tick
-                        if self.recorder and (row := self.recorder.tick(bid, ask)):
+                        real = getattr(self.feed, "tick_is_real", lambda: False)()
+                        if self.recorder and real and (row := self.recorder.tick(bid, ask)):
                             self.cloud.record_minute(row)
+                            real_candles.add(row)  # this minute now counts toward real candles
                         if self.position:
                             self.check_sl_tp(bid, ask)
                         now = time.time()

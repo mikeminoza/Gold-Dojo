@@ -15,6 +15,12 @@ create table if not exists public.market_minutes (
   paxg_gap double precision                -- PAXG-above-spot shift in use (candles), for reference
 );
 
--- Only the bot (secret key) writes it, and nobody reads it from the website
+-- Only the bot (secret key) writes it
 alter table public.market_minutes enable row level security;
 revoke all on public.market_minutes from anon, authenticated;
+
+-- Signed-in members may read it, so the website chart can draw candles from the real prices
+-- (re-running this file is safe; it replaces the read rule above)
+drop policy if exists "Members can read" on public.market_minutes;
+create policy "Members can read" on public.market_minutes for select to authenticated using (public.is_member());
+grant select on public.market_minutes to authenticated;

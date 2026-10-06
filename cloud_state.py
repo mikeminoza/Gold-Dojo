@@ -158,6 +158,28 @@ class CloudPublisher:
         except (requests.RequestException, RuntimeError) as e:
             print(f"{datetime.now():%H:%M:%S} market data not saved yet ({e}); retrying")
 
+    def load_minutes(self, days=14):
+        """The live market minutes saved in the last `days` days, oldest first ([] if none or no table)."""
+        if not self.enabled:
+            return []
+        since = datetime.fromtimestamp(time.time() - days * 86400, timezone.utc).isoformat()
+        rows, page = [], 1000
+        try:
+            while True:
+                r = requests.get(f"{self.url}/rest/v1/market_minutes",
+                                 params={"minute": f"gte.{since}", "order": "minute", "select": "*",
+                                         "limit": page, "offset": len(rows)},
+                                 headers=self._headers(), timeout=20)
+                if r.status_code >= 300:
+                    break
+                batch = r.json()
+                rows += batch
+                if len(batch) < page:
+                    break
+        except (requests.RequestException, ValueError) as e:
+            print(f"Couldn't load saved market minutes ({e}); real candles rebuild from live prices")
+        return rows
+
     def _room(self, name):
         """The id of the chat room called `name`, creating the room if it doesn't exist yet."""
         if name not in self._rooms:

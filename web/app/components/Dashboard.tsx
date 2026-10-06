@@ -1222,6 +1222,15 @@ export default function Dashboard() {
             {state.symbol}, {chartTf ?? state.chart.default} chart
             <span className="instrument-strategy">
               Signals: {state.strategy.name.toLowerCase()} on {state.timeframe} candles
+              {state.real_candles != null && (
+                <span
+                  className="real-share"
+                  title="How much of the last day of signal candles uses real XAUUSD prices (the rest: PAXG adjusted to spot)"
+                >
+                  {" "}
+                  · real prices {state.real_candles}%
+                </span>
+              )}
             </span>
           </span>
         </div>
