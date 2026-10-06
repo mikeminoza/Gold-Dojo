@@ -25,7 +25,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { bollinger, ema, rsi, type Point } from "../lib/indicators";
+import { bollinger, ema, rsi, sma, type Point } from "../lib/indicators";
 import { TF_SECONDS, fetchCandles } from "../lib/market";
 import { useRealMinutes, withRealPrices } from "../lib/useRealMinutes";
 import type { Candle, OpeningRange, Position, SignalEvent } from "../lib/types";
@@ -265,6 +265,7 @@ export default function TradingChart({
   replay,
   onExitReplay,
   alertPrices = [],
+  dailyTrend,
 }: {
   theme: Theme; // the chart is remounted when this changes
   symbol: string;
@@ -284,6 +285,8 @@ export default function TradingChart({
   replay?: { open: SignalEvent; close?: SignalEvent; label: string } | null;
   onExitReplay?: () => void;
   alertPrices?: number[]; // your price alerts, drawn as dotted lines
+  /** Daily trend mode's levels, drawn on the D1 chart: the 100-day high and any open paper trade. */
+  dailyTrend?: { hh100: number | null; positions: { entry: number; stop: number }[] } | null;
 }) {
   const COLORS = PALETTES[theme];
   const [settings, setSettings] = useState<Settings>(loadSettings);
@@ -295,6 +298,7 @@ export default function TradingChart({
 
   const chosenTf = settings.tf && timeframes.includes(settings.tf) ? settings.tf : defaultTf;
   const tf = replay ? defaultTf : chosenTf; // replays use the timeframe the signals come from
+  const trendLines = tf === "D1" && Boolean(dailyTrend); // daily trend mode's averages and levels
 
   // Let the page header show the timeframe you picked (and remember across visits)
   useEffect(() => {
@@ -496,6 +500,12 @@ export default function TradingChart({
         show.emaTrend,
         () => c.addSeries(LineSeries, { ...line, color: COLORS.trend, lineWidth: 2, lineStyle: LineStyle.Dashed }),
       ],
+      dt20: [trendLines, () => c.addSeries(LineSeries, { ...line, color: COLORS.fast, lineWidth: 1 })],
+      dt50: [trendLines, () => c.addSeries(LineSeries, { ...line, color: COLORS.slow, lineWidth: 2 })],
+      dt200: [
+        trendLines,
+        () => c.addSeries(LineSeries, { ...line, color: COLORS.trend, lineWidth: 2, lineStyle: LineStyle.Dashed }),
+      ],
       bbUpper: [show.bb, () => c.addSeries(LineSeries, { ...line, color: COLORS.band, lineWidth: 1 })],
       bbMiddle: [
         show.bb,
@@ -537,18 +547,21 @@ export default function TradingChart({
     if (!show.rsi && c.panes().length > 1) c.removePane(1);
     // Keep candles clear of the volume bars at the bottom of the price pane
     c.priceScale("right").applyOptions({ scaleMargins: { top: 0.08, bottom: show.volume ? 0.2 : 0.08 } });
-  }, [show.emaFast, show.emaSlow, show.emaTrend, show.bb, show.volume, show.rsi, COLORS]);
+  }, [show.emaFast, show.emaSlow, show.emaTrend, show.bb, show.volume, show.rsi, trendLines, COLORS]);
 
   const studies = useMemo(() => {
     if (candles.length === 0) return null;
     return {
+      d20: tf === "D1" ? ema(candles, 20) : [],
+      d50: tf === "D1" ? sma(candles, 50) : [],
+      d200: tf === "D1" ? sma(candles, 200) : [],
       fast: ema(candles, periods[0]),
       slow: ema(candles, periods[1]),
       trend: ema(candles, periods[2]),
       bb: bollinger(candles),
       rsi: rsi(candles),
     };
-  }, [candles, periods]);
+  }, [candles, periods, tf]);
 
   useEffect(() => {
     const refs = indicatorRefs.current;
@@ -566,6 +579,9 @@ export default function TradingChart({
     put("bbMiddle", studies.bb.middle);
     put("bbLower", studies.bb.lower);
     put("rsi", studies.rsi);
+    put("dt20", studies.d20);
+    put("dt50", studies.d50);
+    put("dt200", studies.d200);
     const vol = refs.volume as ISeriesApi<"Histogram"> | undefined;
     if (vol) {
       const bars = candles.map((k) => ({
@@ -576,7 +592,7 @@ export default function TradingChart({
       sync(vol, bars, `${dataKey}|volume`, syncKeys.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `at` only depends on offset, part of dataKey
-  }, [studies, dataKey, periods, show.emaFast, show.emaSlow, show.emaTrend, show.bb, show.volume, show.rsi, COLORS]);
+  }, [studies, dataKey, periods, show.emaFast, show.emaSlow, show.emaTrend, show.bb, show.volume, show.rsi, trendLines, COLORS]);
 
   // Buy / sell / close markers
   useEffect(() => {
@@ -624,7 +640,7 @@ export default function TradingChart({
       ? `${position.entry}|${position.sl}|${position.tp}`
       : "";
   const rangeKey = range ? `${range.hi}|${range.lo}|${range.forming}` : "";
-  const alertKey = alertPrices.join(",");
+  const alertKey = `${alertPrices.join(",")}|${tf}|${JSON.stringify(dailyTrend ?? null)}`;
   const hlineKey = drawings
     .filter((d) => d.kind === "hline")
     .map((d) => d.id)
@@ -653,6 +669,13 @@ export default function TradingChart({
     }
     for (const d of drawings) if (d.kind === "hline") add(d.price, COLORS.drawing, "", LineStyle.Solid);
     for (const p of alertPrices) add(p, COLORS.drawing, "Alert", LineStyle.Dotted);
+    if (trendLines && dailyTrend) {
+      if (dailyTrend.hh100 != null) add(dailyTrend.hh100, COLORS.gold, "100-day high", LineStyle.Dotted);
+      for (const p of dailyTrend.positions) {
+        add(p.entry, COLORS.up, "Trend entry", LineStyle.Solid);
+        add(p.stop, COLORS.down, "Trend stop");
+      }
+    }
     lines.current = { owner: main, list };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the values that change the lines
   }, [rangeKey, levelsKey, hlineKey, alertKey, mainVersion, show.range, show.levels, COLORS]);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
-import type { Backtest, SignalEvent } from "./types";
+import type { Backtest, SignalEvent, TrendBacktest } from "./types";
 
 /** A finished trade: when it closed (UTC seconds) and its result in account money. */
 export type Result = { t: number; usd: number };
@@ -169,4 +169,26 @@ export function tradeRows(events: SignalEvent[], tz: string): TradeRow[] {
     });
   }
   return rows;
+}
+
+/** Daily trend mode's 23-year backtest (publish_trend_backtest.py), loaded once when first needed. */
+export function useTrendBacktest(enabled: boolean) {
+  const client = supabase();
+  const [result, setResult] = useState<{ data: TrendBacktest | null; ready: boolean }>({ data: null, ready: false });
+  useEffect(() => {
+    if (!client || !enabled || result.ready) return;
+    let stopped = false;
+    client
+      .from("bot_state")
+      .select("data")
+      .eq("id", "daily_trend_backtest")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!stopped) setResult({ data: (data?.data as TrendBacktest | undefined) ?? null, ready: true });
+      });
+    return () => {
+      stopped = true;
+    };
+  }, [client, enabled, result.ready]);
+  return result;
 }

@@ -3896,3 +3896,63 @@ button[data-busy] {
 .trend-results [data-tone="loss"] {
   color: var(--sell);
 }
+
+.trend-gauge {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.trend-gauge i {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gold) 35%, transparent), var(--gold));
+}
+
+.trend-swap {
+  font-size: 12px;
+}
+
+.trend-toggle {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.trend-guide {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.trend-guide summary {
+  color: var(--gold);
+  cursor: pointer;
+}
+
+.trend-guide p {
+  margin-top: 6px;
+}
+
+.trend-bt {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.trend-bt h3 {
+  display: grid;
+  gap: 2px;
+  font-size: 16px;
+}
+
+.trend-bt h3 span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.perf-check span {
+  color: var(--muted);
+}

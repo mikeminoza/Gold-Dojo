@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { lotSize, type useMyAccount } from "../lib/account";
-import { stats, tradeRows, tradeRs, useBacktest, type Result, type Stats, type TradeRow } from "../lib/performance";
+import { stats, tradeRows, tradeRs, useBacktest, useTrendBacktest, type Result, type Stats, type TradeRow } from "../lib/performance";
 import type { LiveState, SignalEvent, SwingPaper } from "../lib/types";
 import AccountForm from "./AccountForm";
 
-type Tab = "live" | "mine" | "analysis" | "backtest" | "swing";
+type Tab = "live" | "mine" | "analysis" | "trend" | "backtest" | "swing";
 
 const money = (n: number, sign = false) =>
   `${sign ? (n >= 0 ? "+" : "−") : n < 0 ? "−" : ""}$${Math.abs(n).toLocaleString("en-US", {
@@ -330,6 +330,58 @@ function AnalysisTab({ rows }: { rows: TradeRow[] }) {
   );
 }
 
+/** Daily trend mode's 23-year backtest: each rule's curve and numbers at your size, next to holding gold. */
+function TrendTab({ account, tz }: { account: { balance: number; risk_percent: number }; tz: string }) {
+  const { data, ready } = useTrendBacktest(true);
+  if (!ready) return <p className="empty">Loading the daily trend backtest…</p>;
+  if (!data) {
+    return (
+      <p className="empty">
+        Not published yet. On the PC with the research data run <code>.venv\Scripts\python publish_trend_backtest.py</code>.
+      </p>
+    );
+  }
+  const riskUsd = (account.balance * account.risk_percent) / 100;
+  return (
+    <>
+      <p className="perf-about">
+        Both daily trend rules replayed on real gold prices, {day(data.from, tz)} – {day(data.to, tz)}. {data.source}. Each
+        trade risks {account.risk_percent}% of your {money(account.balance).replace(".00", "")} ({money(riskUsd)}), not
+        compounded. On a small standard account most of these trades are too big to size at 1%: see &quot;Why a cent
+        account?&quot; in the Daily trend panel.
+      </p>
+      <p className="perf-check" data-verdict="normal">
+        <strong>For comparison, simply holding gold</strong>
+        <span>
+          {money(data.hold.start)} → {money(data.hold.end)}: +{data.hold.return_pct}% over the same years, with a worst fall
+          of {data.hold.worst_drop_pct}% along the way. The rules made money mostly by being in gold during its long rise,
+          and their value is smaller drops, not beating it.
+        </span>
+      </p>
+      {Object.entries(data.rules).map(([id, rule]) => {
+        const results: Result[] = rule.trades.map(([t, rr]) => ({ t, usd: rr * riskUsd }));
+        const s = stats(results, account.balance, data.from);
+        if (!s) return null;
+        return (
+          <section key={id} className="trend-bt">
+            <h3>
+              {rule.name}{" "}
+              <span>
+                {rule.stats.count} trades · held {rule.stats.avg_nights} nights on average · total{" "}
+                {(rule.stats.total_r ?? 0) >= 0 ? "+" : ""}
+                {rule.stats.total_r}R · worst drop {rule.stats.worst_drop_r}R
+              </span>
+            </h3>
+            <EquityChart points={s.equity} balance={account.balance} tz={tz} />
+            <Numbers s={s} />
+            <Years s={s} />
+          </section>
+        );
+      })}
+    </>
+  );
+}
+
 export default function Performance({
   events,
   my,
@@ -444,6 +496,9 @@ export default function Performance({
           <button type="button" aria-pressed={tab === "analysis"} onClick={() => setTab("analysis")}>
             Analysis
           </button>
+          <button type="button" aria-pressed={tab === "trend"} onClick={() => setTab("trend")}>
+            Daily trend
+          </button>
           <button type="button" aria-pressed={tab === "backtest"} onClick={() => setTab("backtest")}>
             Backtest{backtest ? `, ${new Date(backtest.from * 1000).getUTCFullYear()}–${new Date(backtest.to * 1000).getUTCFullYear()}` : ""}
           </button>
@@ -464,6 +519,7 @@ export default function Performance({
         )}
         {tab === "swing" && swing !== undefined && <SwingTab swing={swing ?? null} tz={tz} />}
         {tab === "analysis" && <AnalysisTab rows={rows} />}
+        {tab === "trend" && <TrendTab account={account} tz={tz} />}
         {tab === "mine" && (
           <p className="perf-about">
             Only the signals you marked &quot;I took this trade&quot;, at the size you marked them with.
@@ -504,7 +560,7 @@ export default function Performance({
             <Numbers s={shown} />
             <Years s={shown} />
           </>
-        ) : tab === "swing" || tab === "analysis" ? null : tab === "live" ? (
+        ) : tab === "swing" || tab === "analysis" || tab === "trend" ? null : tab === "live" ? (
           <p className="empty">No closed trades yet. Results appear here after the first signal closes.</p>
         ) : tab === "mine" ? (
           <p className="empty">

@@ -157,16 +157,42 @@ export type SwingPaper = {
 /** trend_daily.py: each long-only daily rule's paper trade (if any), what it waits for, and its results in R. */
 export type DailyTrendState = {
   started: number | null;
+  levels?: { ema20: number | null; sma50: number | null; sma200: number | null; hh100: number | null };
   rules: {
     id: string;
     name: string;
-    position: { entry: number; stop: number; sl: number; risk: number; opened: number; r_now?: number } | null;
+    position: {
+      id?: string;
+      entry: number;
+      stop: number;
+      sl: number;
+      risk: number;
+      opened: number;
+      nights?: number;
+      swap_oz?: number; // estimated overnight financing so far, $ per oz
+      r_now?: number;
+    } | null;
     pending: boolean;
+    trigger?: number | null; // the price the rule is waiting for, if it's a single level
     waiting: string | null;
-    trades: { entry: number; exit: number; opened: number; closed: number; nights: number; reason: string; r: number }[];
+    trades: { id?: string; entry: number; exit: number; opened: number; closed: number; nights: number; reason: string; r: number }[];
     count: number;
     total_r: number;
     win_rate: number | null;
     profit_factor: number | null;
   }[];
+};
+
+/** publish_trend_backtest.py: both daily trend rules replayed on 23 years of real XAUUSD, and buy-and-hold. */
+export type TrendBacktest = {
+  generated: number;
+  from: number;
+  to: number;
+  source: string;
+  rules: Record<string, {
+    name: string;
+    stats: { count: number; win_rate?: number; profit_factor?: number | null; total_r?: number; worst_drop_r?: number; avg_nights?: number; years?: Record<string, number> };
+    trades: [number, number][]; // [closed time, R]
+  }>;
+  hold: { start: number; end: number; return_pct: number; worst_drop_pct: number; curve: [number, number][] };
 };

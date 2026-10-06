@@ -1291,6 +1291,14 @@ export default function Dashboard() {
             replay={replay}
             onExitReplay={() => setReplay(null)}
             alertPrices={priceAlerts.filter((a) => !a.hit).map((a) => a.price)}
+            dailyTrend={
+              state.daily_trend
+                ? {
+                    hh100: state.daily_trend.levels?.hh100 ?? null,
+                    positions: state.daily_trend.rules.flatMap((x) => (x.position ? [x.position] : [])),
+                  }
+                : null
+            }
           />
         </section>
 
@@ -1396,7 +1404,9 @@ export default function Dashboard() {
               trend={state.daily_trend}
               account={account}
               rules={state.account}
+              bid={state.bid}
               day={(time) => dayLabel(time, now, state.display.tz)}
+              myTrades={myTrades}
             />
           )}
 

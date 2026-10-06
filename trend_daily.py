@@ -55,6 +55,16 @@ def signal(rule, d, i):
     return bool(np.isfinite(d["sma200"].iat[i]) and up and prev_below and c > d["ema20"].iat[i])
 
 
+def trigger(rule, d):
+    """The price level the rule is waiting for (None if it isn't a single price), from the latest day."""
+    last = d.iloc[-1]
+    if rule == "breakout":
+        return round(float(d["high"].iloc[-100:].max()), 2)
+    if np.isfinite(last["sma200"]) and last["sma50"] > last["sma200"]:
+        return round(float(last["ema20"]), 2)
+    return None
+
+
 def waiting_for(rule, d):
     """Plain words: what the rule is waiting for, from the latest closed day."""
     last = d.iloc[-1]
@@ -103,7 +113,7 @@ class Rule:
         p = self.position
         nights = max(0, round((day - p["opened"]) / 86400))
         net = (price - p["entry"]) - SPREAD - 2 * SLIPPAGE - SWAP_PER_NIGHT * p["entry"] * nights
-        trade = {"entry": p["entry"], "exit": round(price, 2), "opened": p["opened"], "closed": day,
+        trade = {"id": f"dt-{self.rule}-{p['opened']}", "entry": p["entry"], "exit": round(price, 2), "opened": p["opened"], "closed": day,
                  "nights": nights, "reason": reason, "pnl": round(net, 2), "r": round(net / p["risk"], 2)}
         self.trades = (self.trades + [trade])[-KEEP:]
         self.position = None
@@ -119,6 +129,8 @@ class DailyTrend:
         self.started = m.get("started")
         self.rules = {r: Rule(r, (m.get("rules") or {}).get(r)) for r in RULES}
         self.waiting = {}
+        self.triggers = {}
+        self.levels = {}
 
     def memory(self):
         return {"last_day": self.last_day, "started": self.started,
@@ -131,6 +143,11 @@ class DailyTrend:
         d = prepare(daily)
         days = [int(t.timestamp()) for t in d["time"]]
         self.waiting = {r: waiting_for(r, d) for r in RULES}
+        self.triggers = {r: trigger(r, d) for r in RULES}
+        last = d.iloc[-1]
+        self.levels = {k: (round(float(last[k]), 2) if np.isfinite(last[k]) else None)
+                       for k in ("ema20", "sma50", "sma200")}
+        self.levels["hh100"] = round(float(d["high"].iloc[-100:].max()), 2)
         if self.last_day is None:  # first run: start the forward test now, never back-fill
             self.last_day, self.started = days[-1], int(time.time())
             return []
@@ -151,12 +168,35 @@ class DailyTrend:
             if x.position:
                 p = x.position
                 pos = {k: p[k] for k in ("entry", "stop", "sl", "risk", "opened")}
+                pos["id"] = f"dt-{r}-{p['opened']}"
+                nights = max(0, round((time.time() - p["opened"]) / 86400))
+                pos["nights"] = nights
+                pos["swap_oz"] = round(SWAP_PER_NIGHT * p["entry"] * nights, 2)  # estimated financing so far
                 if bid is not None:
                     pos["r_now"] = round((bid - p["entry"]) / p["risk"], 2)
+            trig = self.triggers.get(r)
             out.append({
-                "id": r, "name": RULES[r], "position": pos, "pending": x.pending,
+                "id": r, "name": RULES[r], "position": pos, "pending": x.pending, "trigger": trig,
                 "waiting": self.waiting.get(r), "trades": x.trades[-10:][::-1], "count": len(rs),
                 "total_r": round(sum(rs), 2), "win_rate": round(100 * sum(v > 0 for v in rs) / len(rs)) if rs else None,
                 "profit_factor": round(won / lost, 2) if lost else None,
             })
-        return {"started": self.started, "rules": out}
+        return {"started": self.started, "rules": out, "levels": self.levels, "swap_per_night": SWAP_PER_NIGHT}
+
+
+def replay(daily):
+    """Every trade both rules would have made over `daily` (for the backtest page), oldest first."""
+    d = prepare(daily)
+    days = [int(t.timestamp()) for t in d["time"]]
+    rules = {r: Rule(r) for r in RULES}
+    for x in rules.values():
+        x.trades = []
+    out = {r: [] for r in RULES}
+    for i in range(1, len(d)):
+        events = []
+        for x in rules.values():
+            x.day(d, i, days[i], events)
+        for e in events:
+            if e["type"] == "close":
+                out[e["rule"]].append({k: e[k] for k in ("entry", "exit", "opened", "closed", "nights", "reason", "r")})
+    return out
