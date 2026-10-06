@@ -14,15 +14,16 @@ import { tradeRs } from "../lib/performance";
 import { adoptProfileAccount, sizeEvents, sizePosition, useMyAccount } from "../lib/account";
 import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
+import NotificationCenter, { type Notice } from "./NotificationCenter";
+import StatusStrip from "./StatusStrip";
 import BottomBar, { type SideTab } from "./BottomBar";
 import EmptyState, { Skeleton } from "./EmptyState";
 import Fold from "./Fold";
 import Toaster from "./Toaster";
 import Tour from "./Tour";
-import { toast } from "../lib/toast";
+import { toast, toast as showToast } from "../lib/toast";
 import TradeSpark from "./TradeSpark";
 import DailyTrend from "./DailyTrend";
-import Performance from "./Performance";
 import ProfileMenu, { type Me } from "./ProfileMenu";
 import { LotCalculator, PriceAlerts, useAlertWatcher, usePriceAlerts, type PriceAlert } from "./Tools";
 
@@ -34,6 +35,8 @@ const LATE_AFTER_S = 60;
 const OFFLINE_AFTER_S = 180;
 
 // config.py's account settings, used until the bot's first update arrives
+const MAX_TOTAL_RISK_PCT = 3; // config.py MAX_TOTAL_RISK_PCT
+
 const DEFAULT_RULES: LiveState["account"] = { balance: 500, risk_percent: 1, max_risk_percent: 2, oz_per_lot: 100, min_lot: 0.01 };
 
 const price = (n: number) => n.toFixed(2);
@@ -166,7 +169,7 @@ function savedTheme(): ThemeChoice {
 }
 
 /** The signed-in member's display name and role; also applies the account size saved on their profile. */
-function useMe() {
+export function useMe() {
   const [me, setMe] = useState<Me | null>(null);
   useEffect(() => {
     let stopped = false;
@@ -541,7 +544,7 @@ function periodStart(period: Period, now: number, offset: number) {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000 - offset;
 }
 
-function fromJournal(e: JournalEntry, account: LiveState["account"]): SignalEvent {
+export function fromJournal(e: JournalEntry, account: LiveState["account"]): SignalEvent {
   const riskPercent = e.risk != null ? (100 * e.risk) / account.balance : 0;
   return {
     id: e.event_id,
@@ -1059,7 +1062,6 @@ export default function Dashboard() {
     const all = usingJournal ? journal.entries.map((e) => fromJournal(e, botState.account)) : (botState.history ?? []);
     return sizeEvents(all, account, botState.account);
   }, [journal.available, journal.entries, botState, account]);
-  const [perfOpen, setPerfOpen] = useState(false);
   // Sidebar tab (remembered in this browser)
   const [sideTab, setSideTab] = useState<SideTab>(() => {
     try {
@@ -1079,7 +1081,6 @@ export default function Dashboard() {
     if (scroll) document.querySelector(".side-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const [accountOpen, setAccountOpen] = useState(false);
-  const closePerf = useCallback(() => setPerfOpen(false), []);
   const [replay, setReplay] = useState<{ open: SignalEvent; close?: SignalEvent; label: string } | null>(null);
   /** Show a past trade on the chart: its open, close, entry / stop / target. */
   const showTrade = (e: SignalEvent) => {
@@ -1094,7 +1095,13 @@ export default function Dashboard() {
     setReplay({ open, close, label: `${side} at ${price(open.price)}, ${result}` });
     document.querySelector(".chart-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
-  const [alerts, setAlerts] = useState(false);
+  const [alerts, setAlerts] = useState(() => {
+    try {
+      return localStorage.getItem("gold-sound-alerts") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [chatOpen, setChatOpen] = useState(false);
   const [chartTf, setChartTf] = useState<string | null>(null); // the timeframe picked on the chart
   const [toast, setToast] = useState<{ id: number; author: string; room: string; roomId: string; body: string } | null>(
@@ -1166,6 +1173,12 @@ export default function Dashboard() {
     }
     if (!alerts) chime("BUY", false); // also unlocks audio in the browser
     setAlerts(!alerts);
+    try {
+      localStorage.setItem("gold-sound-alerts", alerts ? "0" : "1");
+    } catch {
+      // not remembered
+    }
+    showToast(alerts ? "Sound alerts off" : "Sound alerts on");
   }
 
   // Seconds since this browser last received a new update from the bot (see useBotState)
@@ -1245,6 +1258,36 @@ export default function Dashboard() {
   }
 
   const t = timeFormat(state.display.tz, state.display.short);
+  const notices: Notice[] = [
+    ...signals.slice(0, 20).map((e): Notice => ({
+      id: e.id,
+      time: e.time,
+      kind: e.type === "open" ? "signal" : "close",
+      text:
+        e.type === "open"
+          ? `${e.side === "BUY" ? "Buy" : "Sell"} signal at ${price(e.price)}`
+          : `${outcome(e.pnl ?? 0).label}: ${e.side === "BUY" ? "buy" : "sell"} closed${e.pnl_usd != null ? ` ${usd(e.pnl_usd, true)}` : ""}`,
+      tone: e.type === "close" ? ((e.pnl ?? 0) >= 0 ? "profit" : "loss") : undefined,
+    })),
+    ...priceAlerts
+      .filter((a) => a.hit)
+      .map((a): Notice => ({ id: `alert-${a.id}`, time: a.hit!, kind: "alert", text: `Price alert: gold reached ${price(a.price)}` })),
+    ...(state.daily_trend?.rules ?? []).flatMap((r): Notice[] => [
+      ...(r.position
+        ? [{ id: `dt-open-${r.id}-${r.position.opened}`, time: r.position.opened, kind: "trend" as const, text: `Daily trend (paper): ${r.name} bought at ${price(r.position.entry)}` }]
+        : []),
+      ...r.trades.map((tr) => ({
+        id: `dt-close-${r.id}-${tr.closed}`,
+        time: tr.closed,
+        kind: "trend" as const,
+        text: `Daily trend (paper): ${r.name} closed ${tr.r >= 0 ? "+" : "−"}${Math.abs(tr.r).toFixed(2)}R`,
+        tone: (tr.r >= 0 ? "profit" : "loss") as Notice["tone"],
+      })),
+    ]),
+    ...(status.tone === "off" && seenAt
+      ? [{ id: `bot-off-${Math.round(seenAt / 60000)}`, time: seenAt / 1000, kind: "bot" as const, text: "The bot stopped sending updates", tone: "loss" as const }]
+      : []),
+  ];
   const { hhmm } = t;
   const spread = state.ask - state.bid;
 
@@ -1296,12 +1339,13 @@ export default function Dashboard() {
           <i aria-hidden />
           {status.text}
         </div>
-        <button type="button" className="theme-toggle perf-open" aria-haspopup="dialog" onClick={() => setPerfOpen(true)}>
+        <a className="theme-toggle perf-open" href="/performance">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
             <path d="M2 13.5h12M3 11l3.5-4 3 2.5L14 3.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span>Performance</span>
-        </button>
+        </a>
+        <NotificationCenter notices={notices} stamp={(time) => t.stamp(time, now)} />
         <ProfileMenu
           me={me}
           themeChoice={themeChoice}
@@ -1310,6 +1354,13 @@ export default function Dashboard() {
           onToggleAlerts={toggleAlerts}
         />
       </header>
+      <StatusStrip
+        state={state}
+        now={now}
+        status={status}
+        riskPercent={account.risk_percent}
+        riskCap={MAX_TOTAL_RISK_PCT}
+      />
 
       <div className="workspace">
         <section className="chart-panel" aria-label="Price chart">
@@ -1344,7 +1395,11 @@ export default function Dashboard() {
         </section>
 
         <aside className="sidebar">
-          <section className="signal-card" aria-live="polite">
+          <section
+            className="signal-card"
+            aria-live="polite"
+            data-fresh={state.history[0] && now - state.history[0].time < 60 ? state.history[0].type : undefined}
+          >
             <h1 className="signal-word" key={word}>
               {word}
             </h1>
@@ -1419,7 +1474,22 @@ export default function Dashboard() {
             {accountOpen && <AccountForm my={my} rules={state.account} onDone={() => setAccountOpen(false)} />}
           </section>
 
-          <div className="side-tabs" role="tablist" aria-label="Sidebar">
+          <div
+            className="side-tabs"
+            role="tablist"
+            aria-label="Sidebar"
+            onKeyDown={(e) => {
+              // Arrow keys move between tabs, as screen-reader users expect
+              const keys = SIDE_TABS.map(([k]) => k);
+              const i = keys.indexOf(sideTab);
+              const next =
+                e.key === "ArrowRight" ? keys[(i + 1) % keys.length] : e.key === "ArrowLeft" ? keys[(i + keys.length - 1) % keys.length] : null;
+              if (!next) return;
+              e.preventDefault();
+              chooseTab(next as SideTab);
+              document.getElementById(`tab-${next}`)?.focus();
+            }}
+          >
             {SIDE_TABS.map(([key, label]) => (
               <button
                 key={key}
@@ -1427,6 +1497,7 @@ export default function Dashboard() {
                 role="tab"
                 id={`tab-${key}`}
                 aria-selected={sideTab === key}
+                tabIndex={sideTab === key ? 0 : -1}
                 aria-controls={`panel-${key}`}
                 onClick={() => chooseTab(key)}
               >
@@ -1551,17 +1622,6 @@ export default function Dashboard() {
       />
       <Toaster />
       <Tour />
-      {perfOpen && (
-        <Performance
-          events={signals}
-          my={my}
-          rules={state.account}
-          tz={state.display.tz}
-          onClose={closePerf}
-          taken={myTrades.taken}
-          swing={me?.role === "admin" ? (state.swing_paper ?? null) : undefined}
-        />
-      )}
       {chatOpen && (
         <ChatPanel
           chat={chat}

@@ -41,7 +41,9 @@ export default function Tour() {
     } catch {
       // storage blocked: skip the automatic tour
     }
-    const id = done ? undefined : setTimeout(() => setStep(0), 1200);
+    const asked = new URLSearchParams(window.location.search).get("tour") === "1";
+    if (asked) window.history.replaceState(null, "", window.location.pathname);
+    const id = done && !asked ? undefined : setTimeout(() => setStep(0), 1200);
     const start = () => setStep(0);
     window.addEventListener(TOUR_EVENT, start);
     return () => {

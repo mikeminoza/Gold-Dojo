@@ -1,5 +1,6 @@
 import AuthShell from "../components/AuthShell";
 import AvatarUpload from "../components/AvatarUpload";
+import Preferences from "../components/Preferences";
 import SubmitButton from "../components/SubmitButton";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -9,7 +10,7 @@ import { NAME_MAX } from "../lib/auth";
 import { BALANCE_LIMITS, RISK_LIMITS } from "../lib/limits";
 import { currentMember } from "../lib/members";
 
-export const metadata: Metadata = { title: "Profile · Gold Dojo" };
+export const metadata: Metadata = { title: "Profile and settings · Gold Dojo" };
 
 const NOTES: Record<string, string> = {
   name: "Display name saved.",
@@ -34,7 +35,7 @@ export default async function Profile({ searchParams }: PageProps<"/profile">) {
   return (
     <AuthShell>
       <div className="login-card admin-card">
-        <h1>Profile</h1>
+        <h1>Profile and settings</h1>
         <p>
           Signed in as {me.email}
           {me.role === "admin" ? " (admin)" : ""}.
@@ -111,6 +112,8 @@ export default async function Profile({ searchParams }: PageProps<"/profile">) {
             </SubmitButton>
           </form>
         )}
+
+        <Preferences />
 
         <p className="login-links">
           <Link href="/">Back to the signals</Link>

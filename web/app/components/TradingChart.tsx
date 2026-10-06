@@ -295,6 +295,17 @@ export default function TradingChart({
   const [pending, setPending] = useState<Anchor | null>(null);
   const [hover, setHover] = useState<Bar | null>(null);
   const [mainVersion, setMainVersion] = useState(0);
+  const [full, setFull] = useState(false); // full-screen chart
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [full]);
 
   const chosenTf = settings.tf && timeframes.includes(settings.tf) ? settings.tf : defaultTf;
   const tf = replay ? defaultTf : chosenTf; // replays use the timeframe the signals come from
@@ -836,7 +847,7 @@ export default function TradingChart({
   ];
 
   return (
-    <div className="tc">
+    <div className="tc" data-full={full || undefined}>
       <div className="tc-toolbar" role="toolbar" aria-label="Chart tools">
         <div className="tc-group" role="group" aria-label="Timeframe">
           {timeframes.map((t) => (
@@ -941,6 +952,16 @@ export default function TradingChart({
           <button type="button" onClick={() => chartRef.current?.timeScale().scrollToRealTime()} title="Jump to latest">
             <Icon>
               <path d="M3 3l5 5-5 5M9 3l5 5-5 5" />
+            </Icon>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFull((v) => !v)}
+            aria-pressed={full}
+            title={full ? "Exit full screen (Esc)" : "Full screen chart"}
+          >
+            <Icon>
+              {full ? <path d="M6 1v5H1M10 1v5h5M6 15v-5H1M10 15v-5h5" /> : <path d="M1 6V1h5M10 1h5v5M15 10v5h-5M6 15H1v-5" />}
             </Icon>
           </button>
         </div>

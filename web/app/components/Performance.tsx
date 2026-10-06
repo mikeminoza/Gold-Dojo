@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { lotSize, type useMyAccount } from "../lib/account";
 import { stats, tradeRows, tradeRs, useBacktest, useTrendBacktest, type Result, type Stats, type TradeRow } from "../lib/performance";
@@ -391,7 +392,9 @@ export default function Performance({
   onClose,
   taken,
   swing,
+  page = false,
 }: {
+  page?: boolean; // shown as its own page (/performance) rather than a pop-up
   swing?: SwingPaper | null; // undefined = hide the Swing tab (it's for admins only)
   taken: Map<string, number>; // trades you marked "I took this" -> lots
   events: SignalEvent[]; // every signal, already sized for the visitor's account
@@ -407,11 +410,12 @@ export default function Performance({
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    if (page) return;
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, page]);
 
   const live = useMemo(() => {
     const results: Result[] = events
@@ -461,11 +465,11 @@ export default function Performance({
   const rows = useMemo(() => tradeRows(events, tz), [events, tz]);
 
   return (
-    <div className="perf-backdrop" onClick={onClose}>
+    <div className={page ? "perf-page" : "perf-backdrop"} onClick={page ? undefined : onClose}>
       <div
         className="perf"
-        role="dialog"
-        aria-modal="true"
+        role={page ? "region" : "dialog"}
+        aria-modal={page ? undefined : true}
         aria-labelledby="perf-title"
         onClick={(e) => e.stopPropagation()}
       >
@@ -478,7 +482,12 @@ export default function Performance({
               {my.custom ? "Change" : "Use your own account"}
             </button>
           </p>
-          <button type="button" className="perf-close" ref={closeRef} onClick={onClose} aria-label="Close performance">
+          {page ? (
+            <Link className="perf-back" href="/">
+              ← Back to the signals
+            </Link>
+          ) : null}
+          <button type="button" className="perf-close" ref={closeRef} onClick={onClose} aria-label="Close performance" hidden={page}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
               <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
             </svg>

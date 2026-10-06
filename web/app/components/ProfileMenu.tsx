@@ -146,7 +146,7 @@ export default function ProfileMenu({
             </div>
           )}
           <nav aria-label="Account">
-            <a href="/profile">Profile and account size</a>
+            <a href="/profile">Profile and settings</a>
             {me?.role === "admin" && <a href="/admin">Members</a>}
             <a href="/how">How it works</a>
             <button type="button" className="profile-tour" onClick={() => window.dispatchEvent(new Event(TOUR_EVENT))}>
