@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { lotSize, type useMyAccount } from "../lib/account";
-import { stats, useBacktest, type Result, type Stats } from "../lib/performance";
+import { stats, tradeRs, useBacktest, type Result, type Stats } from "../lib/performance";
 import type { LiveState, SignalEvent, SwingPaper } from "../lib/types";
 import AccountForm from "./AccountForm";
 
@@ -267,6 +267,27 @@ export default function Performance({
     return stats(results, account.balance);
   }, [events, taken, account.balance, rules.oz_per_lot]);
 
+  // Live vs backtest: where the live total R sits among random stretches of the same number of backtest trades
+  const check = useMemo(() => {
+    const live = tradeRs(events);
+    if (!backtest || live.length === 0) return null;
+    const pool = backtest.trades.map((k) => k.pnl / Math.abs(k.entry - k.sl)).filter(Number.isFinite);
+    if (pool.length < 30) return null;
+    let seed = 7; // fixed seed: the same answer on every render
+    const rand = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+    const n = live.length;
+    const total = live.reduce((a, b) => a + b, 0);
+    const runs = 2000;
+    let below = 0;
+    for (let i = 0; i < runs; i++) {
+      let sum = 0;
+      for (let j = 0; j < n; j++) sum += pool[Math.floor(rand() * pool.length)];
+      if (sum < total) below++;
+    }
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    return { n, liveAvg: avg(live), backAvg: avg(pool), percentile: Math.round((100 * below) / runs) };
+  }, [events, backtest]);
+
   const replay = useMemo(() => {
     if (!backtest) return null;
     const results: Result[] = backtest.trades.map((k) => ({
@@ -338,6 +359,29 @@ export default function Performance({
           <p className="perf-about">
             Every signal the bot has sent since the journal started, at the sizes this page suggests.
           </p>
+        )}
+        {tab === "live" && check && (
+          <div className="perf-check" data-verdict={check.percentile < 5 ? "worse" : check.percentile > 95 ? "better" : "normal"}>
+            <strong>
+              {check.percentile < 5
+                ? "Worse than the backtest expects"
+                : check.percentile > 95
+                  ? "Better than the backtest expects"
+                  : "Within what the backtest expects"}
+            </strong>
+            <p>
+              Average per trade: {check.liveAvg >= 0 ? "+" : "−"}
+              {Math.abs(check.liveAvg).toFixed(2)}R live vs {check.backAvg >= 0 ? "+" : "−"}
+              {Math.abs(check.backAvg).toFixed(2)}R in the backtest. Over {check.n} trades, the live total beats{" "}
+              {check.percentile}% of random {check.n}-trade stretches from the backtest
+              {check.percentile < 5
+                ? ": something may differ live (prices, timing or costs). Worth a closer look."
+                : check.percentile > 95
+                  ? ": a lucky run, or live conditions are kinder than the test assumed."
+                  : ": normal ups and downs."}
+              {check.n < 20 && " With under 20 trades this says little yet."}
+            </p>
+          </div>
         )}
 
         {shown ? (

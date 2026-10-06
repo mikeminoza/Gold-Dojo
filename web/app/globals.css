@@ -3551,3 +3551,39 @@ button[data-busy] {
   gap: 14px;
   font-size: 13px;
 }
+
+/* ---- trade analysis --------------------------------------------------- */
+
+.trade-excursion strong[data-tone="profit"] {
+  color: var(--buy);
+}
+
+.trade-excursion strong[data-tone="loss"] {
+  color: var(--sell);
+}
+
+.perf-check {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--muted);
+  border-radius: 10px;
+  background: var(--inset);
+  font-size: 13px;
+}
+
+.perf-check p {
+  color: var(--muted);
+}
+
+.perf-check[data-verdict="normal"] {
+  border-left-color: var(--gold);
+}
+
+.perf-check[data-verdict="worse"] {
+  border-left-color: var(--sell);
+}
+
+.perf-check[data-verdict="better"] {
+  border-left-color: var(--buy);
+}

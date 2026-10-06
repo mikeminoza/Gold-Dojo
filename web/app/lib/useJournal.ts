@@ -23,10 +23,12 @@ export type JournalEntry = {
   pnl_usd: number | null;
   reason: string | null;
   created_at: string;
+  mfe_r?: number | null; // furthest in our favour before closing, in R (after supabase/analysis.sql)
+  mae_r?: number | null; // furthest against us, in R
 };
 
-const COLUMNS =
-  "event_id, trade_id, type, side, strategy, session, symbol, timeframe, price, entry, sl, tp, lots, risk, pnl, pnl_usd, reason, created_at";
+// Everything, so newer columns (mfe_r, mae_r) come along once supabase/analysis.sql has added them
+const COLUMNS = "*";
 const LIMIT = 5000;
 
 /**

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
-import type { Backtest } from "./types";
+import type { Backtest, SignalEvent } from "./types";
 
 /** A finished trade: when it closed (UTC seconds) and its result in account money. */
 export type Result = { t: number; usd: number };
@@ -119,3 +119,18 @@ export function useBacktest(enabled: boolean) {
 
   return result;
 }
+
+/** Each closed trade's result in R (result / stop distance), using its opening signal's stop. */
+export function tradeRs(events: SignalEvent[]) {
+  const opens = new Map<string, SignalEvent>();
+  for (const e of events) if (e.type === "open") opens.set(e.trade_id ?? e.id, e);
+  const rs: number[] = [];
+  for (const e of events) {
+    if (e.type !== "close") continue;
+    const o = e.trade_id ? opens.get(e.trade_id) : undefined;
+    const risk = o?.sl != null ? Math.abs(o.price - o.sl) : null;
+    if (risk) rs.push((e.pnl ?? 0) / risk);
+  }
+  return rs;
+}
+

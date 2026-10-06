@@ -19,3 +19,14 @@ def test_minimum_lot_and_over_limit_warning():
 
 def test_money_per_oz_to_dollars():
     assert sizing.money(2.5, 0.10) == 25.0
+
+
+def test_trade_excursions_in_r():
+    import bot
+    pos = {"side": "BUY", "entry": 2000.0, "sl": 1995.0, "tp": 2010.0}
+    b = bot.Bot.__new__(bot.Bot)
+    b.position = pos
+    b.close = lambda price, reason: None
+    for bid in (2003.0, 2008.0, 1998.0, 2001.0):  # up to +8, down to -2
+        b.check_sl_tp(bid, bid + 0.3)
+    assert bot.Bot._excursions(pos, 1.0) == {"mfe_r": 1.6, "mae_r": -0.4}

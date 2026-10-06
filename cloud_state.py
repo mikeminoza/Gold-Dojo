@@ -22,6 +22,7 @@ from live_state import _plain
 HEARTBEAT_SECONDS = 15
 RETRY_SECONDS = 5
 ROW_ID = "live"
+NEWER_COLUMNS = ("mfe_r", "mae_r")  # journal columns added by supabase/analysis.sql
 MEMORY_ROW = "memory"  # the bot's own memory (open trade, sessions traded), for restarts
 
 # Fields that change every tick; they don't count as "something changed"
@@ -81,8 +82,12 @@ class CloudPublisher:
             return
         try:
             headers = {**self._headers(), "Prefer": "resolution=ignore-duplicates,return=minimal"}
-            r = requests.post(f"{self.url}/rest/v1/signals?on_conflict=event_id", headers=headers,
-                              data=json.dumps(rows, default=_plain), timeout=10)
+            send = lambda batch: requests.post(f"{self.url}/rest/v1/signals?on_conflict=event_id",  # noqa: E731
+                                               headers=headers, data=json.dumps(batch, default=_plain), timeout=10)
+            r = send(rows)
+            if r.status_code >= 300 and "PGRST204" in r.text:
+                # supabase/analysis.sql not run yet: save without the newer columns
+                r = send([{k: v for k, v in row.items() if k not in NEWER_COLUMNS} for row in rows])
             if r.status_code >= 300:
                 raise RuntimeError(f"Supabase answered {r.status_code}: {r.text[:200]}")
         except (requests.RequestException, RuntimeError) as e:
@@ -241,5 +246,7 @@ def journal_row(event):
         "pnl": event.get("pnl"),
         "pnl_usd": event.get("pnl_usd"),
         "reason": event.get("reason"),
+        "mfe_r": event.get("mfe_r"),
+        "mae_r": event.get("mae_r"),
         "created_at": datetime.fromtimestamp(event["time"], timezone.utc).isoformat(),
     }

@@ -185,6 +185,14 @@ class Bot:
                                  f"Size: <b>{size['lots']:.2f} lot</b> (risk ${size['risk']:.2f}, "
                                  f"target ${size['reward']:.2f}){warning}")
 
+    @staticmethod
+    def _excursions(pos, final):
+        risk = abs(pos["entry"] - pos["sl"]) or None
+        if not risk:
+            return {}
+        best, worst = max(pos.get("best", final), final), min(pos.get("worst", final), final)
+        return {"mfe_r": round(best / risk, 2), "mae_r": round(worst / risk, 2)}
+
     def close(self, price, reason):
         pos = self.position
         move = price - pos["entry"] if pos["side"] == "BUY" else pos["entry"] - price
@@ -193,6 +201,8 @@ class Bot:
         self.record({"type": "close", "side": pos["side"], "price": price, "entry": pos["entry"],
                      "pnl": move, "reason": reason, "lots": lots, "pnl_usd": usd,
                      "risk_oz": abs(pos["entry"] - pos["sl"]),  # for results in R (loss limits)
+                     # furthest it went in our favour / against us before closing, in R
+                     **self._excursions(pos, move),
                      "trade_id": pos.get("trade_id"), "session": pos.get("session")})
         self.position = None
         if self.telegram:
@@ -219,6 +229,11 @@ class Bot:
 
     def check_sl_tp(self, bid, ask):
         pos = self.position
+        # How far the trade has gone for and against us (the price it could close at), for the analysis
+        now = bid if pos["side"] == "BUY" else ask
+        move = now - pos["entry"] if pos["side"] == "BUY" else pos["entry"] - now
+        pos["best"] = max(pos.get("best", move), move)
+        pos["worst"] = min(pos.get("worst", move), move)
         if pos["side"] == "BUY":
             if bid <= pos["sl"]:
                 self.close(bid, "Stop loss hit")

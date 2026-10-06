@@ -66,6 +66,8 @@ export type SignalEvent = {
   pnl_usd?: number | null;
   session?: string; // e.g. "New York"
   trade_id?: string | null; // a close points at the id of the open it ends
+  mfe_r?: number | null; // close only: furthest it went in our favour, in R
+  mae_r?: number | null; // close only: furthest it went against us, in R
 };
 
 /** One replayed trade from publish_backtest.py. Times are UTC seconds; pnl is $ per oz after spread. */

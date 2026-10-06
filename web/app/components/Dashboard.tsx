@@ -9,6 +9,7 @@ import { useLivePrice, type LivePrice } from "../lib/useLivePrice";
 import { useMyTrades } from "../lib/useMyTrades";
 import { useChat, type ChatMessage } from "../lib/useChat";
 import { journalCsv, useJournal, type JournalEntry } from "../lib/useJournal";
+import { tradeRs } from "../lib/performance";
 import { adoptProfileAccount, sizeEvents, sizePosition, useMyAccount } from "../lib/account";
 import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
@@ -431,6 +432,8 @@ function Results({ events, balance }: { events: SignalEvent[]; balance: number }
   const sized = closed.every((e) => e.pnl_usd != null);
   const netUsd = sized ? closed.reduce((a, e) => a + (e.pnl_usd ?? 0), 0) : null;
   const o = outcome(netUsd ?? net);
+  const rs = tradeRs(events);
+  const avgR = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null;
   return (
     <div className="results">
       <p className="results-net">
@@ -447,6 +450,16 @@ function Results({ events, balance }: { events: SignalEvent[]; balance: number }
         {Math.round((100 * wins) / closed.length)}% win rate ·{" "}
         <abbr title="Profit factor: money won divided by money lost. Above 1 means profitable.">PF</abbr>{" "}
         {profitFactor(closed)}
+        {avgR !== null && (
+          <>
+            {" · "}
+            <abbr title="Expectancy: the average result per trade in R (1R = the stop distance). Above 0 means profitable.">
+              avg
+            </abbr>{" "}
+            {avgR >= 0 ? "+" : "−"}
+            {Math.abs(avgR).toFixed(2)}R
+          </>
+        )}
       </p>
       <SessionSplit closed={closed} />
     </div>
@@ -536,6 +549,8 @@ function fromJournal(e: JournalEntry, account: LiveState["account"]): SignalEven
     reason: e.reason ?? undefined,
     session: e.session ?? undefined,
     trade_id: e.trade_id,
+    mfe_r: e.mfe_r ?? null,
+    mae_r: e.mae_r ?? null,
     size:
       e.type === "open" && e.lots != null
         ? {
@@ -857,6 +872,13 @@ function TradeCard({
           {c && (
             <p>
               Closed {t.bare(c.time)} at {price(c.price)}: {resultText(c.pnl ?? 0, c.pnl_usd, c.lots)}
+            </p>
+          )}
+          {c?.mfe_r != null && c.mae_r != null && (
+            <p className="trade-excursion">
+              Before closing it went up to <strong data-tone="profit">+{c.mfe_r.toFixed(1)}R</strong> in your favour
+              and <strong data-tone="loss">{c.mae_r.toFixed(1)}R</strong> against.
+              {c.mfe_r >= 1 && (c.pnl ?? 0) < 0 && " It was in profit before it turned."}
             </p>
           )}
           {mine && c && (
