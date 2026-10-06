@@ -15,6 +15,7 @@ import { adoptProfileAccount, sizeEvents, sizePosition, useMyAccount } from "../
 import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
 import TradeSpark from "./TradeSpark";
+import DailyTrend from "./DailyTrend";
 import Performance from "./Performance";
 import ProfileMenu, { type Me } from "./ProfileMenu";
 import { LotCalculator, PriceAlerts, useAlertWatcher, usePriceAlerts, type PriceAlert } from "./Tools";
@@ -1389,6 +1390,15 @@ export default function Dashboard() {
               gap={live?.gapReady ? live.gap : 0}
             />
           </section>
+
+          {state.daily_trend && (
+            <DailyTrend
+              trend={state.daily_trend}
+              account={account}
+              rules={state.account}
+              day={(time) => dayLabel(time, now, state.display.tz)}
+            />
+          )}
 
           <NewsWeek state={state} t={t} now={now} />
 

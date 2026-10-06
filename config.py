@@ -112,6 +112,10 @@ HEALTH_REPORT_HOUR = 9              # local hour in DISPLAY_TZ (9 AM PH time, af
 # supabase/market-data.sql): fresh, unseen data for testing future strategy ideas.
 RECORD_MARKET_DATA = True
 
+# Daily trend mode (trend_daily.py): two long-only daily rules, forward-tested on paper and shown to
+# members. Announced in chat when a paper trade opens or closes.
+DAILY_TREND = True
+
 # Paper tracking of the daily swing candidate (swing_paper.py, docs/swing-research.md): recorded only,
 # never shown as a signal. Re-test it against the backtest and buy-and-hold after 6-12 months.
 SWING_PAPER = True

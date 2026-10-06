@@ -30,6 +30,7 @@ import market_recorder
 import real_candles
 import session_recap
 import swing_paper
+import trend_daily
 import news
 import sessions
 import sizing
@@ -91,12 +92,13 @@ class Bot:
         # Keeps the website's backtest running up to the latest session (needs publish_backtest.py once)
         self.backtest = backtest_refresh.BacktestRefresher(self.cloud, feed.candle_seconds(config.TIMEFRAME))
         self.last_bar_time = None
-        self._swing_mem = self._report_mem = None  # set by load()
+        self._swing_mem = self._report_mem = self._trend_mem = None  # set by load()
         self.position, self.history = self.load()
         self.report = health_report.HealthReport(self._report_mem) if config.HEALTH_REPORT and not demo else None
         self.recorder = (market_recorder.MinuteRecorder(getattr(feed, "gap", None))
                          if config.RECORD_MARKET_DATA and not demo else None)
         self.swing = swing_paper.SwingPaper(self._swing_mem) if config.SWING_PAPER and not demo else None
+        self.trend = trend_daily.DailyTrend(self._trend_mem) if config.DAILY_TREND and not demo else None
         self.health = None  # set by main() when running as a web service
 
     # --- persistence -------------------------------------------------------
@@ -117,6 +119,7 @@ class Bot:
             return None, []
         self._swing_mem = data.get("swing_paper")
         self._report_mem = data.get("health_report")
+        self._trend_mem = data.get("daily_trend")
         if "side" in data:  # older state.json held only the position
             return data, []
         data = data or {}
@@ -135,13 +138,15 @@ class Bot:
             memory["swing_paper"] = self.swing.memory()
         if self.report:
             memory["health_report"] = self.report.memory()
+        if self.trend:
+            memory["daily_trend"] = self.trend.memory()
         STATE_FILE.write_text(json.dumps(memory, default=live_state._plain))
         self.cloud.remember(memory)  # a copy in Supabase survives restarts on hosts that wipe their disk
 
     # --- data --------------------------------------------------------------
     def daily_bars(self):
         if self.daily is None or time.time() - self.daily_at > DAILY_REFRESH_SECONDS:
-            self.daily = self.feed.get_bars(self.symbol, "D1", 150)
+            self.daily = self.feed.get_bars(self.symbol, "D1", 260)  # 200-day average + margin
             self.daily_at = time.time()
         return self.daily
 
@@ -280,6 +285,9 @@ class Bot:
         self.df = df = self.prepared()
         if self.swing:
             self.swing.update(self.daily_bars())
+        if self.trend:
+            for e in self.trend.update(self.daily_bars()):
+                self.announce_trend(e)
         i = len(df) - 1
 
         if self.position:
@@ -300,6 +308,18 @@ class Bot:
             else:
                 self.open(sig, df, i)
         self.post_recaps(df)
+
+    def announce_trend(self, e):
+        """Daily trend paper trades are announced in chat (they're a forward test, not live trades)."""
+        name = trend_daily.RULES[e["rule"]]
+        if e["type"] == "open":
+            text = (f"Daily trend (paper test), {name}: BUY gold at {e['entry']:.2f}, stop {e['stop']:.2f} "
+                    f"(trails 2 x ATR below the high). Long only, usually held for days to weeks.")
+        else:
+            text = (f"Daily trend (paper test), {name}: closed at {e['exit']:.2f} ({e['reason'].lower()}) after "
+                    f"{e['nights']} nights: {e['r']:+.2f}R after estimated costs.")
+        print(f"{datetime.now():%H:%M:%S} {text}")
+        self.cloud.post_chat(text)
 
     def post_recaps(self, df):
         """Once a session has ended, post its recap in the website chat (once per session)."""
@@ -371,6 +391,7 @@ class Bot:
             "news_pause_minutes": config.NEWS_PAUSE_MINUTES,
             "loss_pause": {"reason": limited[0], "until": int(limited[1])} if limited else None,
             "swing_paper": self.swing.summary() if self.swing else None,
+            "daily_trend": self.trend.summary(bid) if self.trend else None,
             # share of the last day of signal candles built from real XAUUSD prices (None: PAXG-only feed)
             "real_candles": getattr(self.feed, "real_share", lambda: None)(),
             "indicators": {

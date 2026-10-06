@@ -3845,3 +3845,54 @@ button[data-busy] {
 .real-share {
   color: var(--gold);
 }
+
+/* ---- daily trend (forward test) ---------------------------------------- */
+
+.trend-rules {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.trend-rules li {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--muted);
+  border-radius: 10px;
+  background: var(--inset);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.trend-rules li[data-open] {
+  border-left-color: var(--buy);
+}
+
+.trend-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text);
+}
+
+.trend-state {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trend-rules li[data-open] .trend-state {
+  color: var(--buy);
+}
+
+.trend-rules strong[data-tone="profit"],
+.trend-results [data-tone="profit"] {
+  color: var(--buy);
+}
+
+.trend-rules strong[data-tone="loss"],
+.trend-results [data-tone="loss"] {
+  color: var(--sell);
+}

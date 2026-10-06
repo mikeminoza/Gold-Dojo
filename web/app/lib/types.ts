@@ -126,6 +126,7 @@ export type LiveState = {
   loss_pause?: { reason: string; until: number } | null; // loss limits pausing new signals
   swing_paper?: SwingPaper | null; // the daily swing candidate, tracked on paper only
   real_candles?: number | null; // % of the last day of signal candles built from real XAUUSD prices
+  daily_trend?: DailyTrendState | null; // trend_daily.py: long-only daily rules, forward-tested on paper
 
   indicators: {
     ema_fast: number;
@@ -151,4 +152,21 @@ export type SwingPaper = {
   total_r: number;
   win_rate: number | null;
   profit_factor: number | null;
+};
+
+/** trend_daily.py: each long-only daily rule's paper trade (if any), what it waits for, and its results in R. */
+export type DailyTrendState = {
+  started: number | null;
+  rules: {
+    id: string;
+    name: string;
+    position: { entry: number; stop: number; sl: number; risk: number; opened: number; r_now?: number } | null;
+    pending: boolean;
+    waiting: string | null;
+    trades: { entry: number; exit: number; opened: number; closed: number; nights: number; reason: string; r: number }[];
+    count: number;
+    total_r: number;
+    win_rate: number | null;
+    profit_factor: number | null;
+  }[];
 };
