@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useSyncExternalStore, type PointerEvent } from "react";
+import { useRef, useSyncExternalStore, type CSSProperties, type PointerEvent } from "react";
 
 /**
  * Lets a floating button be dragged anywhere on screen; on release it snaps to the nearer side and the
@@ -39,6 +39,26 @@ function write(key: string, spot: Spot | null) {
     cache[key] = { raw: spot ? JSON.stringify(spot) : null, spot };
   }
   listeners.forEach((l) => l());
+}
+
+/**
+ * Where to put a panel that belongs to the button (the chat box, its pop-ups): on the button's side of
+ * the screen, above it when the button is low and below it when it's high. Null = the default spot
+ * (also on phones, where the chat fills the screen).
+ */
+export function anchorNear(spot: Spot | null, size: number, gap = 12): CSSProperties | undefined {
+  if (!spot || typeof window === "undefined" || window.innerWidth <= 520) return undefined;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const left = spot.x + size / 2 < w / 2;
+  const low = spot.y + size / 2 > h / 2;
+  return {
+    left: left ? spot.x : "auto",
+    right: left ? "auto" : w - spot.x - size,
+    top: low ? "auto" : spot.y + size + gap,
+    bottom: low ? h - spot.y + gap : "auto",
+    maxHeight: low ? spot.y - gap - MARGIN : h - (spot.y + size + gap) - MARGIN,
+  };
 }
 
 export function useDraggable(key: string, size: number) {
@@ -108,6 +128,7 @@ export function useDraggable(key: string, size: number) {
       ? { ...clamp(spot.x, spot.y), right: "auto", bottom: "auto" }
       : undefined;
   return {
+    spot: style ? { x: style.x, y: style.y } : null, // where the button is (null = its default corner)
     style: style && { left: style.x, top: style.y, right: style.right, bottom: style.bottom },
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp },
     guardClick,

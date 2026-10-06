@@ -7,7 +7,7 @@ import type { Theme } from "./TradingChart";
 import { useBotState } from "../lib/useBotState";
 import { useLivePrice, type LivePrice } from "../lib/useLivePrice";
 import { useMyTrades } from "../lib/useMyTrades";
-import { useDraggable } from "../lib/useDraggable";
+import { anchorNear, useDraggable } from "../lib/useDraggable";
 import { useChat, type ChatMessage } from "../lib/useChat";
 import { journalCsv, useJournal, type JournalEntry } from "../lib/useJournal";
 import { tradeRs } from "../lib/performance";
@@ -1419,9 +1419,23 @@ export default function Dashboard() {
           swing={state.swing_paper}
         />
       )}
-      {chatOpen && <ChatPanel chat={chat} onClose={() => setChatOpen(false)} stamp={t.stamp} now={now} />}
+      {chatOpen && (
+        <ChatPanel
+          chat={chat}
+          onClose={() => setChatOpen(false)}
+          stamp={t.stamp}
+          now={now}
+          style={anchorNear(fab.spot, 58)}
+        />
+      )}
       {toast && !(chatOpen && chat.activeId === toast.roomId) && (
-        <button type="button" className="chat-toast" onClick={() => openChat(toast.roomId)} key={toast.id}>
+        <button
+          type="button"
+          className="chat-toast"
+          onClick={() => openChat(toast.roomId)}
+          key={toast.id}
+          style={anchorNear(fab.spot, 58)}
+        >
           <strong>
             {toast.author} <span>in {toast.room}</span>
           </strong>

@@ -17,7 +17,9 @@ export default function ChatPanel({
   onClose,
   stamp,
   now,
+  style,
 }: {
+  style?: React.CSSProperties; // placed next to the chat button wherever it was dragged
   chat: Chat;
   onClose: () => void;
   stamp: (utcSeconds: number, now: number) => string; // time label in the site's time zone
@@ -78,7 +80,7 @@ export default function ChatPanel({
   }
 
   return (
-    <aside className="chat" aria-label="Chat">
+    <aside className="chat" aria-label="Chat" style={style}>
       <header className="chat-head">
         <div>
           <h2>Chat</h2>
