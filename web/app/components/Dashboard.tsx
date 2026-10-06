@@ -602,7 +602,7 @@ function Journal({
     const csv = journalCsv(journal.entries, state.display.tz);
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    link.download = `gold-lab-signals-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `gold-dojo-signals-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
   }
@@ -1113,7 +1113,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (state) {
       const unread = chat.totalUnread ? `(${chat.totalUnread}) ` : "";
-      document.title = `${unread}${word} · ${price(state.bid)} · Gold Lab`;
+      document.title = `${unread}${word} · ${price(state.bid)} · Gold Dojo`;
     }
   }, [word, state, chat.totalUnread]);
 
@@ -1198,7 +1198,7 @@ export default function Dashboard() {
         <div className="instrument">
           {/* eslint-disable-next-line @next/next/no-img-element -- the site icon, an SVG */}
           <img src="/icon.svg" alt="" width={28} height={28} className="brand-mark" />
-          <strong>Gold Lab</strong>
+          <strong>Gold Dojo</strong>
           <span>
             {state.symbol}, {chartTf ?? state.chart.default} chart
             <span className="instrument-strategy">

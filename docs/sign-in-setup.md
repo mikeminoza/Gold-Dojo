@@ -8,16 +8,16 @@ Do the steps in order. `<site>` below means your Vercel address, e.g. `https://g
 ## 1. Google Cloud: create the sign-in keys
 
 1. Open https://console.cloud.google.com and sign in with your Google account.
-2. Top bar → project picker → **New project** → name `Gold Lab` → **Create**, then select it.
+2. Top bar → project picker → **New project** → name `Gold Dojo` → **Create**, then select it.
 3. Menu → **APIs & Services → OAuth consent screen** (may be called **Google Auth Platform**) →
    **Get started**:
-   - App name `Gold Lab`, support email: yours → Next
+   - App name `Gold Dojo`, support email: yours → Next
    - Audience: **External** → Next
    - Contact email: yours → Next → agree → **Create**
 4. **Audience** (left menu) → **Publish app** → Confirm. (Otherwise only test users can sign in.
    Basic sign-in with email and profile doesn't need Google's review.)
 5. **Clients** (left menu) → **Create client**:
-   - Application type: **Web application**, name `Gold Lab`
+   - Application type: **Web application**, name `Gold Dojo`
    - **Authorized JavaScript origins**: `<site>` and `http://localhost:3000`
    - **Authorized redirect URIs**: `https://<your-project>.supabase.co/auth/v1/callback`
      (copy the exact one from step 2.3 below)

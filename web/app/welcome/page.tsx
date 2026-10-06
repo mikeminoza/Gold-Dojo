@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { NAME_MAX } from "../lib/auth";
 import { currentMember } from "../lib/members";
 
-export const metadata: Metadata = { title: "Your name · Gold Lab" };
+export const metadata: Metadata = { title: "Your name · Gold Dojo" };
 
 const ERRORS: Record<string, string> = {
   name: `Use 1-${NAME_MAX} letters, numbers, spaces, dots, dashes or underscores.`,

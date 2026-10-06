@@ -1,4 +1,4 @@
-# Render Blueprint: runs the Gold Lab bot 24/7 on Render's free plan.
+# Render Blueprint: runs the Gold Dojo bot 24/7 on Render's free plan.
 # Render -> New -> Blueprint -> pick this GitHub repo. See docs/render-deploy.md.
 services:
   - type: web                       # free plan only runs web services; the bot serves /health

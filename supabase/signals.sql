@@ -1,4 +1,4 @@
--- Gold Lab signal journal: run this once in Supabase -> SQL Editor -> New query -> Run.
+-- Gold Dojo signal journal: run this once in Supabase -> SQL Editor -> New query -> Run.
 -- Safe to run again. Every BUY / SELL / CLOSE the bot makes is kept here permanently.
 
 create table if not exists public.signals (

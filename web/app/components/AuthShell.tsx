@@ -12,7 +12,7 @@ export default function AuthShell({ children }: { children: ReactNode }) {
         <Link href="/" className="instrument">
           {/* eslint-disable-next-line @next/next/no-img-element -- the site icon, an SVG */}
           <img src="/icon.svg" alt="" width={28} height={28} className="brand-mark" />
-          <strong>Gold Lab</strong>
+          <strong>Gold Dojo</strong>
           <span>XAUUSD live signals</span>
         </Link>
       </header>

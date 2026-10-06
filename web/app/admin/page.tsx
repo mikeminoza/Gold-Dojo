@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { currentMember } from "../lib/members";
 import { supabaseServer } from "../lib/supabaseServer";
 
-export const metadata: Metadata = { title: "Members · Gold Lab" };
+export const metadata: Metadata = { title: "Members · Gold Dojo" };
 
 const NOTES: Record<string, string> = {
   blocked: "Blocked. They're signed out within 30 seconds and can't sign back in.",

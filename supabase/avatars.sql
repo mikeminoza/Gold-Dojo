@@ -1,4 +1,4 @@
--- Gold Lab profile pictures: run once in Supabase -> SQL Editor -> New query -> Run.
+-- Gold Dojo profile pictures: run once in Supabase -> SQL Editor -> New query -> Run.
 -- Safe to run again. Pictures are small squares (made in the browser) stored in a public "avatars"
 -- bucket; only the website's server (secret key) can upload or delete them.
 

@@ -1,4 +1,4 @@
-# Gold Lab: XAUUSD gold signal bot, research and practice site
+# Gold Dojo: XAUUSD gold signal bot, research and practice site
 
 Watches XAUUSD and shows live BUY / SELL / CLOSE signals on a website (Telegram optional).
 **Signals only — it never places trades.**

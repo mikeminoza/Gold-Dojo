@@ -9,7 +9,7 @@ import { NAME_MAX } from "../lib/auth";
 import { BALANCE_LIMITS, RISK_LIMITS } from "../lib/limits";
 import { currentMember } from "../lib/members";
 
-export const metadata: Metadata = { title: "Profile · Gold Lab" };
+export const metadata: Metadata = { title: "Profile · Gold Dojo" };
 
 const NOTES: Record<string, string> = {
   name: "Display name saved.",

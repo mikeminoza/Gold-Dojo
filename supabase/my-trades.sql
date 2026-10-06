@@ -1,4 +1,4 @@
--- Gold Lab "I took this trade": run once in Supabase -> SQL Editor -> New query -> Run.
+-- Gold Dojo "I took this trade": run once in Supabase -> SQL Editor -> New query -> Run.
 -- Safe to run again. Each person's own list of signals they actually traded, and at what size.
 
 create table if not exists public.taken_trades (

@@ -1,4 +1,4 @@
--- Gold Lab: run this once in Supabase -> SQL Editor -> New query -> Run.
+-- Gold Dojo: run this once in Supabase -> SQL Editor -> New query -> Run.
 -- Safe to run again.
 
 -- One row per piece of shared state; the bot keeps the row with id = 'live' up to date.

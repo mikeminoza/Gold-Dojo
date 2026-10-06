@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PASSWORD_MIN } from "../lib/auth";
 
-export const metadata: Metadata = { title: "Sign in · Gold Lab" };
+export const metadata: Metadata = { title: "Sign in · Gold Dojo" };
 
 const ERRORS: Record<string, string> = {
   blocked: "This account has been blocked by the admin.",
