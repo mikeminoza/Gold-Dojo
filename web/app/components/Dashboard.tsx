@@ -16,7 +16,6 @@ import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
 import Performance from "./Performance";
 import NotificationCenter, { type Notice } from "./NotificationCenter";
-import StatusStrip from "./StatusStrip";
 import BottomBar, { type SideTab } from "./BottomBar";
 import EmptyState, { Skeleton } from "./EmptyState";
 import Fold from "./Fold";
@@ -36,8 +35,6 @@ const LATE_AFTER_S = 60;
 const OFFLINE_AFTER_S = 180;
 
 // config.py's account settings, used until the bot's first update arrives
-const MAX_TOTAL_RISK_PCT = 3; // config.py MAX_TOTAL_RISK_PCT
-
 const DEFAULT_RULES: LiveState["account"] = { balance: 500, risk_percent: 1, max_risk_percent: 2, oz_per_lot: 100, min_lot: 0.01 };
 
 const price = (n: number) => n.toFixed(2);
@@ -1357,13 +1354,6 @@ export default function Dashboard() {
           onToggleAlerts={toggleAlerts}
         />
       </header>
-      <StatusStrip
-        state={state}
-        now={now}
-        status={status}
-        riskPercent={account.risk_percent}
-        riskCap={MAX_TOTAL_RISK_PCT}
-      />
 
       <div className="workspace">
         <section className="chart-panel" aria-label="Price chart">
@@ -1617,9 +1607,16 @@ export default function Dashboard() {
       </div>
 
       <BottomBar
-        tab={sideTab === "tools" ? "signal" : sideTab}
-        onTab={(tab) => chooseTab(tab, true)}
-        onChart={() => document.querySelector(".chart-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        tab={chatOpen ? null : sideTab === "tools" ? "signal" : sideTab}
+        chatOpen={chatOpen}
+        onTab={(tab) => {
+          setChatOpen(false); // leave the chat for the chosen section
+          chooseTab(tab, true);
+        }}
+        onChart={() => {
+          setChatOpen(false);
+          document.querySelector(".chart-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
         onChat={() => (chatOpen ? setChatOpen(false) : openChat())}
         unread={chat.totalUnread}
       />

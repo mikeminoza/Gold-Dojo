@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import EmptyState from "./EmptyState";
-import type { useChat } from "../lib/useChat";
+import { toast } from "../lib/toast";
+import type { ShownMessage, useChat } from "../lib/useChat";
 
 type Chat = ReturnType<typeof useChat>;
 
@@ -27,6 +28,23 @@ export default function ChatPanel({
   now: number;
 }) {
   const [draft, setDraft] = useState("");
+  const [selected, setSelected] = useState<string | null>(null); // tapped message (phones: shows its delete button)
+  const [confirming, setConfirming] = useState<string | null>(null); // message asking "delete for everyone?"
+
+  /** Hide the message now; really delete it after 5 s unless Undo is pressed. */
+  function deleteWithUndo(m: ShownMessage) {
+    setConfirming(null);
+    setSelected(null);
+    chat.hide(m);
+    const timer = setTimeout(() => void chat.remove(m), 5000);
+    toast("Message deleted", "ok", {
+      label: "Undo",
+      run: () => {
+        clearTimeout(timer);
+        chat.restore(m);
+      },
+    }, 5000);
+  }
   const [problem, setProblem] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [roomName, setRoomName] = useState("");
@@ -169,16 +187,29 @@ export default function ChatPanel({
                     <time>{stamp(Date.parse(m.created_at) / 1000, now)}</time>
                   </div>
                 )}
-                <p className="chat-bubble">{m.body}</p>
-                {chat.canDelete(m) && (
+                <p
+                  className="chat-bubble"
+                  onClick={() => chat.canDelete(m) && setSelected((k) => (k === m.key ? null : m.key))}
+                >
+                  {m.body}
+                </p>
+                {confirming === m.key && (
+                  <div className="chat-confirm" role="group" aria-label="Confirm delete">
+                    <span>Delete for everyone?</span>
+                    <button type="button" className="chat-confirm-yes" onClick={() => deleteWithUndo(m)} autoFocus>
+                      Delete
+                    </button>
+                    <button type="button" onClick={() => setConfirming(null)}>
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                {chat.canDelete(m) && confirming !== m.key && (
                   <button
                     type="button"
                     className="chat-delete"
-                    onClick={() => {
-                      if (window.confirm(mine ? "Delete your message?" : `Delete this message from ${m.author}?`)) {
-                        void chat.remove(m);
-                      }
-                    }}
+                    data-shown={selected === m.key || undefined}
+                    onClick={() => setConfirming(m.key)}
                     aria-label={mine ? "Delete your message" : `Delete message from ${m.author}`}
                     title="Delete"
                   >

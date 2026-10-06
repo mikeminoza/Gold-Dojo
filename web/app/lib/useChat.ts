@@ -296,15 +296,27 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
     [deliver],
   );
 
-  /** Deletes a message (yours, or anyone's for admins); it's taken off screen right away. */
-  const remove = useCallback(async (message: ShownMessage) => {
-    const take = (all: Record<string, ShownMessage[]>) => ({
+  /** Takes a message off screen (before it's really deleted, so it can still be undone). */
+  const hide = useCallback((message: ShownMessage) => {
+    setMessages((all) => ({
       ...all,
       [message.room_id]: (all[message.room_id] ?? []).filter((x) => x.key !== message.key),
+    }));
+  }, []);
+
+  /** Puts a hidden message back (Undo). */
+  const restore = useCallback((message: ShownMessage) => {
+    setMessages((all) => {
+      const list = all[message.room_id] ?? [];
+      if (list.some((x) => x.key === message.key)) return all;
+      return { ...all, [message.room_id]: [...list, message].sort((a, b) => a.id - b.id) };
     });
-    setMessages(take);
+  }, []);
+
+  /** Deletes a message for everyone (yours, or anyone's for admins). */
+  const remove = useCallback(async (message: ShownMessage) => {
+    hide(message);
     const res = await fetch(`/api/chat/messages?id=${message.id}`, { method: "DELETE" }).catch(() => null);
-    if (res?.ok) toast("Message deleted");
     if (!res?.ok) {
       const data = await res?.json().catch(() => ({}));
       setError(data?.error ?? "Couldn't delete the message.");
@@ -313,8 +325,9 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
         if (list.some((x) => x.key === message.key)) return all;
         return { ...all, [message.room_id]: [...list, message].sort((a, b) => a.id - b.id) };
       });
+      toast("Couldn't delete the message", "error");
     }
-  }, []);
+  }, [hide]);
 
   /** Can I delete this message? Your own, or any if you're an admin. */
   const canDelete = useCallback(
@@ -359,6 +372,8 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
     typing: activeId ? Object.keys(typing[activeId] ?? {}) : [],
     addRoom,
     remove,
+    hide,
+    restore,
     canDelete,
     isAdmin,
     configured: client !== null,

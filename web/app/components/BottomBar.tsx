@@ -15,12 +15,14 @@ const ICONS: Record<string, ReactNode> = {
 /** Phones: an app-style bar at the bottom to jump between the chart, the sidebar tabs and chat. */
 export default function BottomBar({
   tab,
+  chatOpen,
   onTab,
   onChart,
   onChat,
   unread,
 }: {
-  tab: SideTab;
+  tab: SideTab | null; // null while the chat is open
+  chatOpen: boolean;
   onTab: (t: SideTab) => void;
   onChart: () => void;
   onChat: () => void;
@@ -41,7 +43,7 @@ export default function BottomBar({
       {item("signal", "Signal", () => onTab("signal"), tab === "signal")}
       {item("trades", "Trades", () => onTab("trades"), tab === "trades")}
       {item("trend", "Trend", () => onTab("trend"), tab === "trend")}
-      {item("chat", "Chat", onChat, false, unread)}
+      {item("chat", "Chat", onChat, chatOpen, chatOpen ? 0 : unread)}
     </nav>
   );
 }
