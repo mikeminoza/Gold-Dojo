@@ -77,6 +77,9 @@ export default function ProfileMenu({
   onToggleAlerts: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Open toward whichever side has room: on phones the avatar sits on the left of the screen
+  const [align, setAlign] = useState<"left" | "right">("right");
+  const [top, setTop] = useState(64); // phones: the menu sits full-width just under the avatar
   const box = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
 
@@ -111,7 +114,13 @@ export default function ProfileMenu({
         aria-expanded={open}
         aria-controls="profile-menu-panel"
         aria-label={me ? `Account menu for ${me.name}` : "Account menu"}
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          const width = Math.min(280, window.innerWidth - 32);
+          setAlign(r.right - width < 8 ? "left" : "right");
+          setTop(Math.round(r.bottom + 8));
+          setOpen((v) => !v);
+        }}
       >
         <Avatar me={shown} />
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
@@ -119,7 +128,12 @@ export default function ProfileMenu({
         </svg>
       </button>
       {open && (
-        <div id="profile-menu-panel" className="profile-panel">
+        <div
+          id="profile-menu-panel"
+          className="profile-panel"
+          data-align={align}
+          style={{ ["--menu-top" as string]: `${top}px` }}
+        >
           {me && (
             <div className="profile-who">
               <Avatar me={me} size={40} />

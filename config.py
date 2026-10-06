@@ -96,7 +96,7 @@ MONTHLY_LOSS_LIMIT_R = 6.0    # losing 6R in a calendar month pauses until next 
 # After each session the bot posts a short recap (the trade's result, or why there was none) in chat
 RECAP_TO_CHAT = True
 RECAP_ROOM = "General"
-RECAP_AUTHOR = "Golden Skibidi"   # shown as the sender (24 characters at most)
+RECAP_AUTHOR = "Gold Lab"   # shown as the sender (24 characters at most)
 
 # Once a day the bot posts a short health check (uptime, restarts, errors, price source) in chat
 HEALTH_REPORT = True

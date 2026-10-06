@@ -1,4 +1,4 @@
--- Golden Skibidi: profiles keep your account size, and chat messages remember who sent them (so
+-- Gold Lab: profiles keep your account size, and chat messages remember who sent them (so
 -- people can delete their own and admins can delete any). Run once after members.sql, in
 -- Supabase -> SQL Editor -> New query -> Run. Safe to run again.
 

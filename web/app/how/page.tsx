@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata: Metadata = { title: "How it works · Golden Skibidi" };
+export const metadata: Metadata = { title: "How it works · Gold Lab" };
 
 /** Plain-English explanation of the signals, the strategy, sizing and the risks. */
 export default function How() {
@@ -11,7 +11,7 @@ export default function How() {
         <p className="how-back">
           <Link href="/">← Back to the signals</Link>
         </p>
-        <h1>How Golden Skibidi works</h1>
+        <h1>How Gold Lab works</h1>
         <p className="how-lead">
           A bot watches the gold price (XAUUSD) and posts <strong>Buy</strong> and <strong>Sell</strong> signals
           here. It never places trades: you decide whether to follow a signal, in your own broker account.

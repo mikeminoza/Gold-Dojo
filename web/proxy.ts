@@ -12,6 +12,7 @@ export async function proxy(request: NextRequest) {
     pathname === "/login" ||
     pathname.startsWith("/auth/") ||
     pathname === "/favicon.ico" ||
+    pathname === "/icon.svg" ||
     // styling for the sign-in screen: stylesheets and fonts hold no secrets (the scripts stay locked)
     (pathname.startsWith("/_next/static/") && pathname.endsWith(".css")) ||
     pathname.startsWith("/_next/static/media/");

@@ -10,7 +10,9 @@ export default function AuthShell({ children }: { children: ReactNode }) {
     <div className="auth">
       <header className="auth-top">
         <Link href="/" className="instrument">
-          <strong>Golden Skibidi</strong>
+          {/* eslint-disable-next-line @next/next/no-img-element -- the site icon, an SVG */}
+          <img src="/icon.svg" alt="" width={28} height={28} className="brand-mark" />
+          <strong>Gold Lab</strong>
           <span>XAUUSD live signals</span>
         </Link>
       </header>

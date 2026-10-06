@@ -1,4 +1,4 @@
--- Golden Skibidi accounts: run this once in Supabase -> SQL Editor -> New query -> Run.
+-- Gold Lab accounts: run this once in Supabase -> SQL Editor -> New query -> Run.
 -- Safe to run again. Run it AFTER the new website version (sign-in with accounts) is live: from then
 -- on only signed-in people can read signals and chat; the old password site stops loading data.
 --

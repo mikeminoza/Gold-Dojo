@@ -3757,3 +3757,36 @@ button[data-busy] {
   cursor: grabbing;
   transition: none;
 }
+
+/* ---- brand mark; profile menu on phones -------------------------------- */
+
+.instrument {
+  align-items: center;
+}
+
+.brand-mark {
+  flex-shrink: 0;
+  border-radius: 7px;
+}
+
+.profile-panel[data-align="left"] {
+  right: auto;
+  left: 0;
+}
+
+@media (max-width: 520px) {
+  /* full width under the header, whichever side the avatar is on */
+  .profile-panel {
+    position: fixed;
+    top: var(--menu-top, 64px);
+    left: 12px !important;
+    right: 12px !important;
+    width: auto;
+    max-height: calc(100dvh - var(--menu-top, 64px) - 12px);
+    overflow-y: auto;
+  }
+
+  .instrument strong {
+    font-size: 18px;
+  }
+}

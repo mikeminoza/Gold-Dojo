@@ -1,4 +1,4 @@
--- Golden Skibidi live chat: run this once in Supabase -> SQL Editor -> New query -> Run.
+-- Gold Lab live chat: run this once in Supabase -> SQL Editor -> New query -> Run.
 -- Safe to run again.
 
 -- Chats ("rooms"). Anyone signed in to the site can add one.
@@ -21,7 +21,7 @@ create table if not exists public.chat_messages (
 create index if not exists chat_messages_room_time on public.chat_messages (room_id, created_at desc);
 
 -- The default chat
-insert into public.chat_rooms (name, created_by) values ('General', 'Golden Skibidi')
+insert into public.chat_rooms (name, created_by) values ('General', 'Gold Lab')
 on conflict (name) do nothing;
 
 -- Security: browsers may only READ. Sending goes through the website's server (which checks the

@@ -18,8 +18,8 @@ export async function POST(request: NextRequest) {
   const page = form.get("from") === "profile" ? "/profile" : "/welcome";
   const name = cleanName(String(form.get("name") ?? ""));
   if (!name) return back(request, `${page}?error=name`);
-  // The bot posts its session recaps as "Golden Skibidi": nobody else may use that name
-  if (name.toLowerCase().replace(/[^a-z]/g, "") === "goldenskibidi") return back(request, `${page}?error=taken`);
+  // The bot posts in chat as "Gold Lab" (formerly "Golden Skibidi"): nobody else may use those names
+  if (["goldlab", "goldenskibidi"].includes(name.toLowerCase().replace(/[^a-z]/g, ""))) return back(request, `${page}?error=taken`);
 
   const { error } = await db
     .from("profiles")

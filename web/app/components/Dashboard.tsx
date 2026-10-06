@@ -602,7 +602,7 @@ function Journal({
     const csv = journalCsv(journal.entries, state.display.tz);
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    link.download = `golden-skibidi-signals-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `gold-lab-signals-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
   }
@@ -1113,7 +1113,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (state) {
       const unread = chat.totalUnread ? `(${chat.totalUnread}) ` : "";
-      document.title = `${unread}${word} · ${price(state.bid)} · Golden Skibidi`;
+      document.title = `${unread}${word} · ${price(state.bid)} · Gold Lab`;
     }
   }, [word, state, chat.totalUnread]);
 
@@ -1196,7 +1196,9 @@ export default function Dashboard() {
 
       <header className="topbar">
         <div className="instrument">
-          <strong>Golden Skibidi</strong>
+          {/* eslint-disable-next-line @next/next/no-img-element -- the site icon, an SVG */}
+          <img src="/icon.svg" alt="" width={28} height={28} className="brand-mark" />
+          <strong>Gold Lab</strong>
           <span>
             {state.symbol}, {chartTf ?? state.chart.default} chart
             <span className="instrument-strategy">

@@ -3,7 +3,7 @@ import SubmitButton from "../components/SubmitButton";
 import type { Metadata } from "next";
 import { PASSWORD_MIN } from "../lib/auth";
 
-export const metadata: Metadata = { title: "New password · Golden Skibidi" };
+export const metadata: Metadata = { title: "New password · Gold Lab" };
 
 const ERRORS: Record<string, string> = {
   short: `Use at least ${PASSWORD_MIN} characters.`,
