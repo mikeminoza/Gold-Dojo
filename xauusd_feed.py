@@ -16,6 +16,7 @@ import config
 import real_candles
 
 SPOT_URL = "https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD"
+TIERS = ["elite", "prime", "premium", "standard"]  # Swissquote price tiers, tightest spread first
 SPOT_MIN_INTERVAL = 1.0      # seconds between spot requests (be polite to a public feed)
 GAP_MIN_INTERVAL = 60.0      # seconds between PAXG-vs-spot gap measurements (it drifts slowly)
 GAP_SMOOTHING = 0.2          # each new measurement moves the gap 20% of the way
@@ -36,8 +37,10 @@ def _spot_quote():
             return _state["spot"]
     try:
         data = requests.get(SPOT_URL, timeout=5).json()
-        prices = data[0]["spreadProfilePrices"]
-        p = next((x for x in prices if x["spreadProfile"] == "standard"), prices[0])
+        prices = [x for platform in data for x in platform["spreadProfilePrices"]]
+        # The tightest of Swissquote's free price tiers (elite ~$0.50 vs standard ~$0.70 on gold)
+        p = min(prices, key=lambda x: (TIERS.index(x["spreadProfile"]) if x["spreadProfile"] in TIERS else 9,
+                                       x["ask"] - x["bid"]))
         quote = (round(p["bid"], 2), round(p["ask"], 2))
     except (requests.RequestException, ValueError, KeyError, IndexError) as e:
         if not _state["warned"]:
