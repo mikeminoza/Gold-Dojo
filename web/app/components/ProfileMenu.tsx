@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import SubmitButton from "./SubmitButton";
+import { TOUR_EVENT } from "./Tour";
 
 export type Me = { name: string; role: "admin" | "member"; email?: string; avatar?: string | null };
 
@@ -148,6 +149,9 @@ export default function ProfileMenu({
             <a href="/profile">Profile and account size</a>
             {me?.role === "admin" && <a href="/admin">Members</a>}
             <a href="/how">How it works</a>
+            <button type="button" className="profile-tour" onClick={() => window.dispatchEvent(new Event(TOUR_EVENT))}>
+              Take the tour
+            </button>
           </nav>
           <div className="profile-settings">
             <button type="button" role="switch" aria-checked={alerts} onClick={onToggleAlerts} className="switch-row">

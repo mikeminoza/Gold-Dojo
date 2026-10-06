@@ -5,6 +5,7 @@ import { lotSize, type useMyAccount } from "../lib/account";
 import { stats, tradeRows, tradeRs, useBacktest, useTrendBacktest, type Result, type Stats, type TradeRow } from "../lib/performance";
 import type { LiveState, SignalEvent, SwingPaper } from "../lib/types";
 import AccountForm from "./AccountForm";
+import EmptyState, { Skeleton } from "./EmptyState";
 
 type Tab = "live" | "mine" | "analysis" | "trend" | "backtest" | "swing";
 
@@ -333,7 +334,7 @@ function AnalysisTab({ rows }: { rows: TradeRow[] }) {
 /** Daily trend mode's 23-year backtest: each rule's curve and numbers at your size, next to holding gold. */
 function TrendTab({ account, tz }: { account: { balance: number; risk_percent: number }; tz: string }) {
   const { data, ready } = useTrendBacktest(true);
-  if (!ready) return <p className="empty">Loading the daily trend backtest…</p>;
+  if (!ready) return <Skeleton lines={2} height={120} />;
   if (!data) {
     return (
       <p className="empty">
@@ -561,14 +562,16 @@ export default function Performance({
             <Years s={shown} />
           </>
         ) : tab === "swing" || tab === "analysis" || tab === "trend" ? null : tab === "live" ? (
-          <p className="empty">No closed trades yet. Results appear here after the first signal closes.</p>
+          <EmptyState icon="chart" title="No closed trades yet">
+            Results, the equity curve and the live vs backtest check appear after the first signal closes.
+          </EmptyState>
         ) : tab === "mine" ? (
           <p className="empty">
             None yet. Press &quot;I took this trade&quot; on a signal you trade, and its result shows here once it
             closes.
           </p>
         ) : !ready ? (
-          <p className="empty">Loading the backtest…</p>
+          <Skeleton lines={2} height={120} />
         ) : (
           <p className="empty">
             No backtest published yet. On the bot&apos;s PC run <code>.venv\Scripts\python publish_backtest.py</code>.

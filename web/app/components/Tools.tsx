@@ -2,7 +2,9 @@
 
 import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { lotSize, maxRisk, type MyAccount } from "../lib/account";
+import { toast } from "../lib/toast";
 import type { LiveState, Side } from "../lib/types";
+import EmptyState from "./EmptyState";
 
 // ---- price alerts: kept in this browser, checked against the live price while the site is open ----
 
@@ -91,12 +93,12 @@ export function PriceAlerts({ bid }: { bid: number }) {
     };
     write([...read(), alert].slice(-20));
     setValue("");
+    toast(`Alert set at ${price(alert.price)}`);
     if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
   }
 
   return (
-    <section className="side-block">
-      <h2>Price alerts</h2>
+    <>
       <form className="tool-row" onSubmit={add}>
         <label htmlFor={`${id}-price`} className="sr-only">
           Alert price
@@ -120,6 +122,11 @@ export function PriceAlerts({ bid }: { bid: number }) {
           {Math.abs(target - bid).toFixed(2)} from now).
         </p>
       )}
+      {list.length === 0 && (
+        <EmptyState icon="bell" title="No alerts yet">
+          Pick a price above or below gold and get a chime when it gets there.
+        </EmptyState>
+      )}
       {list.length > 0 && (
         <ul className="alert-list">
           {[...list].reverse().map((a) => (
@@ -130,7 +137,10 @@ export function PriceAlerts({ bid }: { bid: number }) {
               </span>
               <button
                 type="button"
-                onClick={() => write(read().filter((x) => x.id !== a.id))}
+                onClick={() => {
+                  write(read().filter((x) => x.id !== a.id));
+                  toast("Alert removed");
+                }}
                 aria-label={`Remove alert at ${price(a.price)}`}
               >
                 Remove
@@ -140,7 +150,7 @@ export function PriceAlerts({ bid }: { bid: number }) {
         </ul>
       )}
       <p className="note">Sound and a notification while this site is open in a tab. Saved in this browser.</p>
-    </section>
+    </>
   );
 }
 
@@ -174,8 +184,7 @@ export function LotCalculator({
   const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <section className="side-block">
-      <h2>Lot size calculator</h2>
+    <>
       <div className="journal-periods tool-sides" role="group" aria-label="Direction">
         {(["BUY", "SELL"] as const).map((s) => (
           <button key={s} type="button" aria-pressed={side === s} onClick={() => setSide(s)}>
@@ -247,6 +256,6 @@ export function LotCalculator({
         For your {money(account.balance).replace(".00", "")} account at {account.risk_percent}% risk (limit{" "}
         {Number(maxRisk(account, rules).toFixed(1))}%). Change it on your profile.
       </p>
-    </section>
+    </>
   );
 }

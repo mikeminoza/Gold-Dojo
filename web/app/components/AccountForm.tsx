@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { BALANCE_LIMITS, RISK_LIMITS, type useMyAccount } from "../lib/account";
+import { toast } from "../lib/toast";
 import type { LiveState } from "../lib/types";
 
 type My = ReturnType<typeof useMyAccount>;
@@ -23,6 +24,7 @@ export default function AccountForm({ my, rules, onDone }: { my: My; rules: Live
     e.preventDefault();
     if (!balanceOk || !riskOk) return;
     my.save({ balance: Math.round(b * 100) / 100, risk_percent: Math.round(r * 100) / 100 });
+    toast("Account saved: lot sizes updated");
     onDone();
   }
 

@@ -976,7 +976,16 @@ export default function TradingChart({
           </div>
         )}
         {loadingOlder && <p className="tc-older">Loading older candles…</p>}
-        {(!raw || gap === null) && <p className="tc-status">{error ?? `Loading ${tf} candles…`}</p>}
+        {(!raw || gap === null) &&
+          (error ? (
+            <p className="tc-status">{error}</p>
+          ) : (
+            <div className="tc-skeleton" role="status" aria-label={`Loading ${tf} candles`}>
+              {Array.from({ length: 28 }, (_, i) => (
+                <i key={i} style={{ height: `${30 + ((i * 37) % 45)}%` }} />
+              ))}
+            </div>
+          ))}
       </div>
     </div>
   );

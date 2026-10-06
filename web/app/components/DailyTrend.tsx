@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { MyAccount } from "../lib/account";
+import { toast } from "../lib/toast";
 import type { DailyTrendState, LiveState } from "../lib/types";
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -36,10 +37,7 @@ export default function DailyTrend({
     .sort((a, b) => b.closed - a.closed);
 
   return (
-    <section className="side-block daily-trend" aria-label="Daily trend">
-      <h2>
-        Daily trend <span className="tz-note">forward test (paper)</span>
-      </h2>
+    <div className="daily-trend">
       <p className="note">
         Long-only rules on daily candles, a few trades a year, held for days to weeks. The only rules that made money
         in both periods of the 23-year test, mostly by riding gold&apos;s long rise. Tracked on paper since{" "}
@@ -82,7 +80,10 @@ export default function DailyTrend({
                       <button
                         type="button"
                         aria-pressed={took ? "true" : "false"}
-                        onClick={() => void myTrades.mark(p.id!, took ? null : Math.max(oz / rules.oz_per_lot, rules.min_lot))}
+                        onClick={() => {
+                          void myTrades.mark(p.id!, took ? null : Math.max(oz / rules.oz_per_lot, rules.min_lot));
+                          toast(took ? "Unmarked" : "Marked as taken");
+                        }}
                       >
                         {took ? `✓ You took this (${took.toFixed(2)} lot)` : "I took this trade"}
                       </button>
@@ -162,6 +163,6 @@ export default function DailyTrend({
           size and swap (overnight) costs, since these trades are held for weeks. Try it on demo first.
         </p>
       </details>
-    </section>
+    </div>
   );
 }

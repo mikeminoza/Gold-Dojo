@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { toast } from "./toast";
 
 export type ChatRoom = { id: string; name: string; created_by: string; created_at: string };
 export type ChatMessage = {
@@ -303,6 +304,7 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
     });
     setMessages(take);
     const res = await fetch(`/api/chat/messages?id=${message.id}`, { method: "DELETE" }).catch(() => null);
+    if (res?.ok) toast("Message deleted");
     if (!res?.ok) {
       const data = await res?.json().catch(() => ({}));
       setError(data?.error ?? "Couldn't delete the message.");

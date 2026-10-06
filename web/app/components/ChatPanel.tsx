@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import EmptyState from "./EmptyState";
 import type { useChat } from "../lib/useChat";
 
 type Chat = ReturnType<typeof useChat>;
@@ -143,7 +144,11 @@ export default function ChatPanel({
         <ol className="chat-messages" ref={list} aria-live="polite">
           {messages === undefined && <li className="chat-empty">Loading messages…</li>}
           {messages?.length === 0 && (
-            <li className="chat-empty">No messages in {room?.name ?? "this chat"} yet. Say hello.</li>
+            <li className="chat-empty">
+              <EmptyState icon="chat" title={`Nothing in ${room?.name ?? "this chat"} yet`}>
+                Say hello, ask about a signal, or share how a trade went.
+              </EmptyState>
+            </li>
           )}
           {messages?.map((m, i) => {
             const mine = m.author === chat.me;

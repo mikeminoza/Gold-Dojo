@@ -14,6 +14,12 @@ import { tradeRs } from "../lib/performance";
 import { adoptProfileAccount, sizeEvents, sizePosition, useMyAccount } from "../lib/account";
 import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
+import BottomBar, { type SideTab } from "./BottomBar";
+import EmptyState, { Skeleton } from "./EmptyState";
+import Fold from "./Fold";
+import Toaster from "./Toaster";
+import Tour from "./Tour";
+import { toast } from "../lib/toast";
 import TradeSpark from "./TradeSpark";
 import DailyTrend from "./DailyTrend";
 import Performance from "./Performance";
@@ -630,7 +636,11 @@ function Journal({
           permanently.
         </p>
       )}
-      <Results events={events} balance={balance} />
+      {!journal.ready && journal.available ? (
+        <Skeleton lines={3} />
+      ) : (
+        <Results events={events} balance={balance} />
+      )}
       <History
         key={period}
         events={events}
@@ -659,10 +669,7 @@ function NewsWeek({ state, t, now }: { state: LiveState; t: TimeFormat; now: num
     days.set(day, [...(days.get(day) ?? []), e]);
   }
   return (
-    <section className="side-block">
-      <h2>
-        Major US news this week <span className="tz-note">{state.display.label}</span>
-      </h2>
+    <>
       {events.length === 0 ? (
         <p className="empty">No high-impact US releases on the calendar this week.</p>
       ) : (
@@ -692,7 +699,7 @@ function NewsWeek({ state, t, now }: { state: LiveState; t: TimeFormat; now: num
           </p>
         </>
       )}
-    </section>
+    </>
   );
 }
 
@@ -726,7 +733,10 @@ function TradeActions({
   const mark = (lotsOrNull: number | null) => {
     if (!tradeId || saving) return;
     setSaving(true);
-    void myTrades.mark(tradeId, lotsOrNull).finally(() => setSaving(false));
+    void myTrades.mark(tradeId, lotsOrNull).finally(() => {
+      setSaving(false);
+      toast(lotsOrNull ? "Marked as taken" : "Unmarked");
+    });
   };
   const copy = () => {
     const text = [
@@ -738,6 +748,7 @@ function TradeActions({
     navigator.clipboard
       .writeText(text)
       .then(() => {
+        toast("Levels copied: paste them into MT5");
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       })
@@ -796,6 +807,13 @@ function ContextTags({ ctx }: { ctx: TradeContext }) {
     </p>
   );
 }
+
+const SIDE_TABS: [SideTab | "tools", string][] = [
+  ["signal", "Signal"],
+  ["trades", "Trades"],
+  ["trend", "Daily trend"],
+  ["tools", "Tools"],
+];
 
 /** A trade: its opening signal and, once it has ended, its close. */
 type Trade = { id: string; open?: SignalEvent; close?: SignalEvent; time: number };
@@ -967,7 +985,12 @@ function History({
   const all = toTrades(events);
   const trades = all.slice(0, limit);
   if (all.length === 0) {
-    return <p className="empty">No signals in this period. They&apos;ll appear here as soon as the bot sends one.</p>;
+    return (
+      <EmptyState title="No signals in this period">
+        They appear here the moment the bot sends one. New York sessions run 8:30–11:30 PM PH time (an hour later in
+        the US winter).
+      </EmptyState>
+    );
   }
   const days = new Map<string, Trade[]>();
   for (const tr of trades) {
@@ -1037,6 +1060,24 @@ export default function Dashboard() {
     return sizeEvents(all, account, botState.account);
   }, [journal.available, journal.entries, botState, account]);
   const [perfOpen, setPerfOpen] = useState(false);
+  // Sidebar tab (remembered in this browser)
+  const [sideTab, setSideTab] = useState<SideTab>(() => {
+    try {
+      const v = localStorage.getItem("gold-side-tab");
+      return v === "trades" || v === "trend" || v === "tools" ? v : "signal";
+    } catch {
+      return "signal";
+    }
+  });
+  const chooseTab = (tab: SideTab, scroll = false) => {
+    setSideTab(tab);
+    try {
+      localStorage.setItem("gold-side-tab", tab);
+    } catch {
+      // not remembered
+    }
+    if (scroll) document.querySelector(".side-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const [accountOpen, setAccountOpen] = useState(false);
   const closePerf = useCallback(() => setPerfOpen(false), []);
   const [replay, setReplay] = useState<{ open: SignalEvent; close?: SignalEvent; label: string } | null>(null);
@@ -1378,46 +1419,84 @@ export default function Dashboard() {
             {accountOpen && <AccountForm my={my} rules={state.account} onDone={() => setAccountOpen(false)} />}
           </section>
 
-          <section className="side-block">
-            {position ? <Ladder position={position} bid={state.bid} ask={state.ask} /> : <Checklist state={state} />}
-          </section>
+          <div className="side-tabs" role="tablist" aria-label="Sidebar">
+            {SIDE_TABS.map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                id={`tab-${key}`}
+                aria-selected={sideTab === key}
+                aria-controls={`panel-${key}`}
+                onClick={() => chooseTab(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-          <section className="side-block">
-            <h2>
-              Signals <span className="tz-note">{state.display.label}</span>
-            </h2>
-            <Journal
-              journal={journal}
-              all={signals}
-              balance={account.balance}
-              state={state}
-              t={t}
-              now={now}
-              onReplay={showTrade}
-              myTrades={myTrades}
-              gap={live?.gapReady ? live.gap : 0}
-            />
-          </section>
+          <div className="side-panel" role="tabpanel" id={`panel-${sideTab}`} aria-labelledby={`tab-${sideTab}`}>
+            {sideTab === "signal" && (
+              <>
+                <section className="side-block">
+                  {position ? <Ladder position={position} bid={state.bid} ask={state.ask} /> : <Checklist state={state} />}
+                </section>
+                {state.news_week && (
+                  <Fold id="news" title="Major US news this week" extra={state.display.label}>
+                    <NewsWeek state={state} t={t} now={now} />
+                  </Fold>
+                )}
+              </>
+            )}
 
-          {state.daily_trend && (
-            <DailyTrend
-              trend={state.daily_trend}
-              account={account}
-              rules={state.account}
-              bid={state.bid}
-              day={(time) => dayLabel(time, now, state.display.tz)}
-              myTrades={myTrades}
-            />
-          )}
+            {sideTab === "trades" && (
+              <section className="side-block">
+                <h2>
+                  Signals <span className="tz-note">{state.display.label}</span>
+                </h2>
+                <Journal
+                  journal={journal}
+                  all={signals}
+                  balance={account.balance}
+                  state={state}
+                  t={t}
+                  now={now}
+                  onReplay={showTrade}
+                  myTrades={myTrades}
+                  gap={live?.gapReady ? live.gap : 0}
+                />
+              </section>
+            )}
 
-          <NewsWeek state={state} t={t} now={now} />
+            {sideTab === "trend" &&
+              (state.daily_trend ? (
+                <Fold id="trend" title="Daily trend" extra="forward test (paper)">
+                  <DailyTrend
+                    trend={state.daily_trend}
+                    account={account}
+                    rules={state.account}
+                    bid={state.bid}
+                    day={(time) => dayLabel(time, now, state.display.tz)}
+                    myTrades={myTrades}
+                  />
+                </Fold>
+              ) : (
+                <section className="side-block">
+                  <EmptyState icon="wait" title="Daily trend is starting">
+                    The bot begins the Daily trend test after its next restart. It shows up here then.
+                  </EmptyState>
+                </section>
+              ))}
 
-          <PriceAlerts bid={state.bid} />
-
-          <LotCalculator bid={state.bid} ask={state.ask} account={account} rules={state.account} />
-
-          <section className="side-block">
-            <h2>Indicators</h2>
+            {sideTab === "tools" && (
+              <>
+                <Fold id="alerts" title="Price alerts">
+                  <PriceAlerts bid={state.bid} />
+                </Fold>
+                <Fold id="calculator" title="Lot size calculator">
+                  <LotCalculator bid={state.bid} ask={state.ask} account={account} rules={state.account} />
+                </Fold>
+                <Fold id="indicators" title="Indicators">
             <dl className="indicators">
               {state.range && (
                 <div>
@@ -1451,14 +1530,27 @@ export default function Dashboard() {
                 <dd>{state.indicators.atr.toFixed(2)}</dd>
               </div>
             </dl>
-            <p className="note">
+                </Fold>
+              </>
+            )}
+
+            <p className="note side-disclaimer">
               Signals only, for learning and demo trading: a 23-year test found no reliable edge.{" "}
               <a href="/how">How it has done</a>
             </p>
-          </section>
+          </div>
         </aside>
       </div>
 
+      <BottomBar
+        tab={sideTab === "tools" ? "signal" : sideTab}
+        onTab={(tab) => chooseTab(tab, true)}
+        onChart={() => document.querySelector(".chart-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        onChat={() => (chatOpen ? setChatOpen(false) : openChat())}
+        unread={chat.totalUnread}
+      />
+      <Toaster />
+      <Tour />
       {perfOpen && (
         <Performance
           events={signals}
