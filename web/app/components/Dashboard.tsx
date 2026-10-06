@@ -1437,7 +1437,7 @@ export default function Dashboard() {
           tz={state.display.tz}
           onClose={closePerf}
           taken={myTrades.taken}
-          swing={state.swing_paper}
+          swing={me?.role === "admin" ? (state.swing_paper ?? null) : undefined}
         />
       )}
       {chatOpen && (

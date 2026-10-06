@@ -332,7 +332,7 @@ export default function Performance({
   taken,
   swing,
 }: {
-  swing?: SwingPaper | null;
+  swing?: SwingPaper | null; // undefined = hide the Swing tab (it's for admins only)
   taken: Map<string, number>; // trades you marked "I took this" -> lots
   events: SignalEvent[]; // every signal, already sized for the visitor's account
   my: ReturnType<typeof useMyAccount>;
@@ -440,9 +440,11 @@ export default function Performance({
           <button type="button" aria-pressed={tab === "backtest"} onClick={() => setTab("backtest")}>
             Backtest{backtest ? `, ${new Date(backtest.from * 1000).getUTCFullYear()}–${new Date(backtest.to * 1000).getUTCFullYear()}` : ""}
           </button>
-          <button type="button" aria-pressed={tab === "swing"} onClick={() => setTab("swing")}>
-            Swing (paper)
-          </button>
+          {swing !== undefined && (
+            <button type="button" aria-pressed={tab === "swing"} onClick={() => setTab("swing")}>
+              Swing (paper)
+            </button>
+          )}
         </div>
 
         {tab === "backtest" && backtest && (
@@ -453,7 +455,7 @@ export default function Performance({
             use these signals for learning and demo trading only.
           </p>
         )}
-        {tab === "swing" && <SwingTab swing={swing ?? null} tz={tz} />}
+        {tab === "swing" && swing !== undefined && <SwingTab swing={swing ?? null} tz={tz} />}
         {tab === "analysis" && <AnalysisTab rows={rows} />}
         {tab === "mine" && (
           <p className="perf-about">
