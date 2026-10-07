@@ -89,18 +89,22 @@ class Bot:
         self.df = None
         self.daily = None
         self.daily_at = 0.0
+        self.h4 = None
+        self.h4_at = 0.0
         # Demo signals are random, so they never go to the real website
         self.cloud = cloud_state.CloudPublisher(enabled=not demo)
         # Keeps the website's backtest running up to the latest session (needs publish_backtest.py once)
         self.backtest = backtest_refresh.BacktestRefresher(self.cloud, feed.candle_seconds(config.TIMEFRAME))
         self.last_bar_time = None
-        self._swing_mem = self._report_mem = self._trend_mem = None  # set by load()
+        self._swing_mem = self._report_mem = self._trend_mem = self._h4_mem = None  # set by load()
         self.position, self.history = self.load()
         self.report = health_report.HealthReport(self._report_mem) if config.HEALTH_REPORT and not demo else None
         self.recorder = (market_recorder.MinuteRecorder(getattr(feed, "gap", None))
                          if config.RECORD_MARKET_DATA and not demo else None)
         self.swing = swing_paper.SwingPaper(self._swing_mem) if config.SWING_PAPER and not demo else None
         self.trend = trend_daily.DailyTrend(self._trend_mem) if config.DAILY_TREND and not demo else None
+        self.h4trend = (trend_daily.DailyTrend(self._h4_mem, trend_daily.H4_RULES)
+                        if config.H4_TREND and not demo else None)
         self.silence = guards.Silence()
         self.drift = {}            # rule -> {"percentile", "alarm"} from the daily drift check
         self.drift_checked = 0.0
@@ -125,6 +129,7 @@ class Bot:
         self._swing_mem = data.get("swing_paper")
         self._report_mem = data.get("health_report")
         self._trend_mem = data.get("daily_trend")
+        self._h4_mem = data.get("h4_trend")
         if "side" in data:  # older state.json held only the position
             return data, []
         data = data or {}
@@ -145,6 +150,8 @@ class Bot:
             memory["health_report"] = self.report.memory()
         if self.trend:
             memory["daily_trend"] = self.trend.memory()
+        if self.h4trend:
+            memory["h4_trend"] = self.h4trend.memory()
         STATE_FILE.write_text(json.dumps(memory, default=live_state._plain))
         self.cloud.remember(memory)  # a copy in Supabase survives restarts on hosts that wipe their disk
 
@@ -154,6 +161,12 @@ class Bot:
             self.daily = self.feed.get_bars(self.symbol, "D1", 260)  # 200-day average + margin
             self.daily_at = time.time()
         return self.daily
+
+    def h4_bars(self):
+        if self.h4 is None or time.time() - self.h4_at > 600:
+            self.h4 = self.feed.get_bars(self.symbol, "H4", 260)  # 200-candle average + margin
+            self.h4_at = time.time()
+        return self.h4
 
     def prepared(self, include_forming=False):
         bars = self.feed.get_bars(self.symbol, config.TIMEFRAME, 600, include_forming=include_forming)
@@ -293,6 +306,10 @@ class Bot:
         if self.trend:
             for e in self.trend.update(self.daily_bars()):
                 self.announce_trend(e)
+        if self.h4trend:
+            self.h4_at = 0.0  # a 30-minute close may also close a 4-hour candle: fetch fresh
+            for e in self.h4trend.update(self.h4_bars()):
+                self.announce_trend(e)
         i = len(df) - 1
 
         if self.position:
@@ -300,7 +317,7 @@ class Bot:
             if reason:
                 self.close(df["close"].iat[i], reason)
 
-        sig = self.strat.entry(df, i)
+        sig = self.strat.entry(df, i) if config.NY_SIGNALS else None
         if sig and not self.position:
             paused = self.news.pause_reason(pd.Timestamp.now(tz="UTC"))
             limited = self.loss_pause(time.time())
@@ -320,10 +337,11 @@ class Bot:
                 self.strat.state.setdefault("skipped", {})[sig.tag] = "drift alarm (live results far below the backtest)"
             else:
                 self.open(sig, df, i)
-        self.post_recaps(df)
+        if config.NY_SIGNALS:
+            self.post_recaps(df)
 
     def trend_positions(self):
-        return [x.position for x in self.trend.rules.values() if x.position] if self.trend else []
+        return [x.position for t in (self.trend, self.h4trend) if t for x in t.rules.values() if x.position]
 
     def risk_cap_reason(self, sig, df, i):
         """Would this New York signal push total open risk over MAX_TOTAL_RISK_PCT?"""
@@ -340,15 +358,18 @@ class Bot:
             return
         self.drift_checked = time.time()
         try:
-            ny = self.backtest._load() or {}
+            ny = (self.backtest._load() or {}) if config.NY_SIGNALS else {}
             ny_pool = [k["pnl"] / abs(k["entry"] - k["sl"]) for k in ny.get("trades", []) if k["entry"] != k["sl"]]
             live = [r for _, r in self.closed_rs()]
-            checks = {"ny": ("New York signals", live, ny_pool)}
-            if self.trend:
-                bt = self.cloud_row("daily_trend_backtest") or {}
-                for rule, x in self.trend.rules.items():
+            checks = {"ny": ("New York signals", live, ny_pool)} if config.NY_SIGNALS else {}
+            for tracker, row, label in ((self.trend, "daily_trend_backtest", "Daily trend"),
+                                        (self.h4trend, "h4_trend_backtest", "4-hour trend")):
+                if not tracker:
+                    continue
+                bt = self.cloud_row(row) or {}
+                for rule, x in tracker.rules.items():
                     pool = [r for _, r in (bt.get("rules", {}).get(rule, {}).get("trades") or [])]
-                    checks[rule] = (f"Daily trend {trend_daily.RULES[rule]}", [t["r"] for t in x.trades], pool)
+                    checks[rule] = (f"{label} {trend_daily.NAMES[rule]}", [t["r"] for t in x.trades], pool)
         except Exception as e:  # never let this disturb the bot
             print(f"drift check skipped ({e})")
             return
@@ -408,13 +429,15 @@ class Bot:
             self.cloud.post_chat(msg, room=config.HEALTH_REPORT_ROOM)
 
     def announce_trend(self, e):
-        """Daily trend paper trades are announced in chat (they're a forward test, not live trades)."""
-        name = trend_daily.RULES[e["rule"]]
+        """Daily / 4-hour trend paper trades are announced in chat (a forward test, not live trades)."""
+        name = trend_daily.NAMES[e["rule"]]
+        mode = "4-hour trend" if e["rule"] in trend_daily.H4_RULES else "Daily trend"
         if e["type"] == "open":
-            text = (f"Daily trend (paper test), {name}: BUY gold at {e['entry']:.2f}, stop {e['stop']:.2f} "
-                    f"(trails 2 x ATR below the high). Long only, usually held for days to weeks.")
+            held = "days" if e["rule"] in trend_daily.H4_RULES else "days to weeks"
+            text = (f"{mode} (paper test), {name}: BUY gold at {e['entry']:.2f}, stop {e['stop']:.2f} "
+                    f"(trails {trend_daily.STOP[e['rule']]:g} x ATR below the high). Long only, usually held for {held}.")
         else:
-            text = (f"Daily trend (paper test), {name}: closed at {e['exit']:.2f} ({e['reason'].lower()}) after "
+            text = (f"{mode} (paper test), {name}: closed at {e['exit']:.2f} ({e['reason'].lower()}) after "
                     f"{e['nights']} nights: {e['r']:+.2f}R after estimated costs.")
         print(f"{datetime.now():%H:%M:%S} {text}")
         self.cloud.post_chat(text)
@@ -455,7 +478,7 @@ class Bot:
                 "ok": open_risk + config.RISK_PERCENT <= config.MAX_TOTAL_RISK_PCT}
         for side in conditions:
             conditions[side].append(item)
-        if config.DRIFT_AUTO_PAUSE and self.drift.get("ny", {}).get("alarm"):
+        if config.NY_SIGNALS and config.DRIFT_AUTO_PAUSE and self.drift.get("ny", {}).get("alarm"):
             for side in conditions:
                 conditions[side].append({"label": "Live results back within the backtest's range (drift alarm)",
                                          "ok": False})
@@ -499,6 +522,8 @@ class Bot:
             "loss_pause": {"reason": limited[0], "until": int(limited[1])} if limited else None,
             "swing_paper": self.swing.summary() if self.swing else None,
             "daily_trend": self.trend.summary(bid) if self.trend else None,
+            "h4_trend": self.h4trend.summary(bid) if self.h4trend else None,
+            "ny_signals": config.NY_SIGNALS,
             # share of the last day of signal candles built from real XAUUSD prices (None: PAXG-only feed)
             "real_candles": getattr(self.feed, "real_share", lambda: None)(),
             "indicators": {
@@ -558,7 +583,7 @@ class Bot:
         import binance_feed
         source = binance_feed._printed.get("source") or config.PRICE_FEED
         nxt = None
-        windows = self.strat.windows(pd.Timestamp.now(tz="UTC"))
+        windows = self.strat.windows(pd.Timestamp.now(tz="UTC")) if config.NY_SIGNALS else []
         if windows:
             w = windows[0]
             start = pd.Timestamp(w["range_start"] or w["first_entry"], unit="s", tz="UTC").tz_convert(config.DISPLAY_TZ)

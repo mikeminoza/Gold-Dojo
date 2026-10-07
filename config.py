@@ -123,6 +123,11 @@ SILENCE_CANDLE_SECONDS = 5400 # alarm: no new candle processed for 90 min during
 # Daily trend mode (trend_daily.py): two long-only daily rules, forward-tested on paper and shown to
 # members. Announced in chat when a paper trade opens or closes.
 DAILY_TREND = True
+# 4-hour trend mode (trend_daily.H4_RULES): the breakout rule on 4-hour candles, also paper-tracked.
+H4_TREND = True
+# New York breakout signals: off (no edge after costs in the 23-year test). The bot still watches
+# M30 candles for the chart, indicators and alarms; an open NY trade (if any) is still closed normally.
+NY_SIGNALS = False
 
 # Paper tracking of the daily swing candidate (swing_paper.py, docs/swing-research.md): recorded only,
 # never shown as a signal. Re-test it against the backtest and buy-and-hold after 6-12 months.

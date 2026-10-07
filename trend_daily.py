@@ -10,6 +10,10 @@ the highest price since entry. Long only (shorts lost money in the research). A 
 held for days to weeks. They made money mostly because gold rose over time: in a long downtrend
 they mostly sit out.
 
+4-hour trend mode (H4_RULES) is the same breakout rule on 4-hour candles with a wider 3 x ATR20 stop
+and trail (research/h4_drift.py): about 14 trades a year. Near break-even in 2003-2018, profitable in
+2019-2026, so most of its profit came from gold's recent rise.
+
 Tracked forward from the day the bot starts tracking (never back-filled), with the same estimated
 costs as the research (spread, slippage, overnight financing), so the record is an honest one.
 """
@@ -26,6 +30,10 @@ RULES = {
     "breakout": "100-day breakout",
     "pullback": "Trend pullback",
 }
+H4_RULES = {"h4breakout": "4-hour breakout"}
+NAMES = {**RULES, **H4_RULES}
+KIND = {"breakout": "breakout", "pullback": "pullback", "h4breakout": "breakout"}
+STOP = {"breakout": STOP_K, "pullback": STOP_K, "h4breakout": 3.0}  # x ATR20, initial stop and trail
 
 
 def _atr(d):
@@ -47,7 +55,7 @@ def prepare(daily):
 def signal(rule, d, i):
     """True when the rule says buy at the next open, from candles up to and including day i."""
     c = d["close"].iat[i]
-    if rule == "breakout":
+    if KIND[rule] == "breakout":
         hh = d["hh100"].iat[i]
         return bool(np.isfinite(hh) and c > hh)
     up = d["sma50"].iat[i] > d["sma200"].iat[i]
@@ -58,7 +66,7 @@ def signal(rule, d, i):
 def trigger(rule, d):
     """The price level the rule is waiting for (None if it isn't a single price), from the latest day."""
     last = d.iloc[-1]
-    if rule == "breakout":
+    if KIND[rule] == "breakout":
         return round(float(d["high"].iloc[-100:].max()), 2)
     if np.isfinite(last["sma200"]) and last["sma50"] > last["sma200"]:
         return round(float(last["ema20"]), 2)
@@ -66,8 +74,10 @@ def trigger(rule, d):
 
 
 def waiting_for(rule, d):
-    """Plain words: what the rule is waiting for, from the latest closed day."""
+    """Plain words: what the rule is waiting for, from the latest closed candle."""
     last = d.iloc[-1]
+    if rule == "h4breakout":
+        return f"a 4-hour close above {d['high'].iloc[-100:].max():.2f} (the 100-candle high)"
     if rule == "breakout":
         return f"a daily close above {d['high'].iloc[-100:].max():.2f} (the 100-day high)"
     if not np.isfinite(last["sma200"]):
@@ -81,6 +91,7 @@ class Rule:
     def __init__(self, rule, memory=None):
         m = memory or {}
         self.rule = rule
+        self.k = STOP[rule]
         self.pending = m.get("pending", False)
         self.position = m.get("position")
         self.trades = m.get("trades", [])
@@ -92,7 +103,7 @@ class Rule:
         o, h, lo, c = (float(d[k].iat[i]) for k in ("open", "high", "low", "close"))
         atr, prev_atr = float(d["atr"].iat[i]), float(d["atr"].iat[i - 1])
         if self.position is None and self.pending:
-            dist = STOP_K * prev_atr
+            dist = self.k * prev_atr
             self.position = {"entry": round(o, 2), "sl": round(o - dist, 2), "stop": round(o - dist, 2),
                              "risk": round(dist, 2), "best": o, "opened": day}
             events.append({"rule": self.rule, "type": "open", **self.position})
@@ -105,13 +116,13 @@ class Rule:
                 self._close(day, p["stop"], "Trailing stop" if p["stop"] > p["sl"] else "Stop", events)
             else:
                 p["best"] = max(p["best"], h)
-                p["stop"] = round(max(p["stop"], p["best"] - STOP_K * atr), 2)
+                p["stop"] = round(max(p["stop"], p["best"] - self.k * atr), 2)
         if self.position is None and signal(self.rule, d, i):
             self.pending = True
 
     def _close(self, day, price, reason, events):
         p = self.position
-        nights = max(0, round((day - p["opened"]) / 86400))
+        nights = max(0, day // 86400 - p["opened"] // 86400)  # rollovers passed (UTC dates)
         net = (price - p["entry"]) - SPREAD - 2 * SLIPPAGE - SWAP_PER_NIGHT * p["entry"] * nights
         trade = {"id": f"dt-{self.rule}-{p['opened']}", "entry": p["entry"], "exit": round(price, 2), "opened": p["opened"], "closed": day,
                  "nights": nights, "reason": reason, "pnl": round(net, 2), "r": round(net / p["risk"], 2)}
@@ -121,13 +132,15 @@ class Rule:
 
 
 class DailyTrend:
-    """Both rules, fed the bot's closed daily candles; remembers its state across restarts."""
+    """A set of rules (RULES on daily candles, H4_RULES on 4-hour candles), fed the bot's closed candles;
+    remembers its state across restarts."""
 
-    def __init__(self, memory=None):
+    def __init__(self, memory=None, rules=None):
         m = memory or {}
+        self.names = rules or RULES
         self.last_day = m.get("last_day")
         self.started = m.get("started")
-        self.rules = {r: Rule(r, (m.get("rules") or {}).get(r)) for r in RULES}
+        self.rules = {r: Rule(r, (m.get("rules") or {}).get(r)) for r in self.names}
         self.waiting = {}
         self.triggers = {}
         self.levels = {}
@@ -142,8 +155,8 @@ class DailyTrend:
             return []
         d = prepare(daily)
         days = [int(t.timestamp()) for t in d["time"]]
-        self.waiting = {r: waiting_for(r, d) for r in RULES}
-        self.triggers = {r: trigger(r, d) for r in RULES}
+        self.waiting = {r: waiting_for(r, d) for r in self.names}
+        self.triggers = {r: trigger(r, d) for r in self.names}
         last = d.iloc[-1]
         self.levels = {k: (round(float(last[k]), 2) if np.isfinite(last[k]) else None)
                        for k in ("ema20", "sma50", "sma200")}
@@ -176,7 +189,7 @@ class DailyTrend:
                     pos["r_now"] = round((bid - p["entry"]) / p["risk"], 2)
             trig = self.triggers.get(r)
             out.append({
-                "id": r, "name": RULES[r], "position": pos, "pending": x.pending, "trigger": trig,
+                "id": r, "name": NAMES[r], "position": pos, "pending": x.pending, "trigger": trig,
                 "waiting": self.waiting.get(r), "trades": x.trades[-10:][::-1], "count": len(rs),
                 "total_r": round(sum(rs), 2), "win_rate": round(100 * sum(v > 0 for v in rs) / len(rs)) if rs else None,
                 "profit_factor": round(won / lost, 2) if lost else None,
@@ -184,14 +197,15 @@ class DailyTrend:
         return {"started": self.started, "rules": out, "levels": self.levels, "swap_per_night": SWAP_PER_NIGHT}
 
 
-def replay(daily):
-    """Every trade both rules would have made over `daily` (for the backtest page), oldest first."""
+def replay(daily, names=None):
+    """Every trade the rules would have made over `daily` (for the backtest page), oldest first."""
+    names = names or RULES
     d = prepare(daily)
     days = [int(t.timestamp()) for t in d["time"]]
-    rules = {r: Rule(r) for r in RULES}
+    rules = {r: Rule(r) for r in names}
     for x in rules.values():
         x.trades = []
-    out = {r: [] for r in RULES}
+    out = {r: [] for r in names}
     for i in range(1, len(d)):
         events = []
         for x in rules.values():

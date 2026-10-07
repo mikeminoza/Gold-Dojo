@@ -1,8 +1,9 @@
-"""Replay Daily trend mode's two rules on 23 years of real XAUUSD (the Dukascopy data from the research)
+"""Replay Daily trend mode's two rules (and 4-hour trend mode's rule, with --h4) on 23 years of real XAUUSD (the Dukascopy data from the research)
 and put the results, next to simply holding gold, on the website's Performance page.
 
     python publish_trend_backtest.py            # needs data/xauusd_D1.parquet (python -m research.dukascopy)
     python publish_trend_backtest.py --dry-run  # print only
+    python publish_trend_backtest.py --h4       # 4-hour trend (needs data/xauusd_H1.parquet)
 
 Same rules and estimated costs as the live paper test (trend_daily.py). Results in R (1R = the trade's
 starting risk). Run it again after changing trend_daily.py.
@@ -22,7 +23,17 @@ import trend_daily
 
 load_dotenv()
 DATA = Path(__file__).with_name("data") / "xauusd_D1.parquet"
+H1_DATA = Path(__file__).with_name("data") / "xauusd_H1.parquet"
 ROW_ID = "daily_trend_backtest"
+H4_ROW_ID = "h4_trend_backtest"
+
+
+def load_h4():
+    """4-hour candles (UTC 00/04/08...) built from the hourly data, like the live feed's."""
+    h = pd.read_parquet(H1_DATA)
+    h = h[h["minutes"] > 0].set_index("time")[["open", "high", "low", "close"]]
+    return (h.resample("4h", label="left", closed="left")
+            .agg({"open": "first", "high": "max", "low": "min", "close": "last"}).dropna().reset_index())
 
 
 def stats(trades):
@@ -48,10 +59,12 @@ def stats(trades):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--h4", action="store_true", help="4-hour trend instead of Daily trend")
     args = ap.parse_args()
     d = pd.read_parquet(DATA)
     d = d[["time", "open", "high", "low", "close"]].sort_values("time").reset_index(drop=True)
-    trades = trend_daily.replay(d)
+    names = trend_daily.H4_RULES if args.h4 else trend_daily.RULES
+    trades = trend_daily.replay(load_h4() if args.h4 else d, names)
 
     # Buy and hold: the gold price itself, month by month, with its worst fall from a high
     m = d.set_index("time")["close"].resample("ME").last().dropna()
@@ -62,9 +75,9 @@ def main():
             "curve": [[int(t.timestamp()), round(float(v), 2)] for t, v in m.items()]}
 
     row = {"generated": int(time.time()), "from": int(d["time"].iat[0].timestamp()), "to": int(d["time"].iat[-1].timestamp()),
-           "source": "Real XAUUSD daily candles (Dukascopy), estimated costs: $0.50 spread, $0.20 slippage per side, "
+           "source": f"Real XAUUSD {'4-hour' if args.h4 else 'daily'} candles (Dukascopy), estimated costs: $0.50 spread, $0.20 slippage per side, "
                      "0.02% financing per night",
-           "rules": {r: {"name": trend_daily.RULES[r], "stats": stats(t),
+           "rules": {r: {"name": trend_daily.NAMES[r], "stats": stats(t),
                          "trades": [[t_["closed"], t_["r"]] for t_ in t]} for r, t in trades.items()},
            "hold": hold}
     for r, x in row["rules"].items():
@@ -76,7 +89,7 @@ def main():
     headers = {"apikey": key, "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=minimal"}
     if key.startswith("eyJ"):
         headers["Authorization"] = f"Bearer {key}"
-    body = {"id": ROW_ID, "data": row, "updated_at": datetime.now(timezone.utc).isoformat()}
+    body = {"id": H4_ROW_ID if args.h4 else ROW_ID, "data": row, "updated_at": datetime.now(timezone.utc).isoformat()}
     r = requests.post(f"{url}/rest/v1/bot_state", headers=headers, data=json.dumps(body), timeout=30)
     r.raise_for_status()
     print("Published to the website's Performance page.")
