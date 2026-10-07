@@ -33,6 +33,7 @@ import real_candles
 import session_recap
 import swing_paper
 import trend_daily
+import web_push
 import weekly_summary
 import news
 import sessions
@@ -110,6 +111,7 @@ class Bot:
                         if config.H4_TREND and not demo else None)
         self.silence = guards.Silence()
         self.last_bid = None
+        self.push = None if demo else web_push.WebPush(self.cloud)
         self.ask = None if demo else telegram_ask.AskDojo(self.ask_context, self.ask_status)
         self.drift = {}            # rule -> {"percentile", "alarm"} from the daily drift check
         self.drift_checked = 0.0
@@ -450,6 +452,9 @@ class Bot:
         self.cloud.post_chat(text)
         if self.telegram:
             telegram_notify.send(("🟢 " if e["type"] == "open" else "🏁 ") + text)
+        if self.push:
+            self.push.send("h4" if e["rule"] in trend_daily.H4_RULES else "trend", text,
+                           title=f"{mode}: {'BUY gold' if e['type'] == 'open' else 'trade closed'}", tag=f"trade-{e['rule']}")
 
     def check_near(self, bid):
         """Signal coming: once per trigger level, when price gets within NEAR_PCT % of a breakout trigger."""
@@ -464,6 +469,9 @@ class Bot:
                 self.cloud.post_chat(text)
                 if self.telegram:
                     telegram_notify.send("👀 " + text)
+                if self.push:
+                    self.push.send("h4" if w["rule"] in trend_daily.H4_RULES else "trend", text,
+                                   title=f"Signal coming? {mode}", tag=f"near-{w['rule']}")
 
     def post_weekly(self, bid):
         """Sunday evening: a weekly summary of both trend strategies in chat and on Telegram."""
@@ -476,6 +484,8 @@ class Bot:
         self.cloud.post_chat(text)
         if self.telegram:
             telegram_notify.send("🗓 " + text)
+        if self.push:
+            self.push.send(None, text, title="Gold Dojo weekly summary", tag="weekly")
 
     def ask_status(self):
         """/status on Telegram: what each rule is doing right now."""
