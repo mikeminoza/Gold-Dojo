@@ -56,3 +56,17 @@ def test_h4_breakout_uses_its_own_rule_and_wider_stop():
     assert "4-hour close above" in s["rules"][0]["waiting"]
     again = trend_daily.DailyTrend(t.memory(), trend_daily.H4_RULES)  # survives a restart
     assert again.rules["h4breakout"].trades == t.rules["h4breakout"].trades
+
+
+def test_near_trigger_warns_once_per_level_and_rearms():
+    c = np.r_[np.full(240, 2000.0) + np.sin(np.arange(240)) * 5]
+    t = trend_daily.DailyTrend()
+    t.update(_daily(c))
+    trig = t.triggers["breakout"]
+    assert t.near(trig * 0.995)[0]["rule"] == "breakout"  # 0.5% below: warn
+    assert t.near(trig * 0.996) == []  # same level: only once
+    assert t.near(trig * 0.95) == []  # far away again: re-arms
+    assert [w["rule"] for w in t.near(trig * 0.995)] == ["breakout"]
+    s = t.summary(trig * 0.995)
+    assert s["rules"][0]["gap_pct"] == 0.5 and s["near_pct"] == trend_daily.NEAR_PCT
+    assert trend_daily.DailyTrend(t.memory()).warned == t.warned  # survives a restart

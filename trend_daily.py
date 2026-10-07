@@ -24,7 +24,8 @@ import numpy as np
 STOP_K = 2.0
 ATR_N = 20
 SPREAD, SLIPPAGE, SWAP_PER_NIGHT = 0.50, 0.20, 0.0002
-KEEP = 30
+KEEP = 200  # closed trades remembered (the website compares them with the backtest)
+NEAR_PCT = 1.0  # warn once when price is this close (%) below a breakout trigger
 
 RULES = {
     "breakout": "100-day breakout",
@@ -144,10 +145,33 @@ class DailyTrend:
         self.waiting = {}
         self.triggers = {}
         self.levels = {}
+        self.warned = m.get("warned") or {}  # rule -> trigger already warned about
 
     def memory(self):
-        return {"last_day": self.last_day, "started": self.started,
+        return {"last_day": self.last_day, "started": self.started, "warned": self.warned,
                 "rules": {r: x.memory() for r, x in self.rules.items()}}
+
+    def gap_pct(self, rule, bid):
+        """How far (%) price is below a breakout rule's trigger (None for other rules)."""
+        trig = self.triggers.get(rule)
+        if KIND[rule] != "breakout" or trig is None or bid is None:
+            return None
+        return round(100 * (trig - bid) / trig, 2)
+
+    def near(self, bid):
+        """Breakout rules whose trigger price is now within NEAR_PCT %, once per trigger level.
+        Re-arms when price drops back more than twice that far."""
+        out = []
+        for r, x in self.rules.items():
+            gap = self.gap_pct(r, bid)
+            if gap is None or x.position or x.pending:
+                continue
+            if 0 < gap <= NEAR_PCT and self.warned.get(r) != self.triggers[r]:
+                self.warned[r] = self.triggers[r]
+                out.append({"rule": r, "trigger": self.triggers[r], "gap_pct": gap})
+            elif gap > 2 * NEAR_PCT:
+                self.warned.pop(r, None)
+        return out
 
     def update(self, daily):
         """Process new closed days; returns paper-trade events (opens / closes) for announcements."""
@@ -193,8 +217,10 @@ class DailyTrend:
                 "waiting": self.waiting.get(r), "trades": x.trades[-10:][::-1], "count": len(rs),
                 "total_r": round(sum(rs), 2), "win_rate": round(100 * sum(v > 0 for v in rs) / len(rs)) if rs else None,
                 "profit_factor": round(won / lost, 2) if lost else None,
+                "rs": rs, "gap_pct": self.gap_pct(r, bid),
             })
-        return {"started": self.started, "rules": out, "levels": self.levels, "swap_per_night": SWAP_PER_NIGHT}
+        return {"started": self.started, "rules": out, "levels": self.levels, "swap_per_night": SWAP_PER_NIGHT,
+                "near_pct": NEAR_PCT}
 
 
 def replay(daily, names=None):

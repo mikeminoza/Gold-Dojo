@@ -441,6 +441,22 @@ class Bot:
                     f"{e['nights']} nights: {e['r']:+.2f}R after estimated costs.")
         print(f"{datetime.now():%H:%M:%S} {text}")
         self.cloud.post_chat(text)
+        if self.telegram:
+            telegram_notify.send(("🟢 " if e["type"] == "open" else "🏁 ") + text)
+
+    def check_near(self, bid):
+        """Signal coming: once per trigger level, when price gets within NEAR_PCT % of a breakout trigger."""
+        if time.time() - getattr(self, "_near_checked", 0) < 60:
+            return
+        self._near_checked = time.time()
+        for tracker, mode, candle in ((self.trend, "Daily trend", "daily"), (self.h4trend, "4-hour trend", "4-hour")):
+            for w in (tracker.near(bid) if tracker else []):
+                text = (f"Signal coming? {mode}, {trend_daily.NAMES[w['rule']]}: gold is {w['gap_pct']:.2f}% below "
+                        f"its trigger {w['trigger']:.2f}. A {candle} close above it means BUY at the next open.")
+                print(f"{datetime.now():%H:%M:%S} {text}")
+                self.cloud.post_chat(text)
+                if self.telegram:
+                    telegram_notify.send("👀 " + text)
 
     def post_recaps(self, df):
         """Once a session has ended, post its recap in the website chat (once per session)."""
@@ -524,6 +540,11 @@ class Bot:
             "daily_trend": self.trend.summary(bid) if self.trend else None,
             "h4_trend": self.h4trend.summary(bid) if self.h4trend else None,
             "ny_signals": config.NY_SIGNALS,
+            # live vs backtest per rule (daily drift check): percentile of the live total, alarm on/off
+            "drift": self.drift,
+            "drift_min_trades": config.DRIFT_MIN_TRADES,
+            # public Telegram channel with the same alerts (set TELEGRAM_CHANNEL_URL on the host)
+            "telegram_url": os.getenv("TELEGRAM_CHANNEL_URL") or None,
             # share of the last day of signal candles built from real XAUUSD prices (None: PAXG-only feed)
             "real_candles": getattr(self.feed, "real_share", lambda: None)(),
             "indicators": {
@@ -638,6 +659,7 @@ class Bot:
                                 self.on_candle_close()
                             else:  # the source hasn't published the new candle yet
                                 self.next_candle_check = now + CANDLE_RETRY_SECONDS
+                        self.check_near(bid)
                         self.save()
                         self.publish(bid, ask)
                         self.post_health_report()
