@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-export type SideTab = "signal" | "trades" | "trend" | "tools";
+export type SideTab = "signal" | "trades" | "tools";
 
 const ICONS: Record<string, ReactNode> = {
   chart: <path d="M4 20h16M6 16l4-5 3 3 5-7" />,
@@ -40,8 +40,7 @@ export default function BottomBar({
   return (
     <nav className="bottom-bar" aria-label="Sections">
       {item("chart", "Chart", onChart)}
-      {item("trend", "Trend", () => onTab("trend"), tab === "trend")}
-      {item("signal", "NY", () => onTab("signal"), tab === "signal")}
+      {item("signal", "Signal", () => onTab("signal"), tab === "signal")}
       {item("trades", "Trades", () => onTab("trades"), tab === "trades")}
       {item("chat", "Chat", onChat, chatOpen, chatOpen ? 0 : unread)}
     </nav>

@@ -7,9 +7,9 @@ export const TOUR_EVENT = "gold-tour"; // window event that restarts the tour (f
 
 const STEPS: { target: string; title: string; text: string }[] = [
   {
-    target: ".side-panel",
-    title: "Daily trend, the main strategy",
-    text: "Two long-only rules on daily candles: what each is waiting for, any open paper trade with a size for your account, and the results so far.",
+    target: ".signal-card",
+    title: "The signal",
+    text: "Daily trend is the main strategy. Switch to NY practice here, and turn alerts on or off for each strategy with the bell.",
   },
   {
     target: ".chart-panel",
@@ -18,8 +18,8 @@ const STEPS: { target: string; title: string; text: string }[] = [
   },
   {
     target: ".side-tabs",
-    title: "NY practice, trades and tools",
-    text: "The New York breakout signals (practice only), past signals and your results, price alerts and the lot size calculator.",
+    title: "Details, trades and tools",
+    text: "The chosen strategy's details and how it works, its own trade history, price alerts and the lot size calculator.",
   },
   {
     target: ".profile-trigger",

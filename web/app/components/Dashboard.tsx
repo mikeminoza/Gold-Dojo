@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { LiveState, Position, Side, SignalEvent, Sizing, TradeContext, TradeWindow } from "../lib/types";
+import type { DailyTrendState, LiveState, Position, Side, SignalEvent, Sizing, TradeContext, TradeWindow } from "../lib/types";
+import StrategyGuide from "./StrategyGuide";
 import type { Theme } from "./TradingChart";
 import { useBotState } from "../lib/useBotState";
 import { useLivePrice, type LivePrice } from "../lib/useLivePrice";
@@ -23,7 +24,7 @@ import Toaster from "./Toaster";
 import Tour from "./Tour";
 import { toast, toast as showToast } from "../lib/toast";
 import TradeSpark from "./TradeSpark";
-import DailyTrend from "./DailyTrend";
+import DailyTrend, { TrendBrief, TrendTrades } from "./DailyTrend";
 import ProfileMenu, { type Me } from "./ProfileMenu";
 import { LotCalculator, PriceAlerts, useAlertWatcher, usePriceAlerts, type PriceAlert } from "./Tools";
 
@@ -301,6 +302,34 @@ function useSignalAlerts(history: SignalEvent[] | undefined, enabled: boolean) {
       new Notification(e.type === "open" ? `${e.side} gold` : "Signal closed", { body: describe(e) });
     }
   }, [history, enabled]);
+}
+
+/** Sound + notification when a Daily trend rule signals a buy, opens or closes a paper trade. */
+function useTrendAlerts(trend: DailyTrendState | null | undefined, enabled: boolean) {
+  const seen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!trend) return;
+    const events = trend.rules.flatMap((x) => [
+      ...(x.pending ? [{ key: `pending-${x.id}-${trend.levels?.hh100 ?? ""}-${x.trigger ?? ""}`, close: false, text: `${x.name}: buy at the next daily open` }] : []),
+      ...(x.position ? [{ key: `open-${x.id}-${x.position.opened}`, close: false, text: `${x.name}: bought at ${price(x.position.entry)}` }] : []),
+      ...x.trades.map((tr) => ({
+        key: `close-${x.id}-${tr.closed}`,
+        close: true,
+        text: `${x.name}: closed ${tr.r >= 0 ? "+" : "−"}${Math.abs(tr.r).toFixed(2)}R`,
+      })),
+    ]);
+    const first = seen.current === null; // first load: don't alert on old events
+    const known: Set<string> = seen.current ?? new Set<string>();
+    const fresh = events.filter((e) => !known.has(e.key));
+    events.forEach((e) => known.add(e.key));
+    seen.current = known;
+    if (first || !enabled || !fresh.length) return;
+    const e = fresh[0];
+    chime("BUY", e.close);
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("Daily trend (paper)", { body: e.text, tag: "daily-trend" });
+    }
+  }, [trend, enabled]);
 }
 
 function Ladder({ position, bid, ask }: { position: Position; bid: number; ask: number }) {
@@ -809,9 +838,11 @@ function ContextTags({ ctx }: { ctx: TradeContext }) {
   );
 }
 
+type Strategy = "trend" | "ny";
+const STRATEGIES: Record<Strategy, string> = { trend: "Daily trend", ny: "NY practice" };
+
 const SIDE_TABS: [SideTab | "tools", string][] = [
-  ["trend", "Daily trend"],
-  ["signal", "NY practice"],
+  ["signal", "Signal"],
   ["trades", "Trades"],
   ["tools", "Tools"],
 ];
@@ -1065,13 +1096,46 @@ export default function Dashboard() {
   const closePerf = useCallback(() => setPerfOpen(false), []);
   const [sideTab, setSideTab] = useState<SideTab>(() => {
     try {
-      // new key: Daily trend became the main tab, so everyone starts there once
       const v = localStorage.getItem("gold-tab");
-      return v === "signal" || v === "trades" || v === "tools" ? v : "trend";
+      return v === "trades" || v === "tools" ? v : "signal";
+    } catch {
+      return "signal";
+    }
+  });
+  // Which strategy the signal card shows (Daily trend is the main one), and which ones send alerts
+  const [strategy, setStrategy] = useState<Strategy>(() => {
+    try {
+      return localStorage.getItem("gold-strategy") === "ny" ? "ny" : "trend";
     } catch {
       return "trend";
     }
   });
+  const chooseStrategy = (s: Strategy) => {
+    setStrategy(s);
+    try {
+      localStorage.setItem("gold-strategy", s);
+    } catch {
+      // not remembered
+    }
+  };
+  const [follow, setFollow] = useState<Strategy[]>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("gold-alert-strategies") ?? '["trend"]');
+      return Array.isArray(v) ? v.filter((s): s is Strategy => s === "trend" || s === "ny") : ["trend"];
+    } catch {
+      return ["trend"];
+    }
+  });
+  const toggleFollow = (s: Strategy) => {
+    const next = follow.includes(s) ? follow.filter((x) => x !== s) : [...follow, s];
+    setFollow(next);
+    try {
+      localStorage.setItem("gold-alert-strategies", JSON.stringify(next));
+    } catch {
+      // not remembered
+    }
+    showToast(`${STRATEGIES[s]} alerts ${next.includes(s) ? "on" : "off"}${next.includes(s) && !alerts ? " (turn on sound alerts in the profile menu)" : ""}`);
+  };
   const chooseTab = (tab: SideTab, scroll = false) => {
     setSideTab(tab);
     try {
@@ -1138,7 +1202,8 @@ export default function Dashboard() {
   const prevBid = useRef<number | null>(null);
   const [tickDir, setTickDir] = useState<"up" | "down" | null>(null);
 
-  useSignalAlerts(state?.history, alerts);
+  useSignalAlerts(state?.history, alerts && follow.includes("ny"));
+  useTrendAlerts(state?.daily_trend, alerts && follow.includes("trend"));
 
   // Price alerts: sound + notification when the live price reaches one
   const priceAlerts = usePriceAlerts();
@@ -1159,7 +1224,20 @@ export default function Dashboard() {
   }, [state]);
 
   const position = state?.position ?? null;
-  const word = position ? (position.side === "BUY" ? "Buy" : "Sell") : "Wait";
+  const trendRules = state?.daily_trend?.rules ?? [];
+  const word =
+    strategy === "trend"
+      ? trendRules.some((x) => x.position)
+        ? "Long"
+        : trendRules.some((x) => x.pending)
+          ? "Buy"
+          : "Wait"
+      : position
+        ? position.side === "BUY"
+          ? "Buy"
+          : "Sell"
+        : "Wait";
+  const cardSide = word === "Wait" ? "WAIT" : word === "Sell" ? "SELL" : "BUY";
 
   useEffect(() => {
     if (state) {
@@ -1266,8 +1344,8 @@ export default function Dashboard() {
       kind: e.type === "open" ? "signal" : "close",
       text:
         e.type === "open"
-          ? `${e.side === "BUY" ? "Buy" : "Sell"} signal at ${price(e.price)}`
-          : `${outcome(e.pnl ?? 0).label}: ${e.side === "BUY" ? "buy" : "sell"} closed${e.pnl_usd != null ? ` ${usd(e.pnl_usd, true)}` : ""}`,
+          ? `NY practice: ${e.side === "BUY" ? "buy" : "sell"} signal at ${price(e.price)}`
+          : `NY practice: ${outcome(e.pnl ?? 0).label.toLowerCase()}, ${e.side === "BUY" ? "buy" : "sell"} closed${e.pnl_usd != null ? ` ${usd(e.pnl_usd, true)}` : ""}`,
       tone: e.type === "close" ? ((e.pnl ?? 0) >= 0 ? "profit" : "loss") : undefined,
     })),
     ...priceAlerts
@@ -1293,7 +1371,7 @@ export default function Dashboard() {
   const spread = state.ask - state.bid;
 
   return (
-    <main className="terminal" data-signal={position?.side ?? "WAIT"}>
+    <main className="terminal" data-signal={cardSide}>
       {state.demo && (
         <p className="demo-banner">Demo prices. These signals are random and only for trying out the page.</p>
       )}
@@ -1369,9 +1447,9 @@ export default function Dashboard() {
             timeframes={state.chart.timeframes}
             defaultTf={state.chart.default}
             offset={state.display.offset}
-            history={state.history}
+            history={strategy === "ny" ? state.history : []}
             range={state.range}
-            position={position}
+            position={strategy === "ny" ? position : null}
             periods={state.indicators.periods}
             onTimeframe={setChartTf}
             replay={replay}
@@ -1389,16 +1467,46 @@ export default function Dashboard() {
         </section>
 
         <aside className="sidebar">
-          {sideTab === "signal" && (
           <section
             className="signal-card"
             aria-live="polite"
-            data-fresh={state.history[0] && now - state.history[0].time < 60 ? state.history[0].type : undefined}
+            data-fresh={
+              strategy === "ny" && state.history[0] && now - state.history[0].time < 60 ? state.history[0].type : undefined
+            }
           >
-            <p className="practice-tag">NY breakout · practice only, no proven edge</p>
-            <h1 className="signal-word" key={word}>
+            <div className="strategy-bar">
+              <div className="strategy-switch" role="radiogroup" aria-label="Strategy">
+                {(Object.keys(STRATEGIES) as Strategy[]).map((s) => (
+                  <button key={s} type="button" role="radio" aria-checked={strategy === s} onClick={() => chooseStrategy(s)}>
+                    {STRATEGIES[s]}
+                    {s === "trend" && <small>Main</small>}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="strategy-follow"
+                aria-pressed={follow.includes(strategy)}
+                onClick={() => toggleFollow(strategy)}
+                title={`${follow.includes(strategy) ? "Stop" : "Get"} alerts for ${STRATEGIES[strategy]}`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                  <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0" />
+                  {!follow.includes(strategy) && <path d="M3 3l18 18" />}
+                </svg>
+                <span>{follow.includes(strategy) ? "Alerts on" : "Alerts off"}</span>
+              </button>
+            </div>
+            <p className="practice-tag" data-main={strategy === "trend" || undefined}>
+              {strategy === "trend" ? "Main strategy · daily candles · paper test" : "NY breakout · practice only, no proven edge"}
+            </p>
+            <h1 className="signal-word" key={`${strategy}-${word}`}>
               {word}
             </h1>
+            {strategy === "trend" ? (
+              <TrendBrief trend={state.daily_trend ?? null} bid={state.bid} day={(time) => dayLabel(time, now, state.display.tz)} />
+            ) : (
+            <>
             {position ? (
               <div className="signal-detail">
                 <span className="outcome" data-tone={outcome(position.pnl, true).tone}>
@@ -1451,8 +1559,9 @@ export default function Dashboard() {
               </p>
             )}
             <SessionSchedule state={state} now={now} t={t} />
+            </>
+            )}
           </section>
-          )}
 
           <section className="side-block risk-block">
             <div className="risk-stat">
@@ -1507,7 +1616,33 @@ export default function Dashboard() {
           </div>
 
           <div className="side-panel" role="tabpanel" id={`panel-${sideTab}`} aria-labelledby={`tab-${sideTab}`}>
-            {sideTab === "signal" && (
+            {sideTab === "signal" && strategy === "trend" && (
+              <>
+                {state.daily_trend ? (
+                  <section className="side-block trend-main">
+                    <DailyTrend
+                      trend={state.daily_trend}
+                      account={account}
+                      rules={state.account}
+                      bid={state.bid}
+                      day={(time) => dayLabel(time, now, state.display.tz)}
+                      myTrades={myTrades}
+                    />
+                  </section>
+                ) : (
+                  <section className="side-block">
+                    <EmptyState icon="wait" title="Daily trend is starting">
+                      The bot begins the Daily trend test after its next restart. It shows up here then.
+                    </EmptyState>
+                  </section>
+                )}
+                <Fold id="guide-trend" title="How Daily trend works">
+                  <StrategyGuide strategy="trend" />
+                </Fold>
+              </>
+            )}
+
+            {sideTab === "signal" && strategy === "ny" && (
               <>
                 <section className="side-block">
                   {position ? <Ladder position={position} bid={state.bid} ask={state.ask} /> : <Checklist state={state} />}
@@ -1517,13 +1652,29 @@ export default function Dashboard() {
                     <NewsWeek state={state} t={t} now={now} />
                   </Fold>
                 )}
+                <Fold id="guide-ny" title="How NY practice works">
+                  <StrategyGuide strategy="ny" />
+                </Fold>
               </>
             )}
 
-            {sideTab === "trades" && (
+            {sideTab === "trades" && strategy === "trend" && (
               <section className="side-block">
                 <h2>
-                  Signals <span className="tz-note">{state.display.label}</span>
+                  Daily trend trades <span className="tz-note">paper test</span>
+                </h2>
+                <TrendTrades
+                  trend={state.daily_trend ?? null}
+                  day={(time) => dayLabel(time, now, state.display.tz)}
+                  taken={myTrades.taken}
+                />
+              </section>
+            )}
+
+            {sideTab === "trades" && strategy === "ny" && (
+              <section className="side-block">
+                <h2>
+                  NY practice signals <span className="tz-note">{state.display.label}</span>
                 </h2>
                 <Journal
                   journal={journal}
@@ -1538,29 +1689,6 @@ export default function Dashboard() {
                 />
               </section>
             )}
-
-            {sideTab === "trend" &&
-              (state.daily_trend ? (
-                <section className="side-block trend-main">
-                  <h2>
-                    Daily trend <span className="tz-note">main strategy · paper test</span>
-                  </h2>
-                  <DailyTrend
-                    trend={state.daily_trend}
-                    account={account}
-                    rules={state.account}
-                    bid={state.bid}
-                    day={(time) => dayLabel(time, now, state.display.tz)}
-                    myTrades={myTrades}
-                  />
-                </section>
-              ) : (
-                <section className="side-block">
-                  <EmptyState icon="wait" title="Daily trend is starting">
-                    The bot begins the Daily trend test after its next restart. It shows up here then.
-                  </EmptyState>
-                </section>
-              ))}
 
             {sideTab === "tools" && (
               <>
@@ -1609,8 +1737,8 @@ export default function Dashboard() {
             )}
 
             <p className="note side-disclaimer">
-              Signals only, never trades. Daily trend is the main strategy, on a paper test; NY breakout is practice
-              only (a 23-year test found no edge).{" "}
+              Signals only, never trades. Daily trend is the main strategy, on a paper test; NY practice has no
+              proven edge (23-year test).{" "}
               <a href="/how">How it has done</a>
             </p>
           </div>

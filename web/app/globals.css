@@ -4812,3 +4812,139 @@ button[data-busy] {
 .trend-main h2 {
   margin-bottom: var(--space-2);
 }
+
+/* ---- strategy switcher on the signal card ---- */
+
+.strategy-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.strategy-switch {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+}
+
+.strategy-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.strategy-switch button[aria-checked="true"] {
+  background: var(--gold);
+  color: var(--bg);
+}
+
+.strategy-switch small {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  font-size: var(--text-xs);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.strategy-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.strategy-follow[aria-pressed="true"] {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.practice-tag[data-main] {
+  border-color: color-mix(in srgb, var(--gold) 50%, transparent);
+  color: var(--gold);
+}
+
+.trend-brief {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trend-brief li {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--inset-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
+}
+
+.trend-brief li[data-open] {
+  border-color: color-mix(in srgb, var(--buy) 45%, transparent);
+}
+
+.trend-brief span {
+  color: var(--muted);
+}
+
+.trend-brief b[data-tone="profit"] {
+  color: var(--buy);
+}
+
+.trend-brief b[data-tone="loss"] {
+  color: var(--sell);
+}
+
+.trend-brief-empty {
+  color: var(--muted);
+}
+
+.strategy-guide {
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  line-height: 1.55;
+}
+
+.strategy-guide h3 {
+  margin-top: var(--space-2);
+  font-size: var(--text-base);
+}
+
+.strategy-guide ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.strategy-switch button:focus-visible,
+.strategy-follow:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}

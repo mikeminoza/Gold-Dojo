@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import type { MyAccount } from "../lib/account";
 import { toast } from "../lib/toast";
 import type { DailyTrendState, LiveState } from "../lib/types";
@@ -30,11 +29,7 @@ export default function DailyTrend({
   day: (t: number) => string;
   myTrades: Taken;
 }) {
-  const [history, setHistory] = useState(false);
   const riskUsd = (account.balance * account.risk_percent) / 100;
-  const trades = trend.rules
-    .flatMap((x) => x.trades.map((t) => ({ ...t, rule: x.name })))
-    .sort((a, b) => b.closed - a.closed);
 
   return (
     <div className="daily-trend">
@@ -118,39 +113,6 @@ export default function DailyTrend({
         })}
       </ul>
 
-      {trades.length > 0 && (
-        <>
-          <button type="button" className="link-button trend-toggle" aria-expanded={history} onClick={() => setHistory((v) => !v)}>
-            {history ? "Hide" : "Show"} past paper trades ({trades.length})
-          </button>
-          {history && (
-            <table className="results-split perf-years">
-              <thead>
-                <tr>
-                  <th scope="col">Rule</th>
-                  <th scope="col">Bought</th>
-                  <th scope="col">Nights</th>
-                  <th scope="col">Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map((t) => (
-                  <tr key={t.id ?? `${t.rule}-${t.opened}`}>
-                    <th scope="row">{t.rule}</th>
-                    <td>{day(t.opened)}</td>
-                    <td>{t.nights}</td>
-                    <td data-tone={t.r > 0 ? "profit" : t.r < 0 ? "loss" : undefined}>
-                      {r(t.r)}
-                      {t.id && myTrades.taken.has(t.id) && " ✓"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </>
-      )}
-
       <details className="trend-guide">
         <summary>Why a cent account?</summary>
         <p>
@@ -164,5 +126,94 @@ export default function DailyTrend({
         </p>
       </details>
     </div>
+  );
+}
+
+/** The signal card's short version: what each rule is doing right now. */
+export function TrendBrief({ trend, bid, day }: { trend: DailyTrendState | null; bid: number; day: (t: number) => string }) {
+  if (!trend) return <p className="trend-brief-empty">Starts after the bot&apos;s next restart.</p>;
+  return (
+    <ul className="trend-brief">
+      {trend.rules.map((x) => {
+        const p = x.position;
+        const away = x.trigger != null ? x.trigger - bid : null;
+        return (
+          <li key={x.id} data-open={Boolean(p) || undefined}>
+            <strong>{x.name}</strong>
+            <span>
+              {p ? (
+                <>
+                  Bought {money(p.entry)} {day(p.opened)}, stop {money(p.stop)}
+                  {p.r_now != null && <b data-tone={p.r_now >= 0 ? "profit" : "loss"}> {r(p.r_now)}</b>}
+                </>
+              ) : x.pending ? (
+                "Buy at the next daily open"
+              ) : away != null && away > 0 ? (
+                `Waiting, ${money(away)} below the trigger`
+              ) : (
+                "Waiting for the setup"
+              )}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** Daily trend's own trade history (paper), newest first. */
+export function TrendTrades({
+  trend,
+  day,
+  taken,
+}: {
+  trend: DailyTrendState | null;
+  day: (t: number) => string;
+  taken: Map<string, number>;
+}) {
+  const trades = (trend?.rules ?? [])
+    .flatMap((x) => x.trades.map((t) => ({ ...t, rule: x.name })))
+    .sort((a, b) => b.closed - a.closed);
+  const open = (trend?.rules ?? []).filter((x) => x.position);
+  if (!trades.length && !open.length) {
+    return (
+      <p className="note">
+        No Daily trend trades yet. It trades only a few times a year, so this fills up slowly; the 23-year backtest is
+        under Performance.
+      </p>
+    );
+  }
+  return (
+    <table className="results-split perf-years">
+      <thead>
+        <tr>
+          <th scope="col">Rule</th>
+          <th scope="col">Bought</th>
+          <th scope="col">Nights</th>
+          <th scope="col">Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {open.map((x) => (
+          <tr key={`open-${x.id}`}>
+            <th scope="row">{x.name}</th>
+            <td>{day(x.position!.opened)}</td>
+            <td>{x.position!.nights ?? "–"}</td>
+            <td>Open{x.position!.r_now != null && ` ${r(x.position!.r_now)}`}</td>
+          </tr>
+        ))}
+        {trades.map((t) => (
+          <tr key={t.id ?? `${t.rule}-${t.opened}`}>
+            <th scope="row">{t.rule}</th>
+            <td>{day(t.opened)}</td>
+            <td>{t.nights}</td>
+            <td data-tone={t.r > 0 ? "profit" : t.r < 0 ? "loss" : undefined}>
+              {r(t.r)}
+              {t.id && taken.has(t.id) && " ✓"}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
