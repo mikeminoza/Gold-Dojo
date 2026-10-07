@@ -693,6 +693,12 @@ class Bot:
             if saved:
                 print(f"Loaded {len(saved)} saved minutes of real XAUUSD prices")
         self.start()
+        # Fill in each rule's trigger and "waiting for" right away, not only at the next candle close
+        # (also catches up on any day / 4-hour candle that closed while the bot was down)
+        for tracker, bars in ((self.trend, self.daily_bars), (self.h4trend, self.h4_bars)):
+            if tracker:
+                for e in tracker.update(bars()):
+                    self.announce_trend(e)
         if self.ask:
             self.ask.start()
         if self.report:
