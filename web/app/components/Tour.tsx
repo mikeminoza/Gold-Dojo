@@ -9,7 +9,7 @@ const STEPS: { target: string; title: string; text: string }[] = [
   {
     target: ".signal-card",
     title: "The signal",
-    text: "Daily trend is the main strategy. Switch to NY practice here, and turn alerts on or off for each strategy with the bell.",
+    text: "Daily trend is the main strategy; switch to 4-hour trend here. Turn alerts on or off for each strategy with the bell.",
   },
   {
     target: ".chart-panel",
@@ -23,8 +23,8 @@ const STEPS: { target: string; title: string; text: string }[] = [
   },
   {
     target: ".profile-trigger",
-    title: "Practice first",
-    text: "These signals are for learning and demo trading. Set your account size on your profile so every lot size fits you.",
+    title: "Paper test first",
+    text: "Both strategies are on a paper test, so try them on a demo account first. Set your account size on your profile so every lot size fits you.",
   },
 ];
 

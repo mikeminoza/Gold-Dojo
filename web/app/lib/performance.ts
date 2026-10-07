@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
-import type { Backtest, SignalEvent, TrendBacktest } from "./types";
+import type { TrendBacktest } from "./types";
 
 /** A finished trade: when it closed (UTC seconds) and its result in account money. */
 export type Result = { t: number; usd: number };
@@ -96,92 +96,20 @@ export function stats(results: Result[], balance: number, from?: number): Stats 
   };
 }
 
-/** The replayed history from publish_backtest.py (loaded once, when first needed). */
-export function useBacktest(enabled: boolean) {
-  const client = supabase();
-  const [result, setResult] = useState<{ backtest: Backtest | null; ready: boolean }>({ backtest: null, ready: false });
-
-  useEffect(() => {
-    if (!client || !enabled || result.ready) return;
-    let stopped = false;
-    client
-      .from("bot_state")
-      .select("data")
-      .eq("id", "backtest")
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!stopped) setResult({ backtest: (data?.data as Backtest | undefined) ?? null, ready: true });
-      });
-    return () => {
-      stopped = true;
-    };
-  }, [client, enabled, result.ready]);
-
-  return result;
-}
-
-/** Each closed trade's result in R (result / stop distance), using its opening signal's stop. */
-export function tradeRs(events: SignalEvent[]) {
-  const opens = new Map<string, SignalEvent>();
-  for (const e of events) if (e.type === "open") opens.set(e.trade_id ?? e.id, e);
-  const rs: number[] = [];
-  for (const e of events) {
-    if (e.type !== "close") continue;
-    const o = e.trade_id ? opens.get(e.trade_id) : undefined;
-    const risk = o?.sl != null ? Math.abs(o.price - o.sl) : null;
-    if (risk) rs.push((e.pnl ?? 0) / risk);
-  }
-  return rs;
-}
-
-
-/** One closed trade for the analysis: result in R plus what the market looked like at its signal. */
-export type TradeRow = {
-  r: number;
-  side: "BUY" | "SELL";
-  weekday: number | null;
-  rangeAtr: number | null;
-  trendPct: number | null;
-  costKeep: boolean | null; // paper-tracked cost filter: would it have kept this trade?
-};
-
-export function tradeRows(events: SignalEvent[], tz: string): TradeRow[] {
-  const opens = new Map<string, SignalEvent>();
-  for (const e of events) if (e.type === "open") opens.set(e.trade_id ?? e.id, e);
-  const weekday = (t: number) =>
-    ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(
-      new Date(t * 1000).toLocaleDateString("en-US", { timeZone: tz, weekday: "short" }),
-    );
-  const rows: TradeRow[] = [];
-  for (const e of events) {
-    if (e.type !== "close" || !e.trade_id) continue;
-    const o = opens.get(e.trade_id);
-    if (!o || o.sl == null) continue;
-    const risk = Math.abs(o.price - o.sl);
-    if (!risk) continue;
-    rows.push({
-      r: (e.pnl ?? 0) / risk,
-      side: o.side,
-      weekday: o.context?.weekday ?? weekday(o.time),
-      rangeAtr: o.context?.range_atr ?? null,
-      trendPct: o.context?.trend_pct ?? null,
-      costKeep: o.context?.cost_keep ?? null,
-    });
-  }
-  return rows;
-}
-
-/** Daily trend mode's 23-year backtest (publish_trend_backtest.py), loaded once when first needed. */
-export function useTrendBacktest(enabled: boolean) {
+/**
+ * A trend strategy's 23-year backtest, loaded once: the bot_state row "daily_trend_backtest" (Daily trend,
+ * publish_trend_backtest.py) or "h4_trend_backtest" (4-hour trend).
+ */
+export function useTrendBacktest(row: "daily_trend_backtest" | "h4_trend_backtest") {
   const client = supabase();
   const [result, setResult] = useState<{ data: TrendBacktest | null; ready: boolean }>({ data: null, ready: false });
   useEffect(() => {
-    if (!client || !enabled || result.ready) return;
+    if (!client || result.ready) return;
     let stopped = false;
     client
       .from("bot_state")
       .select("data")
-      .eq("id", "daily_trend_backtest")
+      .eq("id", row)
       .maybeSingle()
       .then(({ data }) => {
         if (!stopped) setResult({ data: (data?.data as TrendBacktest | undefined) ?? null, ready: true });
@@ -189,6 +117,6 @@ export function useTrendBacktest(enabled: boolean) {
     return () => {
       stopped = true;
     };
-  }, [client, enabled, result.ready]);
+  }, [client, row, result.ready]);
   return result;
 }

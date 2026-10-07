@@ -4795,9 +4795,9 @@ button[data-busy] {
   pointer-events: auto;
 }
 
-/* ---- Daily trend as the main strategy; NY breakout marked as practice ---- */
+/* ---- the strategy tag on the signal card ---- */
 
-.practice-tag {
+.strategy-tag {
   justify-self: start;
   margin: 0 0 var(--space-2);
   padding: 2px 8px;
@@ -4882,11 +4882,6 @@ button[data-busy] {
   color: var(--gold);
 }
 
-.practice-tag[data-main] {
-  border-color: color-mix(in srgb, var(--gold) 50%, transparent);
-  color: var(--gold);
-}
-
 .trend-brief {
   display: grid;
   gap: var(--space-2);
@@ -4947,4 +4942,98 @@ button[data-busy] {
 .strategy-follow:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
+}
+
+/* ---- design fix: switcher, tag, risk row, tabs ---- */
+
+.side-tabs {
+  grid-template-columns: none;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+}
+
+.strategy-bar {
+  flex-wrap: nowrap;
+}
+
+.strategy-switch {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto; /* room for more strategies later */
+  scrollbar-width: none;
+}
+
+.strategy-switch::-webkit-scrollbar {
+  display: none;
+}
+
+.strategy-switch button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.strategy-switch small {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--gold) 22%, transparent);
+  color: var(--gold);
+  font-size: 9px;
+}
+
+.strategy-switch button[aria-checked="true"] small {
+  background: color-mix(in srgb, var(--bg) 22%, transparent);
+  color: var(--bg);
+}
+
+.strategy-follow {
+  flex: none;
+}
+
+.strategy-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin: var(--space-1) 0 var(--space-3);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--gold);
+  font-weight: 600;
+  text-transform: none;
+}
+
+.strategy-tag::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.risk-block {
+  padding-block: var(--space-3);
+}
+
+.risk-block .risk-stat {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.trend-brief-empty {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
+}
+
+@media (max-width: 420px) {
+  .strategy-follow span {
+    display: none; /* bell only; the title says what it does */
+  }
 }

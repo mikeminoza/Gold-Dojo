@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { lotSize, type useMyAccount } from "../lib/account";
-import { stats, tradeRows, tradeRs, useBacktest, useTrendBacktest, type Result, type Stats, type TradeRow } from "../lib/performance";
-import type { LiveState, SignalEvent, SwingPaper } from "../lib/types";
+import { useEffect, useRef, useState } from "react";
+import type { useMyAccount } from "../lib/account";
+import { stats, useTrendBacktest, type Result, type Stats } from "../lib/performance";
+import type { LiveState, SwingPaper } from "../lib/types";
 import AccountForm from "./AccountForm";
-import EmptyState, { Skeleton } from "./EmptyState";
+import { Skeleton } from "./EmptyState";
 
-type Tab = "live" | "mine" | "analysis" | "trend" | "backtest" | "swing";
+type Tab = "trend" | "h4" | "swing";
 
 const money = (n: number, sign = false) =>
   `${sign ? (n >= 0 ? "+" : "−") : n < 0 ? "−" : ""}$${Math.abs(n).toLocaleString("en-US", {
@@ -224,139 +224,43 @@ function SwingTab({ swing, tz }: { swing: SwingPaper | null; tz: string }) {
   );
 }
 
-const BUCKETS: [string, (r: number) => boolean][] = [
-  ["Full loss (−1R)", (r) => r <= -0.9],
-  ["Small loss", (r) => r > -0.9 && r < 0],
-  ["Small win (0 to +1R)", (r) => r >= 0 && r < 1],
-  ["Good win (+1 to +2R)", (r) => r >= 1 && r < 1.9],
-  ["Full target (+2R)", (r) => r >= 1.9],
-];
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function Breakdown({ title, groups }: { title: string; groups: [string, TradeRow[]][] }) {
-  const shown = groups.filter(([, rows]) => rows.length > 0);
-  if (shown.length < 2) return null;
-  return (
-    <table className="results-split perf-years">
-      <caption>{title}</caption>
-      <thead>
-        <tr>
-          <th scope="col">Group</th>
-          <th scope="col">Trades</th>
-          <th scope="col">Win rate</th>
-          <th scope="col">Avg</th>
-          <th scope="col">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {shown.map(([name, rows]) => {
-          const total = rows.reduce((a, x) => a + x.r, 0);
-          const sign = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}R`;
-          return (
-            <tr key={name}>
-              <th scope="row">{name}</th>
-              <td>{rows.length}</td>
-              <td>{Math.round((100 * rows.filter((x) => x.r > 0).length) / rows.length)}%</td>
-              <td data-tone={tone(total)}>{sign(total / rows.length)}</td>
-              <td data-tone={tone(total)}>{sign(total)}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
-/** Where the live trades' results land, and how they split by side, weekday, range size and trend. */
-function AnalysisTab({ rows }: { rows: TradeRow[] }) {
-  if (rows.length === 0) {
-    return <p className="empty">No closed trades to analyse yet. This fills in as signals close.</p>;
-  }
-  const most = Math.max(...BUCKETS.map(([, f]) => rows.filter((x) => f(x.r)).length), 1);
-  const by = (key: (x: TradeRow) => string | null, order: string[]) =>
-    order.map((name) => [name, rows.filter((x) => key(x) === name)] as [string, TradeRow[]]);
-  const withContext = rows.filter((x) => x.rangeAtr !== null).length;
-  return (
-    <>
-      <p className="perf-about">
-        Results of the live signals in R (1R = the stop distance, so −1R is a full loss and +2R the full target).
-        {rows.length < 30 && ` Only ${rows.length} trades so far: treat the splits below as early hints, not answers.`}
-      </p>
-      <figure className="r-dist">
-        <figcaption>How trades ended</figcaption>
-        {BUCKETS.map(([label, f]) => {
-          const n = rows.filter((x) => f(x.r)).length;
-          return (
-            <div key={label} className="r-bar" data-loss={label.includes("loss") || undefined}>
-              <span>{label}</span>
-              <i style={{ width: `${(100 * n) / most}%` }} aria-hidden />
-              <strong>{n}</strong>
-            </div>
-          );
-        })}
-      </figure>
-      <Breakdown title="By direction" groups={by((x) => (x.side === "BUY" ? "Buy" : "Sell"), ["Buy", "Sell"])} />
-      <Breakdown
-        title="By weekday"
-        groups={by((x) => (x.weekday === null ? null : WEEKDAYS[x.weekday]), WEEKDAYS.slice(0, 5))}
-      />
-      <Breakdown
-        title="By opening-range width"
-        groups={by(
-          (x) => (x.rangeAtr === null ? null : x.rangeAtr < 1 ? "Narrow (< 1 ATR)" : x.rangeAtr > 2 ? "Wide (> 2 ATR)" : "Normal"),
-          ["Narrow (< 1 ATR)", "Normal", "Wide (> 2 ATR)"],
-        )}
-      />
-      <Breakdown
-        title="By daily trend strength"
-        groups={by(
-          (x) => (x.trendPct === null ? null : x.trendPct < 1 ? "Weak (< 1%)" : x.trendPct > 3 ? "Strong (> 3%)" : "Moderate"),
-          ["Weak (< 1%)", "Moderate", "Strong (> 3%)"],
-        )}
-      />
-      <Breakdown
-        title="Cost filter (paper test: would it have kept the trade?)"
-        groups={by(
-          (x) => (x.costKeep === null ? null : x.costKeep ? "Kept (costs ≤ 8% of stop)" : "Skipped (costs > 8%)"),
-          ["Kept (costs ≤ 8% of stop)", "Skipped (costs > 8%)"],
-        )}
-      />
-      {withContext < rows.length && (
-        <p className="perf-about">
-          Range and trend splits use only the {withContext} trades recorded since the bot started saving that
-          context.
-        </p>
-      )}
-    </>
-  );
-}
-
-/** Daily trend mode's 23-year backtest: each rule's curve and numbers at your size, next to holding gold. */
-function TrendTab({ account, tz }: { account: { balance: number; risk_percent: number }; tz: string }) {
-  const { data, ready } = useTrendBacktest(true);
+/** A trend strategy's 23-year backtest: each rule's curve and numbers at your size, next to holding gold. */
+function TrendTab({
+  row,
+  account,
+  tz,
+}: {
+  row: "daily_trend_backtest" | "h4_trend_backtest"; // the bot_state row it's published in
+  account: { balance: number; risk_percent: number };
+  tz: string;
+}) {
+  const { data, ready } = useTrendBacktest(row);
+  const daily = row === "daily_trend_backtest";
   if (!ready) return <Skeleton lines={2} height={120} />;
   if (!data) {
-    return (
+    return daily ? (
       <p className="empty">
         Not published yet. On the PC with the research data run <code>.venv\Scripts\python publish_trend_backtest.py</code>.
       </p>
+    ) : (
+      <p className="empty">Not published yet. The 4-hour trend backtest shows here once the bot publishes it.</p>
     );
   }
   const riskUsd = (account.balance * account.risk_percent) / 100;
   return (
     <>
       <p className="perf-about">
-        Both daily trend rules replayed on real gold prices, {day(data.from, tz)} – {day(data.to, tz)}. {data.source}. Each
-        trade risks {account.risk_percent}% of your {money(account.balance).replace(".00", "")} ({money(riskUsd)}), not
-        compounded. On a small standard account most of these trades are too big to size at 1%: see &quot;Why a cent
-        account?&quot; in the Daily trend panel.
+        {daily ? "Both daily trend rules" : "The 4-hour breakout rule"} replayed on real gold prices, {day(data.from, tz)} –{" "}
+        {day(data.to, tz)}. {data.source}. Each trade risks {account.risk_percent}% of your{" "}
+        {money(account.balance).replace(".00", "")} ({money(riskUsd)}), not compounded. On a small standard account most
+        of these trades are too big to size at 1%: see &quot;Why a cent account?&quot; in the strategy&apos;s panel.
       </p>
       <p className="perf-check" data-verdict="normal">
         <strong>For comparison, simply holding gold</strong>
         <span>
           {money(data.hold.start)} → {money(data.hold.end)}: +{data.hold.return_pct}% over the same years, with a worst fall
-          of {data.hold.worst_drop_pct}% along the way. The rules made money mostly by being in gold during its long rise,
-          and their value is smaller drops, not beating it.
+          of {data.hold.worst_drop_pct}% along the way. The {daily ? "rules" : "rule"} made money mostly by being in gold
+          during its long rise, and the value is smaller drops, not beating it.
         </span>
       </p>
       {Object.entries(data.rules).map(([id, rule]) => {
@@ -384,26 +288,21 @@ function TrendTab({ account, tz }: { account: { balance: number; risk_percent: n
 }
 
 export default function Performance({
-  events,
   my,
   rules,
   tz,
   onClose,
-  taken,
   swing,
 }: {
   swing?: SwingPaper | null; // undefined = hide the Swing tab (it's for admins only)
-  taken: Map<string, number>; // trades you marked "I took this" -> lots
-  events: SignalEvent[]; // every signal, already sized for the visitor's account
   my: ReturnType<typeof useMyAccount>;
   rules: LiveState["account"];
   tz: string;
   onClose: () => void;
 }) {
   const { account } = my;
-  const [tab, setTab] = useState<Tab>("live");
+  const [tab, setTab] = useState<Tab>("trend");
   const [editing, setEditing] = useState(false);
-  const { backtest, ready } = useBacktest(true);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -412,53 +311,6 @@ export default function Performance({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-
-  const live = useMemo(() => {
-    const results: Result[] = events
-      .filter((e) => e.type === "close" && e.pnl_usd != null)
-      .map((e) => ({ t: e.time, usd: e.pnl_usd! }));
-    return stats(results, account.balance);
-  }, [events, account.balance]);
-
-  const mine = useMemo(() => {
-    const results: Result[] = events
-      .filter((e) => e.type === "close" && e.trade_id && taken.has(e.trade_id))
-      .map((e) => ({ t: e.time, usd: (e.pnl ?? 0) * taken.get(e.trade_id!)! * rules.oz_per_lot }));
-    return stats(results, account.balance);
-  }, [events, taken, account.balance, rules.oz_per_lot]);
-
-  // Live vs backtest: where the live total R sits among random stretches of the same number of backtest trades
-  const check = useMemo(() => {
-    const live = tradeRs(events);
-    if (!backtest || live.length === 0) return null;
-    const pool = backtest.trades.map((k) => k.pnl / Math.abs(k.entry - k.sl)).filter(Number.isFinite);
-    if (pool.length < 30) return null;
-    let seed = 7; // fixed seed: the same answer on every render
-    const rand = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
-    const n = live.length;
-    const total = live.reduce((a, b) => a + b, 0);
-    const runs = 2000;
-    let below = 0;
-    for (let i = 0; i < runs; i++) {
-      let sum = 0;
-      for (let j = 0; j < n; j++) sum += pool[Math.floor(rand() * pool.length)];
-      if (sum < total) below++;
-    }
-    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-    return { n, liveAvg: avg(live), backAvg: avg(pool), percentile: Math.round((100 * below) / runs) };
-  }, [events, backtest]);
-
-  const replay = useMemo(() => {
-    if (!backtest) return null;
-    const results: Result[] = backtest.trades.map((k) => ({
-      t: k.x,
-      usd: k.pnl * lotSize(k.entry, k.sl, k.tp, account, rules).lots * rules.oz_per_lot,
-    }));
-    return stats(results, account.balance, backtest.from);
-  }, [backtest, account, rules]);
-
-  const shown = tab === "live" ? live : tab === "mine" ? mine : tab === "backtest" ? replay : null;
-  const rows = useMemo(() => tradeRows(events, tz), [events, tz]);
 
   return (
     <div className="perf-backdrop" onClick={onClose}>
@@ -488,20 +340,11 @@ export default function Performance({
         {editing && <AccountForm my={my} rules={rules} onDone={() => setEditing(false)} />}
 
         <div className="journal-periods perf-tabs" role="group" aria-label="Which results">
-          <button type="button" aria-pressed={tab === "live"} onClick={() => setTab("live")}>
-            Live signals
-          </button>
-          <button type="button" aria-pressed={tab === "mine"} onClick={() => setTab("mine")}>
-            My trades
-          </button>
-          <button type="button" aria-pressed={tab === "analysis"} onClick={() => setTab("analysis")}>
-            Analysis
-          </button>
           <button type="button" aria-pressed={tab === "trend"} onClick={() => setTab("trend")}>
             Daily trend
           </button>
-          <button type="button" aria-pressed={tab === "backtest"} onClick={() => setTab("backtest")}>
-            Backtest{backtest ? `, ${new Date(backtest.from * 1000).getUTCFullYear()}–${new Date(backtest.to * 1000).getUTCFullYear()}` : ""}
+          <button type="button" aria-pressed={tab === "h4"} onClick={() => setTab("h4")}>
+            4-hour trend
           </button>
           {swing !== undefined && (
             <button type="button" aria-pressed={tab === "swing"} onClick={() => setTab("swing")}>
@@ -510,73 +353,9 @@ export default function Performance({
           )}
         </div>
 
-        {tab === "backtest" && backtest && (
-          <p className="perf-about">
-            The current strategy ({backtest.strategy.name.toLowerCase()}, {backtest.timeframe}) replayed on{" "}
-            {day(backtest.from, tz)} – {day(backtest.to, tz)}. {backtest.source}. Last run{" "}
-            {day(backtest.generated, tz)}. A longer test on 23 years of real gold prices found no reliable edge, so
-            use these signals for learning and demo trading only.
-          </p>
-        )}
+        {tab === "trend" && <TrendTab key="trend" row="daily_trend_backtest" account={account} tz={tz} />}
+        {tab === "h4" && <TrendTab key="h4" row="h4_trend_backtest" account={account} tz={tz} />}
         {tab === "swing" && swing !== undefined && <SwingTab swing={swing ?? null} tz={tz} />}
-        {tab === "analysis" && <AnalysisTab rows={rows} />}
-        {tab === "trend" && <TrendTab account={account} tz={tz} />}
-        {tab === "mine" && (
-          <p className="perf-about">
-            Only the signals you marked &quot;I took this trade&quot;, at the size you marked them with.
-          </p>
-        )}
-        {tab === "live" && (
-          <p className="perf-about">
-            Every signal the bot has sent since the journal started, at the sizes this page suggests.
-          </p>
-        )}
-        {tab === "live" && check && (
-          <div className="perf-check" data-verdict={check.percentile < 5 ? "worse" : check.percentile > 95 ? "better" : "normal"}>
-            <strong>
-              {check.percentile < 5
-                ? "Worse than the backtest expects"
-                : check.percentile > 95
-                  ? "Better than the backtest expects"
-                  : "Within what the backtest expects"}
-            </strong>
-            <p>
-              Average per trade: {check.liveAvg >= 0 ? "+" : "−"}
-              {Math.abs(check.liveAvg).toFixed(2)}R live vs {check.backAvg >= 0 ? "+" : "−"}
-              {Math.abs(check.backAvg).toFixed(2)}R in the backtest. Over {check.n} trades, the live total beats{" "}
-              {check.percentile}% of random {check.n}-trade stretches from the backtest
-              {check.percentile < 5
-                ? ": something may differ live (prices, timing or costs). Worth a closer look."
-                : check.percentile > 95
-                  ? ": a lucky run, or live conditions are kinder than the test assumed."
-                  : ": normal ups and downs."}
-              {check.n < 20 && " With under 20 trades this says little yet."}
-            </p>
-          </div>
-        )}
-
-        {shown ? (
-          <>
-            <EquityChart points={shown.equity} balance={account.balance} tz={tz} />
-            <Numbers s={shown} />
-            <Years s={shown} />
-          </>
-        ) : tab === "swing" || tab === "analysis" || tab === "trend" ? null : tab === "live" ? (
-          <EmptyState icon="chart" title="No closed trades yet">
-            Results, the equity curve and the live vs backtest check appear after the first signal closes.
-          </EmptyState>
-        ) : tab === "mine" ? (
-          <p className="empty">
-            None yet. Press &quot;I took this trade&quot; on a signal you trade, and its result shows here once it
-            closes.
-          </p>
-        ) : !ready ? (
-          <Skeleton lines={2} height={120} />
-        ) : (
-          <p className="empty">
-            No backtest published yet. On the bot&apos;s PC run <code>.venv\Scripts\python publish_backtest.py</code>.
-          </p>
-        )}
       </div>
     </div>
   );

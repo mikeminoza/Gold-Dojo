@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = { title: "How it works · Gold Dojo" };
 
-/** Plain-English explanation of the signals, the strategy, sizing and the risks. */
+/** Plain-English explanation of the signals, the two trend strategies, sizing and the risks. */
 export default function How() {
   return (
     <main className="how">
@@ -13,44 +13,42 @@ export default function How() {
         </p>
         <h1>How Gold Dojo works</h1>
         <p className="how-lead">
-          A bot watches the gold price (XAUUSD) and posts <strong>Buy</strong> and <strong>Sell</strong> signals
-          here. It never places trades: you decide whether to follow a signal, in your own broker account.
+          A bot watches the gold price (XAUUSD) and posts <strong>Buy</strong> signals from two long-only trend
+          strategies here. It never places trades: you decide whether to follow a signal, in your own broker account.
         </p>
         <p className="how-notice">
-          <strong>For learning and demo trading only.</strong> A 23-year test found this strategy has no reliable
-          edge (see &quot;How it has done&quot; below). Don&apos;t trade these signals with money you need.
+          <strong>Both strategies are on a paper test.</strong> They made money in a 23-year test, mostly by riding
+          gold&apos;s long rise, and may do poorly if gold stops trending. Don&apos;t trade them with money you need.
         </p>
 
         <section>
-          <h2>The strategy: New York session breakout</h2>
+          <h2>The strategies: Daily trend and 4-hour trend</h2>
+          <p>
+            Both follow the same idea: gold moves in long trends, so buy when it shows strength and stay in until the
+            trend ends. Long only: selling short lost money in the tests. Switch between them on the signal card.
+          </p>
           <ol>
             <li>
-              <strong>Wait for New York to open</strong> at 8:30 AM New York time. That&apos;s 8:30 PM in the
-              Philippines while the US is on summer time (March to early November), and 9:30 PM in the US winter.
+              <strong>Daily trend (the main strategy)</strong> has two rules on daily candles. <em>100-day
+              breakout:</em> buy when a day closes above the highest price of the previous 100 days. <em>Trend
+              pullback:</em> in an uptrend (50-day average above the 200-day), buy when price dips to the 20-day
+              average and closes back above it. The stop starts 2 × ATR (twice the average daily range) below the entry.
             </li>
             <li>
-              <strong>Mark the opening range:</strong> the highest and lowest price of the first 60 minutes.
+              <strong>4-hour trend</strong> has one rule on 4-hour candles: buy when a 4-hour candle closes above the
+              highest price of the previous 100 four-hour candles (about 17 trading days). The stop starts 3 × ATR below
+              the entry.
             </li>
             <li>
-              <strong>Check the daily trend:</strong> is gold above or below its average of the last 50 days? The bot
-              only buys in an uptrend and only sells in a downtrend.
+              <strong>Entry:</strong> at the open of the next candle, after the signal candle closes.
             </li>
             <li>
-              <strong>Signal on a breakout:</strong> when a 30-minute candle closes above the range in an uptrend
-              (Buy) or below it in a downtrend (Sell).
+              <strong>Trailing stop, no target:</strong> the stop follows the highest price since entry and never moves
+              down. The trade ends only when the stop is hit, so winners can run for days or weeks.
             </li>
             <li>
-              <strong>Stop loss and target:</strong> the stop goes on the other side of the range (but no further than one typical
-              30-minute candle, and no closer than half of one), and the take-profit is twice that distance away, so a win earns about
-              twice what a loss costs.
-            </li>
-            <li>
-              <strong>One trade per session,</strong> closed at the end of the session (3 hours after the open) if
-              neither the stop nor the target has been hit.
-            </li>
-            <li>
-              <strong>News pause:</strong> no new signals within 30 minutes of major US news (jobs reports,
-              inflation, Fed decisions), when prices jump around unpredictably.
+              <strong>Few trades:</strong> about 10 a year for Daily trend and 14 for 4-hour trend, held for days to
+              weeks.
             </li>
           </ol>
         </section>
@@ -59,20 +57,19 @@ export default function How() {
           <h2>Reading a signal</h2>
           <dl className="how-terms">
             <div>
-              <dt>Buy / Sell / Wait</dt>
-              <dd>The big word on the right. Wait means no trade is open.</dd>
+              <dt>Long / Buy / Wait</dt>
+              <dd>
+                The big word on the right, for the strategy you chose. Long means a paper trade is open, Buy means the
+                strategy buys at the next candle&apos;s open, Wait means nothing to do yet.
+              </dd>
             </div>
             <div>
               <dt>Entry</dt>
-              <dd>The price when the signal was given.</dd>
+              <dd>The price the trade was bought at.</dd>
             </div>
             <div>
-              <dt>Stop loss (SL)</dt>
-              <dd>Where the trade is closed at a loss if price goes the wrong way.</dd>
-            </div>
-            <div>
-              <dt>Take profit (TP)</dt>
-              <dd>Where the trade is closed in profit.</dd>
+              <dt>Trailing stop</dt>
+              <dd>Where the trade is closed if price falls back. It moves up as the trade gains, never down.</dd>
             </div>
             <div>
               <dt>Lot size</dt>
@@ -83,35 +80,36 @@ export default function How() {
             </div>
           </dl>
           <p>
-            Set your own balance and risk on your <Link href="/profile">profile</Link>; every lot size and result on
-            the site follows it. The smallest size is 0.01 lot, so on small accounts a trade can risk more than you
-            chose; the signal then says so.
+            Set your own balance and risk on your <Link href="/profile">profile</Link>; every lot size on the site
+            follows it. The stops are wide, so on a small standard account even 0.01 lot can risk more than you chose;
+            a cent account lets you size smaller.
           </p>
         </section>
 
         <section>
           <h2>How it has done</h2>
           <p>
-            We replayed these exact rules on 23 years of real gold prices (2003–2026), tuning nothing on the
-            recent years:
+            We replayed both strategies on 23 years of real gold prices (2003–2026), with spread, slippage and
+            overnight financing:
           </p>
           <ul>
             <li>
-              <strong>2003–2018:</strong> it lost money in 15 of 16 years. Before costs it was a coin flip; the
-              spread on each trade then made it a steady loser.
+              <strong>Daily trend:</strong> profitable both in the years used to build it (2003–2018) and in years it
+              never saw (2019–2026). Breakout: 79 trades, profit factor 2.14. Pullback: 178 trades, profit factor 1.53.
             </li>
             <li>
-              <strong>2019–2026:</strong> roughly break-even overall (about 44% wins), with 4 losing years and a
-              worst drop of about half the account. Almost all of the profit came from the 2025 gold rally.
+              <strong>4-hour trend:</strong> roughly break-even in 2003–2018 (208 trades, profit factor 1.02) and
+              profitable in 2019–2026 (110 trades, profit factor 2.12). Most of its profit came from gold&apos;s rise
+              since 2019.
             </li>
             <li>
-              Filters, other exits, adding the London session and a second strategy were all tested too; none
-              made it reliably profitable.
+              Both made money mostly by being in gold while it rose. Performance compares them with simply holding
+              gold over the same years.
             </li>
           </ul>
           <p>
-            So treat the signals as a way to learn how session breakouts behave, and practise on a demo account. The{" "}
-            <strong>Performance</strong> button shows the live results so far and a shorter backtest (2020 onwards).
+            The <strong>Performance</strong> button shows each strategy&apos;s backtest at your account size, and the
+            Trades tab its paper trades so far.
           </p>
         </section>
 

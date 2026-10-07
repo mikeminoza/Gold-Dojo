@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-/** One thing that happened: a signal, a close, a price alert, a Daily trend paper trade, a bot status change. */
-export type Notice = { id: string; time: number; kind: "signal" | "close" | "alert" | "trend" | "bot"; text: string; tone?: "profit" | "loss" };
+/** One thing that happened: a trend strategy's paper trade, a price alert, a bot status change. */
+export type Notice = { id: string; time: number; kind: "alert" | "trend" | "bot"; text: string; tone?: "profit" | "loss" };
 
 const SEEN_KEY = "gold-notices-seen";
 const listeners = new Set<() => void>();
@@ -25,7 +25,7 @@ function markSeen(time: number) {
   listeners.forEach((l) => l());
 }
 
-const ICON: Record<Notice["kind"], string> = { signal: "◆", close: "●", alert: "◎", trend: "▲", bot: "■" };
+const ICON: Record<Notice["kind"], string> = { alert: "◎", trend: "▲", bot: "■" };
 
 /** The bell in the header: recent events, with a count of the ones you haven't seen. */
 export default function NotificationCenter({ notices, stamp }: { notices: Notice[]; stamp: (t: number) => string }) {
@@ -80,7 +80,7 @@ export default function NotificationCenter({ notices, stamp }: { notices: Notice
         <div className="notices-panel" role="region" aria-label="Notifications">
           <h2>Notifications</h2>
           {list.length === 0 ? (
-            <p className="notices-empty">Nothing yet. Signals, closes, price alerts and bot alerts show up here.</p>
+            <p className="notices-empty">Nothing yet. Paper trades, price alerts and bot alerts show up here.</p>
           ) : (
             <ul>
               {list.map((n) => (

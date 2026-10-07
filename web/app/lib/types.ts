@@ -127,6 +127,7 @@ export type LiveState = {
   swing_paper?: SwingPaper | null; // the daily swing candidate, tracked on paper only
   real_candles?: number | null; // % of the last day of signal candles built from real XAUUSD prices
   daily_trend?: DailyTrendState | null; // trend_daily.py: long-only daily rules, forward-tested on paper
+  h4_trend?: DailyTrendState | null; // the 4-hour breakout rule, same shape, forward-tested on paper
 
   indicators: {
     ema_fast: number;
@@ -183,7 +184,7 @@ export type DailyTrendState = {
   }[];
 };
 
-/** publish_trend_backtest.py: both daily trend rules replayed on 23 years of real XAUUSD, and buy-and-hold. */
+/** A trend strategy's rules replayed on 23 years of real XAUUSD, and buy-and-hold (daily_trend_backtest / h4_trend_backtest). */
 export type TrendBacktest = {
   generated: number;
   from: number;

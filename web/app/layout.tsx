@@ -15,7 +15,7 @@ const text = IBM_Plex_Sans({
 
 export const metadata: Metadata = {
   title: "Gold Dojo",
-  description: "Gold Dojo: practise gold trading with live XAUUSD signals and research",
+  description: "Gold Dojo: live XAUUSD trend signals (Daily trend and 4-hour trend) and research",
 };
 
 // Runs before the page paints so it opens in the saved theme (or the system's) without a flash.

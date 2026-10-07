@@ -840,9 +840,6 @@ export default function TradingChart({
     ["bb", "Bollinger Bands (20, 2)"],
     ["rsi", "RSI (14) panel"],
     ["volume", "Tick volume"],
-    ["range", "Opening range"],
-    ["levels", "Entry, SL and TP lines"],
-    ["markers", "Signal markers"],
     ["grid", "Grid"],
   ];
 

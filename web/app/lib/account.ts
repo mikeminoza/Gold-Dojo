@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { LiveState, Position, SignalEvent, Sizing } from "./types";
+import type { LiveState, Sizing } from "./types";
 
 /**
  * Each person's own account size and risk. Saved on their profile (so it follows them to every
@@ -136,31 +136,4 @@ export function lotSize(entry: number, sl: number, tp: number, account: MyAccoun
     verdict,
     note,
   };
-}
-
-/** The open trade sized for this visitor's account, with its money result at that size. */
-export function sizePosition(pos: Position, account: MyAccount, rules: Rules): Position {
-  const size = lotSize(pos.entry, pos.sl, pos.tp, account, rules);
-  return { ...pos, size, pnl_usd: pos.pnl * size.lots * rules.oz_per_lot };
-}
-
-/**
- * Signals sized for this visitor's account: opens get their lot size, closes get the money result
- * at the size their open would have had. A close whose open isn't known is scaled by risk instead.
- */
-export function sizeEvents(events: SignalEvent[], account: MyAccount, rules: Rules): SignalEvent[] {
-  const opens = new Map<string, SignalEvent>();
-  for (const e of events) if (e.type === "open") opens.set(e.trade_id ?? e.id, e);
-  const scale = (account.balance * account.risk_percent) / (rules.balance * rules.risk_percent);
-  return events.map((e) => {
-    if (e.type === "open") {
-      return e.sl != null && e.tp != null ? { ...e, size: lotSize(e.price, e.sl, e.tp, account, rules) } : e;
-    }
-    const open = e.trade_id ? opens.get(e.trade_id) : undefined;
-    if (open?.sl != null && open.tp != null) {
-      const lots = lotSize(open.price, open.sl, open.tp, account, rules).lots;
-      return { ...e, lots, pnl_usd: (e.pnl ?? 0) * lots * rules.oz_per_lot };
-    }
-    return e.pnl_usd != null ? { ...e, pnl_usd: e.pnl_usd * scale, lots: null } : e;
-  });
 }

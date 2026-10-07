@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { DailyTrendState, LiveState, Position, Side, SignalEvent, Sizing, TradeContext, TradeWindow } from "../lib/types";
+import type { DailyTrendState, LiveState, Side } from "../lib/types";
 import StrategyGuide from "./StrategyGuide";
 import type { Theme } from "./TradingChart";
 import { useBotState } from "../lib/useBotState";
@@ -10,20 +10,17 @@ import { useLivePrice, type LivePrice } from "../lib/useLivePrice";
 import { useMyTrades } from "../lib/useMyTrades";
 import { anchorNear, useDraggable } from "../lib/useDraggable";
 import { useChat, type ChatMessage } from "../lib/useChat";
-import { journalCsv, useJournal, type JournalEntry } from "../lib/useJournal";
-import { tradeRs } from "../lib/performance";
-import { adoptProfileAccount, sizeEvents, sizePosition, useMyAccount } from "../lib/account";
+import { adoptProfileAccount, useMyAccount } from "../lib/account";
 import AccountForm from "./AccountForm";
 import ChatPanel from "./ChatPanel";
 import Performance from "./Performance";
 import NotificationCenter, { type Notice } from "./NotificationCenter";
 import BottomBar, { type SideTab } from "./BottomBar";
-import EmptyState, { Skeleton } from "./EmptyState";
+import EmptyState from "./EmptyState";
 import Fold from "./Fold";
 import Toaster from "./Toaster";
 import Tour from "./Tour";
-import { toast, toast as showToast } from "../lib/toast";
-import TradeSpark from "./TradeSpark";
+import { toast as showToast } from "../lib/toast";
 import DailyTrend, { TrendBrief, TrendTrades } from "./DailyTrend";
 import ProfileMenu, { type Me } from "./ProfileMenu";
 import { LotCalculator, PriceAlerts, useAlertWatcher, usePriceAlerts, type PriceAlert } from "./Tools";
@@ -39,7 +36,6 @@ const OFFLINE_AFTER_S = 180;
 const DEFAULT_RULES: LiveState["account"] = { balance: 500, risk_percent: 1, max_risk_percent: 2, oz_per_lot: 100, min_lot: 0.01 };
 
 const price = (n: number) => n.toFixed(2);
-const signed = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
 
 /** 12-hour time in a time zone, e.g. "3:00 PM" or "3:00:15 PM". */
 function clock12(t: number, tz: string, seconds = false) {
@@ -52,39 +48,14 @@ function clock12(t: number, tz: string, seconds = false) {
   });
 }
 
-/** Time formatters for the bot's display time zone (PH time), whatever the viewer's own clock says. */
-function timeFormat(tz: string, short = "PH") {
+/** "Mon 8:30 PM" when not today, else "8:30:15 PM", in the bot's display time zone (PH time). */
+function stamper(tz: string) {
   const dateKey = (t: number) => new Date(t * 1000).toLocaleDateString("en-CA", { timeZone: tz });
-  return {
-    /** "8:30 PM PH" - for times written into sentences */
-    hhmm: (t: number) => `${clock12(t, tz)} ${short}`,
-    /** "8:30 PM" - where the time zone is already stated nearby */
-    bare: (t: number) => clock12(t, tz),
-    /** "8:30:15 PM" - for lists that say their time zone in the heading */
-    clock: (t: number) => clock12(t, tz, true),
-    /** "Mon 8:30 PM" when not today, else "8:30:15 PM" */
-    stamp: (t: number, now: number) =>
-      dateKey(t) === dateKey(now)
-        ? clock12(t, tz, true)
-        : `${new Date(t * 1000).toLocaleDateString("en-US", { timeZone: tz, weekday: "short" })} ${clock12(t, tz)}`,
-    /** "Today", "Tomorrow" or a weekday name */
-    day: (t: number, now: number) => {
-      if (dateKey(t) === dateKey(now)) return "Today";
-      if (dateKey(t) === dateKey(now + 86400)) return "Tomorrow";
-      return new Date(t * 1000).toLocaleDateString("en-US", { timeZone: tz, weekday: "long" });
-    },
-  };
+  return (t: number, now: number) =>
+    dateKey(t) === dateKey(now)
+      ? clock12(t, tz, true)
+      : `${new Date(t * 1000).toLocaleDateString("en-US", { timeZone: tz, weekday: "short" })} ${clock12(t, tz)}`;
 }
-
-/** "3h 42m", "12m", "45s" */
-function countdown(seconds: number) {
-  const s = Math.max(0, Math.round(seconds));
-  if (s < 60) return `${s}s`;
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return h ? `${h}h ${m}m` : `${m}m`;
-}
-type TimeFormat = ReturnType<typeof timeFormat>;
 
 function ago(seconds: number) {
   if (seconds < 5) return "just now";
@@ -93,20 +64,9 @@ function ago(seconds: number) {
   return `${Math.floor(seconds / 3600)} h ago`;
 }
 
-/** The bot's state with the browser's live price on top; an open trade's P/L follows the live price. */
+/** The bot's state with the browser's live price on top. */
 function withLivePrice(state: LiveState, live: LivePrice | null): LiveState {
-  if (!live) return state;
-  const pos = state.position;
-  if (!pos) return { ...state, bid: live.bid, ask: live.ask };
-  const exit = pos.side === "BUY" ? live.bid : live.ask;
-  const pnl = pos.side === "BUY" ? exit - pos.entry : pos.entry - exit;
-  const lots = pos.size?.lots;
-  return {
-    ...state,
-    bid: live.bid,
-    ask: live.ask,
-    position: { ...pos, pnl, pnl_usd: lots ? pnl * lots * (state.account?.oz_per_lot ?? 100) : pos.pnl_usd },
-  };
+  return live ? { ...state, bid: live.bid, ask: live.ask } : state;
 }
 
 /** Dark / light theme. The head script in layout.tsx applies the saved choice before the page paints. */
@@ -214,44 +174,12 @@ function chime(side: Side, closing: boolean) {
   setTimeout(() => ctx.close(), 800);
 }
 
-/** Profit, loss or break-even for a result in $ per oz. `live` words it for a trade that's still open. */
-function outcome(pnl: number, live = false) {
-  if (Math.abs(pnl) < 0.005) return { tone: "even", label: "Break-even" };
-  if (pnl > 0) return { tone: "profit", label: live ? "In profit" : "Profit" };
-  return { tone: "loss", label: live ? "In loss" : "Loss" };
-}
-
-/** Result for 1 standard lot (100 oz), e.g. "+$394". */
-const perLot = (pnl: number) =>
-  `${pnl >= 0 ? "+" : "−"}$${Math.round(Math.abs(pnl * 100)).toLocaleString("en-US")}`;
-
 /** Account money, e.g. "$5.20", or signed "+$5.20" / "−$5.20". */
 const usd = (n: number, sign = false) =>
   `${sign ? (n >= 0 ? "+" : "−") : n < 0 ? "−" : ""}$${Math.abs(n).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-
-/** Result line for a trade: money at the suggested size when known, else per oz and per lot. */
-function resultText(pnl: number, pnlUsd: number | null | undefined, lots: number | null | undefined) {
-  return pnlUsd != null && lots
-    ? `${usd(pnlUsd, true)} at ${lots.toFixed(2)} lot (${signed(pnl)} per oz)`
-    : `${signed(pnl)} per oz, ${perLot(pnl)} on 1 lot`;
-}
-
-function SizeAdvice({ size }: { size: Sizing }) {
-  return (
-    <div className="size" data-verdict={size.verdict}>
-      <p>
-        Suggested size <strong>{size.lots.toFixed(2)} lot</strong>
-      </p>
-      <p>
-        Risk {usd(size.risk)} ({size.risk_percent.toFixed(1)}%), target {usd(size.reward)}
-      </p>
-      {size.verdict !== "ok" && <p className="size-note">{size.note}</p>}
-    </div>
-  );
-}
 
 /** A short, soft two-note "pop" for chat messages (different from the trade-signal chime). */
 function chatSound() {
@@ -276,41 +204,13 @@ function chatSound() {
   }
 }
 
-function describe(e: SignalEvent) {
-  return e.type === "open"
-    ? `${e.side === "BUY" ? "Buy" : "Sell"} at ${price(e.price)}`
-    : `${outcome(e.pnl ?? 0).label}: closed ${e.side === "BUY" ? "buy" : "sell"} at ${price(e.price)}, ` +
-        `${signed(e.pnl ?? 0)} per oz`;
-}
-
-/** Alerts (sound + browser notification) whenever a new signal event arrives. */
-function useSignalAlerts(history: SignalEvent[] | undefined, enabled: boolean) {
-  const seen = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    if (!history) return;
-    const latest = history[0]?.id ?? null;
-    if (seen.current === undefined) {
-      seen.current = latest; // first load: don't alert on old signals
-      return;
-    }
-    if (latest === seen.current || !history[0]) return;
-    seen.current = latest;
-    if (!enabled) return;
-    const e = history[0];
-    chime(e.side, e.type === "close");
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(e.type === "open" ? `${e.side} gold` : "Signal closed", { body: describe(e) });
-    }
-  }, [history, enabled]);
-}
-
-/** Sound + notification when a Daily trend rule signals a buy, opens or closes a paper trade. */
-function useTrendAlerts(trend: DailyTrendState | null | undefined, enabled: boolean) {
+/** Sound + notification when a trend strategy's rule signals a buy, opens or closes a paper trade. */
+function useTrendAlerts(trend: DailyTrendState | null | undefined, enabled: boolean, strategy: Strategy) {
   const seen = useRef<Set<string> | null>(null);
   useEffect(() => {
     if (!trend) return;
     const events = trend.rules.flatMap((x) => [
-      ...(x.pending ? [{ key: `pending-${x.id}-${trend.levels?.hh100 ?? ""}-${x.trigger ?? ""}`, close: false, text: `${x.name}: buy at the next daily open` }] : []),
+      ...(x.pending ? [{ key: `pending-${x.id}-${trend.levels?.hh100 ?? ""}-${x.trigger ?? ""}`, close: false, text: `${x.name}: buy at the next ${CANDLE[strategy]} open` }] : []),
       ...(x.position ? [{ key: `open-${x.id}-${x.position.opened}`, close: false, text: `${x.name}: bought at ${price(x.position.entry)}` }] : []),
       ...x.trades.map((tr) => ({
         key: `close-${x.id}-${tr.closed}`,
@@ -327,519 +227,37 @@ function useTrendAlerts(trend: DailyTrendState | null | undefined, enabled: bool
     const e = fresh[0];
     chime("BUY", e.close);
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("Daily trend (paper)", { body: e.text, tag: "daily-trend" });
+      new Notification(`${STRATEGIES[strategy]} (paper)`, { body: e.text, tag: `trend-${strategy}` });
     }
-  }, [trend, enabled]);
+  }, [trend, enabled, strategy]);
 }
 
-function Ladder({ position, bid, ask }: { position: Position; bid: number; ask: number }) {
-  const { side, entry, sl, tp } = position;
-  const now = side === "BUY" ? bid : ask;
-  // 0 = stop loss, 1 = take profit, whichever direction the trade runs
-  const progress = (p: number) => Math.min(1, Math.max(0, (p - sl) / (tp - sl)));
-  const reward = Math.abs(tp - entry);
-  const risk = Math.abs(entry - sl);
+/** The two strategies: Daily trend (the main one) and 4-hour trend, each its own tracker in the bot's state. */
+type Strategy = "trend" | "h4";
+const STRATEGIES: Record<Strategy, string> = { trend: "Daily trend", h4: "4-hour trend" };
+const CANDLE: Record<Strategy, "daily" | "4-hour"> = { trend: "daily", h4: "4-hour" };
+const TAGS: Record<Strategy, string> = {
+  trend: "Main strategy · daily candles · paper test",
+  h4: "4-hour candles · paper test",
+};
+const tracker = (state: LiveState, s: Strategy) => (s === "trend" ? state.daily_trend : state.h4_trend) ?? null;
+const isStrategy = (s: unknown): s is Strategy => s === "trend" || s === "h4";
 
-  return (
-    <div className="ladder" aria-label="Where price is between stop loss and take profit">
-      <div className="ladder-end target">
-        <span>Take profit</span>
-        <strong>{price(tp)}</strong>
-        <em>+{reward.toFixed(2)}</em>
-      </div>
-      <div className="ladder-rail">
-        <div className="ladder-fill" style={{ height: `${progress(now) * 100}%` }} data-winning={position.pnl >= 0} />
-        <div className="ladder-mark entry" style={{ bottom: `${progress(entry) * 100}%` }}>
-          <span>Entry {price(entry)}</span>
-        </div>
-        <div className="ladder-mark now" style={{ bottom: `${progress(now) * 100}%` }}>
-          <span>{price(now)}</span>
-        </div>
-      </div>
-      <div className="ladder-end stop">
-        <span>Stop loss</span>
-        <strong>{price(sl)}</strong>
-        <em>−{risk.toFixed(2)}</em>
-      </div>
-    </div>
-  );
+/** Each tracker's paper trades as notices, e.g. "4-hour trend (paper): 4-hour breakout closed +1.20R". */
+function trendNotices(trend: DailyTrendState | null, s: Strategy): Notice[] {
+  return (trend?.rules ?? []).flatMap((r): Notice[] => [
+    ...(r.position
+      ? [{ id: `${s}-open-${r.id}-${r.position.opened}`, time: r.position.opened, kind: "trend" as const, text: `${STRATEGIES[s]} (paper): ${r.name} bought at ${price(r.position.entry)}` }]
+      : []),
+    ...r.trades.map((tr) => ({
+      id: `${s}-close-${r.id}-${tr.closed}`,
+      time: tr.closed,
+      kind: "trend" as const,
+      text: `${STRATEGIES[s]} (paper): ${r.name} closed ${tr.r >= 0 ? "+" : "−"}${Math.abs(tr.r).toFixed(2)}R`,
+      tone: (tr.r >= 0 ? "profit" : "loss") as Notice["tone"],
+    })),
+  ]);
 }
-
-function Checklist({ state }: { state: LiveState }) {
-  return (
-    <div className="checklist">
-      <p className="checklist-intro">{state.strategy.summary}</p>
-      {(["BUY", "SELL"] as const).map((side) => {
-        const items = state.conditions[side];
-        const ready = items.filter((c) => c.ok).length;
-        return (
-          <section key={side} className="checklist-side" data-side={side}>
-            <h3>
-              {side === "BUY" ? "Next buy" : "Next sell"}
-              <span>
-                {ready} of {items.length} ready
-              </span>
-            </h3>
-            <ul>
-              {items.map((c) => (
-                <li key={c.label} data-ok={c.ok}>
-                  <span aria-hidden>{c.ok ? "✓" : "–"}</span>
-                  {c.label}
-                  <span className="sr-only">{c.ok ? "(met)" : "(not met)"}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Headline under "Wait": what's happening now, and a highlighted countdown to the next session. */
-function WaitingStatus({ state, now }: { state: LiveState; now: number }) {
-  const next = state.windows[0];
-  const idle = !next || next.state === "later";
-  const start = next ? (next.range_start ?? next.first_entry) : 0;
-  return (
-    <div className="waiting">
-      <p className="waiting-headline">{idle ? "No session open right now" : state.session.message}</p>
-      {idle && next && (
-        <p className="next-up">
-          <span>Next up</span>
-          <strong>
-            {next.name} opens in {countdown(start - now)}
-          </strong>
-        </p>
-      )}
-    </div>
-  );
-}
-
-function sessionStatus(w: TradeWindow, now: number) {
-  if (w.traded) return { tone: "done", text: "Traded" };
-  if (w.state === "range") return { tone: "soon", text: "Marking range" };
-  if (w.state === "trading") return now <= w.last_entry ? { tone: "live", text: "Open now" } : { tone: "done", text: "Closing" };
-  return { tone: "later", text: `In ${countdown((w.range_start ?? w.first_entry) - now)}` };
-}
-
-/** The current and next sessions, in PH time, with each exchange's own time underneath. */
-function SessionSchedule({ state, now, t }: { state: LiveState; now: number; t: TimeFormat }) {
-  if (state.windows.length === 0) return null;
-  return (
-    <section className="schedule" aria-label="Trading sessions">
-      <h2>
-        Sessions <span>{state.display.label}</span>
-      </h2>
-      <ul>
-        {state.windows.map((w) => {
-          const start = w.range_start ?? w.first_entry;
-          const end = w.close ?? w.last_entry;
-          const status = sessionStatus(w, now);
-          return (
-            <li key={`${w.name}-${start}`} data-tone={status.tone}>
-              <div className="schedule-main">
-                <strong>{w.name}</strong>
-                <span className="schedule-time">
-                  {t.bare(start)} – {t.bare(end)}
-                </span>
-              </div>
-              <div className="schedule-sub">
-                <span>
-                  {t.day(start, now)}
-                  {w.tz && ` · ${clock12(start, w.tz)} ${w.name} time`}
-                </span>
-                <span className="schedule-pill">{status.text}</span>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
-
-/** Totals over the closed trades the page knows about (the bot keeps the most recent ones). */
-/** One line of totals for the closed trades in the period: net result, then the counts. */
-function Results({ events, balance }: { events: SignalEvent[]; balance: number }) {
-  const closed = events.filter((e) => e.type === "close");
-  if (closed.length === 0) return null;
-  const pnls = closed.map((e) => e.pnl ?? 0);
-  const wins = pnls.filter((p) => outcome(p).tone === "profit").length;
-  const net = pnls.reduce((a, b) => a + b, 0);
-  // Money totals only when every closed trade carries its suggested size
-  const sized = closed.every((e) => e.pnl_usd != null);
-  const netUsd = sized ? closed.reduce((a, e) => a + (e.pnl_usd ?? 0), 0) : null;
-  const o = outcome(netUsd ?? net);
-  const rs = tradeRs(events);
-  const avgR = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null;
-  return (
-    <div className="results">
-      <p className="results-net">
-        <strong data-tone={o.tone}>{netUsd !== null ? usd(netUsd, true) : `${signed(net)}/oz`}</strong>
-        {netUsd !== null && (
-          <span data-tone={o.tone}>
-            {netUsd >= 0 ? "+" : "−"}
-            {Math.abs((100 * netUsd) / balance).toFixed(1)}%
-          </span>
-        )}
-      </p>
-      <p className="results-line">
-        {closed.length} {closed.length === 1 ? "trade" : "trades"} · {wins} won ·{" "}
-        {Math.round((100 * wins) / closed.length)}% win rate ·{" "}
-        <abbr title="Profit factor: money won divided by money lost. Above 1 means profitable.">PF</abbr>{" "}
-        {profitFactor(closed)}
-        {avgR !== null && (
-          <>
-            {" · "}
-            <abbr title="Expectancy: the average result per trade in R (1R = the stop distance). Above 0 means profitable.">
-              avg
-            </abbr>{" "}
-            {avgR >= 0 ? "+" : "−"}
-            {Math.abs(avgR).toFixed(2)}R
-          </>
-        )}
-      </p>
-      <SessionSplit closed={closed} />
-    </div>
-  );
-}
-
-/** Money won / money lost; above 1 means the trades made money overall. */
-function profitFactor(closed: SignalEvent[]) {
-  const value = (e: SignalEvent) => e.pnl_usd ?? e.pnl ?? 0;
-  const won = closed.filter((e) => value(e) > 0).reduce((a, e) => a + value(e), 0);
-  const lost = -closed.filter((e) => value(e) < 0).reduce((a, e) => a + value(e), 0);
-  if (lost === 0) return won > 0 ? "∞" : "–";
-  return (won / lost).toFixed(2);
-}
-
-/** Results per session (e.g. London vs New York), when trades came from more than one. */
-function SessionSplit({ closed }: { closed: SignalEvent[] }) {
-  const groups = new Map<string, SignalEvent[]>();
-  for (const e of closed) {
-    const key = e.session ?? "Other";
-    groups.set(key, [...(groups.get(key) ?? []), e]);
-  }
-  if (groups.size < 2) return null;
-  return (
-    <table className="results-split">
-      <caption>By session</caption>
-      <thead>
-        <tr>
-          <th scope="col">Session</th>
-          <th scope="col">Trades</th>
-          <th scope="col">Win rate</th>
-          <th scope="col">Result</th>
-        </tr>
-      </thead>
-      <tbody>
-        {[...groups].map(([name, list]) => {
-          const net = list.reduce((a, e) => a + (e.pnl_usd ?? e.pnl ?? 0), 0);
-          const wins = list.filter((e) => (e.pnl_usd ?? e.pnl ?? 0) > 0).length;
-          return (
-            <tr key={name}>
-              <th scope="row">{name}</th>
-              <td>{list.length}</td>
-              <td>{Math.round((100 * wins) / list.length)}%</td>
-              <td data-tone={net > 0 ? "profit" : net < 0 ? "loss" : undefined}>{usd(net, true)}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
-type Period = "week" | "month" | "all";
-const PERIODS: [Period, string][] = [
-  ["week", "This week"],
-  ["month", "This month"],
-  ["all", "All time"],
-];
-
-/** Start of this week (Monday) or month, in the display time zone, as UTC seconds. */
-function periodStart(period: Period, now: number, offset: number) {
-  if (period === "all") return 0;
-  const local = now + offset;
-  if (period === "week") {
-    const day = Math.floor(local / 86400);
-    const sinceMonday = (day + 3) % 7; // 1 Jan 1970 was a Thursday
-    return (day - sinceMonday) * 86400 - offset;
-  }
-  const d = new Date(local * 1000);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000 - offset;
-}
-
-function fromJournal(e: JournalEntry, account: LiveState["account"]): SignalEvent {
-  const riskPercent = e.risk != null ? (100 * e.risk) / account.balance : 0;
-  return {
-    id: e.event_id,
-    type: e.type,
-    side: e.side,
-    price: e.price,
-    time: Date.parse(e.created_at) / 1000,
-    sl: e.sl ?? undefined,
-    tp: e.tp ?? undefined,
-    entry: e.entry ?? undefined,
-    pnl: e.pnl ?? undefined,
-    pnl_usd: e.pnl_usd,
-    lots: e.lots,
-    reason: e.reason ?? undefined,
-    session: e.session ?? undefined,
-    trade_id: e.trade_id,
-    mfe_r: e.mfe_r ?? null,
-    mae_r: e.mae_r ?? null,
-    context: e.context ?? null,
-    size:
-      e.type === "open" && e.lots != null
-        ? {
-            lots: e.lots,
-            risk: e.risk ?? 0,
-            reward: 0,
-            risk_percent: riskPercent,
-            verdict: riskPercent > account.max_risk_percent ? "skip" : "ok",
-            note: "",
-          }
-        : undefined,
-  };
-}
-
-/**
- * Every signal ever recorded (the journal in Supabase), with results for a chosen period and a CSV
- * download. Falls back to the bot's recent history until the journal table exists.
- */
-function Journal({
-  journal,
-  all,
-  balance,
-  state,
-  t,
-  now,
-  onReplay,
-  myTrades,
-  gap,
-}: {
-  gap: number;
-  onReplay: (e: SignalEvent) => void;
-  myTrades: MyTrades;
-  journal: ReturnType<typeof useJournal>;
-  all: SignalEvent[]; // every signal, sized for the visitor's account
-  balance: number;
-  state: LiveState;
-  t: TimeFormat;
-  now: number;
-}) {
-  const [period, setPeriod] = useState<Period>("all");
-  const usingJournal = journal.available && journal.entries.length > 0;
-  const since = periodStart(period, now, state.display.offset);
-  const events = all.filter((e) => e.time >= since);
-
-  function download() {
-    const csv = journalCsv(journal.entries, state.display.tz);
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    link.download = `gold-dojo-signals-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }
-
-  return (
-    <>
-      <div className="journal-bar">
-        <div className="journal-periods" role="group" aria-label="Period">
-          {PERIODS.map(([key, label]) => (
-            <button key={key} type="button" aria-pressed={period === key} onClick={() => setPeriod(key)}>
-              {label}
-            </button>
-          ))}
-        </div>
-        {usingJournal && (
-          <button type="button" className="journal-csv" onClick={download}>
-            Download CSV
-          </button>
-        )}
-      </div>
-      {!journal.available && (
-        <p className="note">
-          Showing recent signals only. Run <code>supabase/signals.sql</code> in Supabase to keep every signal
-          permanently.
-        </p>
-      )}
-      {!journal.ready && journal.available ? (
-        <Skeleton lines={3} />
-      ) : (
-        <Results events={events} balance={balance} />
-      )}
-      <History
-        key={period}
-        events={events}
-        t={t}
-        now={now}
-        tz={state.display.tz}
-        onReplay={onReplay}
-        symbol={state.symbol}
-        myTrades={myTrades}
-        ozPerLot={state.account.oz_per_lot}
-        position={state.position}
-        gap={gap}
-      />
-    </>
-  );
-}
-
-/** This week's major US releases by day, in PH time; signals pause around each one. */
-function NewsWeek({ state, t, now }: { state: LiveState; t: TimeFormat; now: number }) {
-  const events = state.news_week;
-  if (!events) return null;
-  const pause = (state.news_pause_minutes ?? 30) * 60;
-  const days = new Map<string, { time: number; title: string }[]>();
-  for (const e of [...events].sort((a, b) => a.time - b.time)) {
-    const day = t.day(e.time, now);
-    days.set(day, [...(days.get(day) ?? []), e]);
-  }
-  return (
-    <>
-      {events.length === 0 ? (
-        <p className="empty">No high-impact US releases on the calendar this week.</p>
-      ) : (
-        <>
-          <ol className="news-week">
-            {[...days].map(([day, list]) => (
-              <li key={day}>
-                <h3>{day}</h3>
-                <ul>
-                  {list.map((e) => {
-                    const status = now > e.time + pause ? "past" : now >= e.time - pause ? "now" : "soon";
-                    return (
-                      <li key={`${e.time}-${e.title}`} data-status={status}>
-                        <time>{t.bare(e.time)}</time>
-                        <span>{e.title}</span>
-                        {status === "now" && <em>Signals paused</em>}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
-            ))}
-          </ol>
-          <p className="note">
-            New signals pause {state.news_pause_minutes ?? 30} minutes before and after each release. Source: Forex
-            Factory calendar.
-          </p>
-        </>
-      )}
-    </>
-  );
-}
-
-type MyTrades = ReturnType<typeof useMyTrades>;
-
-/** Copy the trade's levels for pasting into MT5, and mark whether you took it. */
-function TradeActions({
-  tradeId,
-  symbol,
-  side,
-  entry,
-  sl,
-  tp,
-  lots,
-  myTrades,
-  children,
-}: {
-  tradeId?: string | null;
-  symbol: string;
-  side: Side;
-  entry: number;
-  sl: number;
-  tp: number;
-  lots?: number;
-  myTrades: MyTrades;
-  children?: React.ReactNode;
-}) {
-  const [copied, setCopied] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const took = tradeId ? myTrades.taken.get(tradeId) : undefined;
-  const mark = (lotsOrNull: number | null) => {
-    if (!tradeId || saving) return;
-    setSaving(true);
-    void myTrades.mark(tradeId, lotsOrNull).finally(() => {
-      setSaving(false);
-      toast(lotsOrNull ? "Marked as taken" : "Unmarked");
-    });
-  };
-  const copy = () => {
-    const text = [
-      `${side} ${symbol}${lots ? ` ${lots.toFixed(2)} lot` : ""}`,
-      `Entry ${price(entry)}`,
-      `Stop loss ${price(sl)}`,
-      `Take profit ${price(tp)}`,
-    ].join("\n");
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        toast("Levels copied: paste them into MT5");
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      })
-      .catch(() => {});
-  };
-  return (
-    <div className="trade-actions">
-      <button type="button" onClick={copy}>
-        {copied ? "Copied ✓" : "Copy levels"}
-      </button>
-      {tradeId &&
-        myTrades.available &&
-        (took ? (
-          <button type="button" aria-pressed="true" data-busy={saving || undefined} onClick={() => mark(null)} title="Undo">
-            {saving && <span className="btn-spinner" aria-hidden />}✓ You took this ({took.toFixed(2)} lot)
-          </button>
-        ) : (
-          <button type="button" data-busy={saving || undefined} onClick={() => mark(lots ?? 0.01)}>
-            {saving && <span className="btn-spinner" aria-hidden />}
-            {saving ? "Saving…" : "I took this trade"}
-          </button>
-        ))}
-      {children}
-    </div>
-  );
-}
-
-function ReplayButton({ e, onReplay }: { e: SignalEvent; onReplay?: (e: SignalEvent) => void }) {
-  if (!onReplay) return null;
-  return (
-    <button type="button" className="history-replay" onClick={() => onReplay(e)}>
-      Show on chart
-    </button>
-  );
-}
-
-const FIRST_TRADES = 8; // shown at first; "Show more" adds MORE_TRADES at a time
-const MORE_TRADES = 10;
-
-/** Plain-words tags for the market at a signal: how wide the range was and how strong the trend. */
-function ContextTags({ ctx }: { ctx: TradeContext }) {
-  const tags: string[] = [];
-  if (ctx.range_atr != null) {
-    tags.push(ctx.range_atr < 1 ? "Narrow range" : ctx.range_atr > 2 ? "Wide range" : "Normal range");
-  }
-  if (ctx.trend_pct != null) {
-    tags.push(ctx.trend_pct < 1 ? "Weak trend" : ctx.trend_pct > 3 ? "Strong trend" : "Moderate trend");
-  }
-  if (ctx.cost_pct != null) tags.push(`Costs ${ctx.cost_pct}% of stop`);
-  if (tags.length === 0) return null;
-  return (
-    <p className="trade-tags">
-      {tags.map((tag) => (
-        <span key={tag}>{tag}</span>
-      ))}
-    </p>
-  );
-}
-
-type Strategy = "trend" | "ny";
-const STRATEGIES: Record<Strategy, string> = { trend: "Daily trend", ny: "NY practice" };
 
 const SIDE_TABS: [SideTab | "tools", string][] = [
   ["signal", "Signal"],
@@ -847,226 +265,12 @@ const SIDE_TABS: [SideTab | "tools", string][] = [
   ["tools", "Tools"],
 ];
 
-/** A trade: its opening signal and, once it has ended, its close. */
-type Trade = { id: string; open?: SignalEvent; close?: SignalEvent; time: number };
-
-/** Pair each close with the signal that opened it, newest trade first. */
-function toTrades(events: SignalEvent[]): Trade[] {
-  const trades = new Map<string, Trade>();
-  for (const e of events) {
-    const id = e.type === "open" ? (e.trade_id ?? e.id) : (e.trade_id ?? e.id);
-    const t = trades.get(id) ?? { id, time: e.time };
-    if (e.type === "open") {
-      t.open = e;
-      t.time = e.time;
-    } else {
-      t.close = e;
-      if (!t.open) t.time = e.time;
-    }
-    trades.set(id, t);
-  }
-  return [...trades.values()].sort((a, b) => b.time - a.time);
-}
-
 /** "Today", "Yesterday" or "Mon, Oct 5", in the display time zone. */
 function dayLabel(time: number, now: number, tz: string) {
   const key = (t: number) => new Date(t * 1000).toLocaleDateString("en-CA", { timeZone: tz });
   if (key(time) === key(now)) return "Today";
   if (key(time) === key(now - 86400)) return "Yesterday";
   return new Date(time * 1000).toLocaleDateString("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" });
-}
-
-function TradeCard({
-  trade,
-  live,
-  t,
-  symbol,
-  myTrades,
-  ozPerLot,
-  onReplay,
-  gap,
-}: {
-  gap: number;
-  trade: Trade;
-  live: Position | null; // the open trade's live result, when this is it
-  t: TimeFormat;
-  symbol: string;
-  myTrades: MyTrades;
-  ozPerLot: number;
-  onReplay?: (e: SignalEvent) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const { open: o, close: c } = trade;
-  const side = (o ?? c)!.side;
-  const entry = o?.price ?? c?.entry;
-  const pnl = c ? (c.pnl ?? 0) : live ? live.pnl : null;
-  const money = c ? c.pnl_usd : live?.pnl_usd;
-  const lots = c?.lots ?? o?.size?.lots;
-  const risk = o?.sl != null && entry != null ? Math.abs(entry - o.sl) : null;
-  const r = pnl != null && risk ? pnl / risk : null;
-  const tone = pnl == null ? "even" : outcome(pnl).tone;
-  const mine = myTrades.taken.get(trade.id);
-  const ended = c?.reason?.replace(/ hit$/, "") ?? (live ? "Open now" : "Open");
-  const detailsId = `trade-${trade.id}`;
-
-  return (
-    <li className="trade" data-tone={tone} data-open={!c || undefined}>
-      <button
-        type="button"
-        className="trade-row"
-        aria-expanded={open}
-        aria-controls={detailsId}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className="trade-side" data-side={side}>
-          {side}
-        </span>
-        <span className="trade-prices">
-          {entry != null ? price(entry) : "–"}
-          <span aria-hidden> → </span>
-          <span className="sr-only"> to </span>
-          {c ? price(c.price) : <em>{live ? "live" : "open"}</em>}
-        </span>
-        <span className="trade-result">
-          {money != null ? usd(money, true) : pnl != null ? `${signed(pnl)}/oz` : "–"}
-        </span>
-        <span className="trade-meta">
-          {t.bare(trade.time)} · {!c && <i className="trade-live" aria-hidden />}
-          {ended}
-          {lots ? ` · ${lots.toFixed(2)} lot` : ""}
-          {r != null && ` · ${r >= 0 ? "+" : "−"}${Math.abs(r).toFixed(1)}R`}
-          {mine && <span className="trade-mine"> · ✓ You took it</span>}
-        </span>
-      </button>
-      {open && (
-        <div className="trade-details" id={detailsId}>
-          {o && <TradeSpark open={o} close={c} gap={gap} />}
-          {o?.reason && <p>{o.reason}.</p>}
-          {o?.context && <ContextTags ctx={o.context} />}
-          {o?.sl != null && o.tp != null && (
-            <p>
-              Stop {price(o.sl)} · Target {price(o.tp)}
-              {o.size && ` · risk ${usd(o.size.risk)}`}
-              {o.size?.verdict === "skip" && " (above your risk limit)"}
-            </p>
-          )}
-          {c && (
-            <p>
-              Closed {t.bare(c.time)} at {price(c.price)}: {resultText(c.pnl ?? 0, c.pnl_usd, c.lots)}
-            </p>
-          )}
-          {c?.mfe_r != null && c.mae_r != null && (
-            <p className="trade-excursion">
-              Before closing it went up to <strong data-tone="profit">+{c.mfe_r.toFixed(1)}R</strong> in your favour
-              and <strong data-tone="loss">{c.mae_r.toFixed(1)}R</strong> against.
-              {c.mfe_r >= 1 && (c.pnl ?? 0) < 0 && " It was in profit before it turned."}
-            </p>
-          )}
-          {mine && c && (
-            <p className="history-mine" data-tone={tone}>
-              Your result: {usd((c.pnl ?? 0) * mine * ozPerLot, true)} at {mine.toFixed(2)} lot
-            </p>
-          )}
-          {o && o.sl != null && o.tp != null ? (
-            <TradeActions
-              tradeId={trade.id}
-              symbol={symbol}
-              side={side}
-              entry={o.price}
-              sl={o.sl}
-              tp={o.tp}
-              lots={o.size?.lots}
-              myTrades={myTrades}
-            >
-              <ReplayButton e={o} onReplay={onReplay} />
-            </TradeActions>
-          ) : (
-            <ReplayButton e={(o ?? c)!} onReplay={onReplay} />
-          )}
-        </div>
-      )}
-    </li>
-  );
-}
-
-/** Trades grouped by day; tap one for its details and actions. */
-function History({
-  events,
-  t,
-  now,
-  tz,
-  onReplay,
-  symbol,
-  myTrades,
-  ozPerLot,
-  position,
-  gap,
-}: {
-  gap: number;
-  events: SignalEvent[];
-  t: TimeFormat;
-  now: number;
-  tz: string;
-  onReplay?: (e: SignalEvent) => void;
-  symbol: string;
-  myTrades: MyTrades;
-  ozPerLot: number;
-  position: Position | null;
-}) {
-  const [limit, setLimit] = useState(FIRST_TRADES);
-  const all = toTrades(events);
-  const trades = all.slice(0, limit);
-  if (all.length === 0) {
-    return (
-      <EmptyState title="No signals in this period">
-        They appear here the moment the bot sends one. New York sessions run 8:30–11:30 PM PH time (an hour later in
-        the US winter).
-      </EmptyState>
-    );
-  }
-  const days = new Map<string, Trade[]>();
-  for (const tr of trades) {
-    const label = dayLabel(tr.time, now, tz);
-    days.set(label, [...(days.get(label) ?? []), tr]);
-  }
-  return (
-    <div className="trades">
-      {[...days].map(([label, list]) => (
-        <section key={label} aria-label={label}>
-          <h3 className="trade-day">{label}</h3>
-          <ul>
-            {list.map((tr) => (
-              <TradeCard
-                key={tr.id}
-                trade={tr}
-                live={!tr.close && position?.trade_id === tr.id ? position : null}
-                t={t}
-                symbol={symbol}
-                myTrades={myTrades}
-                ozPerLot={ozPerLot}
-                onReplay={onReplay}
-                gap={gap}
-              />
-            ))}
-          </ul>
-        </section>
-      ))}
-      {(all.length > limit || limit > FIRST_TRADES) && (
-        <div className="trades-more">
-          {all.length > limit && (
-            <button type="button" className="journal-csv" onClick={() => setLimit((n) => n + MORE_TRADES)}>
-              Show {Math.min(MORE_TRADES, all.length - limit)} more ({all.length - limit} left)
-            </button>
-          )}
-          {limit > FIRST_TRADES && (
-            <button type="button" className="link-button" onClick={() => setLimit(FIRST_TRADES)}>
-              Show less
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export default function Dashboard() {
@@ -1077,20 +281,9 @@ export default function Dashboard() {
   const rules = botState?.account ?? DEFAULT_RULES;
   const my = useMyAccount(rules);
   const { account } = my;
-  // The bot's state with the live price on top, and the open trade sized for this visitor's account
-  const state = useMemo(() => {
-    if (!botState) return null;
-    const s = withLivePrice(botState, live);
-    return s.position && s.account ? { ...s, position: sizePosition(s.position, account, s.account) } : s;
-  }, [botState, live, account]);
-  const journal = useJournal();
+  // The bot's state with the live price on top
+  const state = useMemo(() => (botState ? withLivePrice(botState, live) : null), [botState, live]);
   const myTrades = useMyTrades();
-  const signals = useMemo(() => {
-    if (!botState?.account) return [];
-    const usingJournal = journal.available && journal.entries.length > 0;
-    const all = usingJournal ? journal.entries.map((e) => fromJournal(e, botState.account)) : (botState.history ?? []);
-    return sizeEvents(all, account, botState.account);
-  }, [journal.available, journal.entries, botState, account]);
   // Sidebar tab (remembered in this browser)
   const [perfOpen, setPerfOpen] = useState(false); // the Performance pop-up
   const closePerf = useCallback(() => setPerfOpen(false), []);
@@ -1105,7 +298,7 @@ export default function Dashboard() {
   // Which strategy the signal card shows (Daily trend is the main one), and which ones send alerts
   const [strategy, setStrategy] = useState<Strategy>(() => {
     try {
-      return localStorage.getItem("gold-strategy") === "ny" ? "ny" : "trend";
+      return localStorage.getItem("gold-strategy") === "h4" ? "h4" : "trend";
     } catch {
       return "trend";
     }
@@ -1120,10 +313,10 @@ export default function Dashboard() {
   };
   const [follow, setFollow] = useState<Strategy[]>(() => {
     try {
-      const v = JSON.parse(localStorage.getItem("gold-alert-strategies") ?? '["trend"]');
-      return Array.isArray(v) ? v.filter((s): s is Strategy => s === "trend" || s === "ny") : ["trend"];
+      const v = JSON.parse(localStorage.getItem("gold-alert-strategies") ?? '["trend","h4"]');
+      return Array.isArray(v) ? v.filter(isStrategy) : ["trend", "h4"];
     } catch {
-      return ["trend"];
+      return ["trend", "h4"];
     }
   });
   const toggleFollow = (s: Strategy) => {
@@ -1146,20 +339,6 @@ export default function Dashboard() {
     if (scroll) document.querySelector(".side-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const [accountOpen, setAccountOpen] = useState(false);
-  const [replay, setReplay] = useState<{ open: SignalEvent; close?: SignalEvent; label: string } | null>(null);
-  /** Show a past trade on the chart: its open, close, entry / stop / target. */
-  const showTrade = (e: SignalEvent) => {
-    const tradeId = e.type === "open" ? (e.trade_id ?? e.id) : e.trade_id;
-    const open = e.type === "open" ? e : signals.find((x) => x.type === "open" && (x.trade_id ?? x.id) === tradeId);
-    if (!open) return;
-    const close = signals.find((x) => x.type === "close" && x.trade_id === (open.trade_id ?? open.id));
-    const side = open.side === "BUY" ? "Buy" : "Sell";
-    const result = close
-      ? `${outcome(close.pnl ?? 0).label} ${close.pnl_usd != null ? usd(close.pnl_usd, true) : `${signed(close.pnl ?? 0)} per oz`}`
-      : "still open";
-    setReplay({ open, close, label: `${side} at ${price(open.price)}, ${result}` });
-    document.querySelector(".chart-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  };
   const [alerts, setAlerts] = useState(() => {
     try {
       return localStorage.getItem("gold-sound-alerts") === "1";
@@ -1202,8 +381,8 @@ export default function Dashboard() {
   const prevBid = useRef<number | null>(null);
   const [tickDir, setTickDir] = useState<"up" | "down" | null>(null);
 
-  useSignalAlerts(state?.history, alerts && follow.includes("ny"));
-  useTrendAlerts(state?.daily_trend, alerts && follow.includes("trend"));
+  useTrendAlerts(state?.daily_trend, alerts && follow.includes("trend"), "trend");
+  useTrendAlerts(state?.h4_trend, alerts && follow.includes("h4"), "h4");
 
   // Price alerts: sound + notification when the live price reaches one
   const priceAlerts = usePriceAlerts();
@@ -1223,21 +402,11 @@ export default function Dashboard() {
     prevBid.current = state.bid;
   }, [state]);
 
-  const position = state?.position ?? null;
-  const trendRules = state?.daily_trend?.rules ?? [];
-  const word =
-    strategy === "trend"
-      ? trendRules.some((x) => x.position)
-        ? "Long"
-        : trendRules.some((x) => x.pending)
-          ? "Buy"
-          : "Wait"
-      : position
-        ? position.side === "BUY"
-          ? "Buy"
-          : "Sell"
-        : "Wait";
-  const cardSide = word === "Wait" ? "WAIT" : word === "Sell" ? "SELL" : "BUY";
+  // The chosen strategy's tracker: Long while a rule holds a paper trade, Buy when one buys at the next open
+  const trend = state ? tracker(state, strategy) : null;
+  const trendRules = trend?.rules ?? [];
+  const word = trendRules.some((x) => x.position) ? "Long" : trendRules.some((x) => x.pending) ? "Buy" : "Wait";
+  const cardSide = word === "Wait" ? "WAIT" : "BUY";
 
   useEffect(() => {
     if (state) {
@@ -1336,38 +505,17 @@ export default function Dashboard() {
     );
   }
 
-  const t = timeFormat(state.display.tz, state.display.short);
+  const stamp = stamper(state.display.tz);
   const notices: Notice[] = [
-    ...signals.slice(0, 20).map((e): Notice => ({
-      id: e.id,
-      time: e.time,
-      kind: e.type === "open" ? "signal" : "close",
-      text:
-        e.type === "open"
-          ? `NY practice: ${e.side === "BUY" ? "buy" : "sell"} signal at ${price(e.price)}`
-          : `NY practice: ${outcome(e.pnl ?? 0).label.toLowerCase()}, ${e.side === "BUY" ? "buy" : "sell"} closed${e.pnl_usd != null ? ` ${usd(e.pnl_usd, true)}` : ""}`,
-      tone: e.type === "close" ? ((e.pnl ?? 0) >= 0 ? "profit" : "loss") : undefined,
-    })),
     ...priceAlerts
       .filter((a) => a.hit)
       .map((a): Notice => ({ id: `alert-${a.id}`, time: a.hit!, kind: "alert", text: `Price alert: gold reached ${price(a.price)}` })),
-    ...(state.daily_trend?.rules ?? []).flatMap((r): Notice[] => [
-      ...(r.position
-        ? [{ id: `dt-open-${r.id}-${r.position.opened}`, time: r.position.opened, kind: "trend" as const, text: `Daily trend (paper): ${r.name} bought at ${price(r.position.entry)}` }]
-        : []),
-      ...r.trades.map((tr) => ({
-        id: `dt-close-${r.id}-${tr.closed}`,
-        time: tr.closed,
-        kind: "trend" as const,
-        text: `Daily trend (paper): ${r.name} closed ${tr.r >= 0 ? "+" : "−"}${Math.abs(tr.r).toFixed(2)}R`,
-        tone: (tr.r >= 0 ? "profit" : "loss") as Notice["tone"],
-      })),
-    ]),
+    ...trendNotices(state.daily_trend ?? null, "trend"),
+    ...trendNotices(state.h4_trend ?? null, "h4"),
     ...(status.tone === "off" && seenAt
       ? [{ id: `bot-off-${Math.round(seenAt / 60000)}`, time: seenAt / 1000, kind: "bot" as const, text: "The bot stopped sending updates", tone: "loss" as const }]
       : []),
   ];
-  const { hhmm } = t;
   const spread = state.ask - state.bid;
 
   return (
@@ -1386,7 +534,7 @@ export default function Dashboard() {
           <span>
             {state.symbol}, {chartTf ?? state.chart.default} chart
             <span className="instrument-strategy">
-              Signals: {state.strategy.name.toLowerCase()} on {state.timeframe} candles
+              Signals: Daily trend and 4-hour trend
               {state.real_candles != null && (
                 <span
                   className="real-share"
@@ -1424,7 +572,7 @@ export default function Dashboard() {
           </svg>
           <span>Performance</span>
         </button>
-        <NotificationCenter notices={notices} stamp={(time) => t.stamp(time, now)} />
+        <NotificationCenter notices={notices} stamp={(time) => stamp(time, now)} />
         <ProfileMenu
           me={me}
           themeChoice={themeChoice}
@@ -1447,13 +595,11 @@ export default function Dashboard() {
             timeframes={state.chart.timeframes}
             defaultTf={state.chart.default}
             offset={state.display.offset}
-            history={strategy === "ny" ? state.history : []}
-            range={state.range}
-            position={strategy === "ny" ? position : null}
+            history={[]}
+            range={null}
+            position={null}
             periods={state.indicators.periods}
             onTimeframe={setChartTf}
-            replay={replay}
-            onExitReplay={() => setReplay(null)}
             alertPrices={priceAlerts.filter((a) => !a.hit).map((a) => a.price)}
             dailyTrend={
               state.daily_trend
@@ -1467,19 +613,13 @@ export default function Dashboard() {
         </section>
 
         <aside className="sidebar">
-          <section
-            className="signal-card"
-            aria-live="polite"
-            data-fresh={
-              strategy === "ny" && state.history[0] && now - state.history[0].time < 60 ? state.history[0].type : undefined
-            }
-          >
+          <section className="signal-card" aria-live="polite">
             <div className="strategy-bar">
               <div className="strategy-switch" role="radiogroup" aria-label="Strategy">
                 {(Object.keys(STRATEGIES) as Strategy[]).map((s) => (
                   <button key={s} type="button" role="radio" aria-checked={strategy === s} onClick={() => chooseStrategy(s)}>
                     {STRATEGIES[s]}
-                    {s === "trend" && <small>Main</small>}
+                    {s === "trend" && <small aria-label="main strategy" title="Main strategy">★</small>}
                   </button>
                 ))}
               </div>
@@ -1497,70 +637,17 @@ export default function Dashboard() {
                 <span>{follow.includes(strategy) ? "Alerts on" : "Alerts off"}</span>
               </button>
             </div>
-            <p className="practice-tag" data-main={strategy === "trend" || undefined}>
-              {strategy === "trend" ? "Main strategy · daily candles · paper test" : "NY breakout · practice only, no proven edge"}
-            </p>
+            <p className="strategy-tag">{TAGS[strategy]}</p>
             <h1 className="signal-word" key={`${strategy}-${word}`}>
               {word}
             </h1>
-            {strategy === "trend" ? (
-              <TrendBrief trend={state.daily_trend ?? null} bid={state.bid} day={(time) => dayLabel(time, now, state.display.tz)} />
-            ) : (
-            <>
-            {position ? (
-              <div className="signal-detail">
-                <span className="outcome" data-tone={outcome(position.pnl, true).tone}>
-                  {outcome(position.pnl, true).label}
-                </span>
-                {position.size && position.pnl_usd != null ? (
-                  <p className="pnl" data-winning={position.pnl >= 0}>
-                    {usd(position.pnl_usd, true)}{" "}
-                    <small>
-                      at {position.size.lots.toFixed(2)} lot ({signed(position.pnl)} per oz)
-                    </small>
-                  </p>
-                ) : (
-                  <p className="pnl" data-winning={position.pnl >= 0}>
-                    {signed(position.pnl)} <small>per oz</small>
-                  </p>
-                )}
-                <p>
-                  {position.reason ? `${position.reason}. ` : ""}
-                  {position.side === "BUY" ? "Bought" : "Sold"} at {price(position.entry)}, {ago(now - position.opened)}.
-                  {!position.size && ` On 1 lot that's ${perLot(position.pnl)}.`}
-                  {position.expires ? ` Closes at ${hhmm(position.expires)} if still open.` : ""}
-                </p>
-                {position.size && <SizeAdvice size={position.size} />}
-                <TradeActions
-                  tradeId={position.trade_id}
-                  symbol={state.symbol}
-                  side={position.side}
-                  entry={position.entry}
-                  sl={position.sl}
-                  tp={position.tp}
-                  lots={position.size?.lots}
-                  myTrades={myTrades}
-                />
-              </div>
-            ) : (
-              <WaitingStatus state={state} now={now} />
-            )}
-            {state.loss_pause && (
-              <p className="news" data-paused="true">
-                New signals paused by the loss limits ({state.loss_pause.reason}) until{" "}
-                {t.day(state.loss_pause.until, now)} {hhmm(state.loss_pause.until)}.
-              </p>
-            )}
-            {state.news && (
-              <p className="news" data-paused={state.news.paused}>
-                {state.news.paused
-                  ? `Paused for ${state.news.title} at ${hhmm(state.news.time)}. New signals resume 30 minutes after it.`
-                  : `Next major US news: ${state.news.title} at ${hhmm(state.news.time)}.`}
-              </p>
-            )}
-            <SessionSchedule state={state} now={now} t={t} />
-            </>
-            )}
+            <TrendBrief
+              trend={trend}
+              bid={state.bid}
+              day={(time) => dayLabel(time, now, state.display.tz)}
+              name={STRATEGIES[strategy]}
+              candle={CANDLE[strategy]}
+            />
           </section>
 
           <section className="side-block risk-block">
@@ -1616,76 +703,44 @@ export default function Dashboard() {
           </div>
 
           <div className="side-panel" role="tabpanel" id={`panel-${sideTab}`} aria-labelledby={`tab-${sideTab}`}>
-            {sideTab === "signal" && strategy === "trend" && (
+            {sideTab === "signal" && (
               <>
-                {state.daily_trend ? (
+                {trend ? (
                   <section className="side-block trend-main">
                     <DailyTrend
-                      trend={state.daily_trend}
+                      key={strategy}
+                      trend={trend}
                       account={account}
                       rules={state.account}
                       bid={state.bid}
                       day={(time) => dayLabel(time, now, state.display.tz)}
                       myTrades={myTrades}
+                      candle={CANDLE[strategy]}
                     />
                   </section>
                 ) : (
                   <section className="side-block">
-                    <EmptyState icon="wait" title="Daily trend is starting">
-                      The bot begins the Daily trend test after its next restart. It shows up here then.
+                    <EmptyState icon="wait" title={`${STRATEGIES[strategy]} is starting`}>
+                      The bot begins the {STRATEGIES[strategy]} test after its next restart. It shows up here then.
                     </EmptyState>
                   </section>
                 )}
-                <Fold id="guide-trend" title="How Daily trend works">
-                  <StrategyGuide strategy="trend" />
+                <Fold id={`guide-${strategy}`} title={`How ${STRATEGIES[strategy]} works`}>
+                  <StrategyGuide strategy={strategy} />
                 </Fold>
               </>
             )}
 
-            {sideTab === "signal" && strategy === "ny" && (
-              <>
-                <section className="side-block">
-                  {position ? <Ladder position={position} bid={state.bid} ask={state.ask} /> : <Checklist state={state} />}
-                </section>
-                {state.news_week && (
-                  <Fold id="news" title="Major US news this week" extra={state.display.label}>
-                    <NewsWeek state={state} t={t} now={now} />
-                  </Fold>
-                )}
-                <Fold id="guide-ny" title="How NY practice works">
-                  <StrategyGuide strategy="ny" />
-                </Fold>
-              </>
-            )}
-
-            {sideTab === "trades" && strategy === "trend" && (
+            {sideTab === "trades" && (
               <section className="side-block">
                 <h2>
-                  Daily trend trades <span className="tz-note">paper test</span>
+                  {STRATEGIES[strategy]} trades <span className="tz-note">paper test</span>
                 </h2>
                 <TrendTrades
-                  trend={state.daily_trend ?? null}
+                  trend={trend}
                   day={(time) => dayLabel(time, now, state.display.tz)}
                   taken={myTrades.taken}
-                />
-              </section>
-            )}
-
-            {sideTab === "trades" && strategy === "ny" && (
-              <section className="side-block">
-                <h2>
-                  NY practice signals <span className="tz-note">{state.display.label}</span>
-                </h2>
-                <Journal
-                  journal={journal}
-                  all={signals}
-                  balance={account.balance}
-                  state={state}
-                  t={t}
-                  now={now}
-                  onReplay={showTrade}
-                  myTrades={myTrades}
-                  gap={live?.gapReady ? live.gap : 0}
+                  name={STRATEGIES[strategy]}
                 />
               </section>
             )}
@@ -1700,14 +755,6 @@ export default function Dashboard() {
                 </Fold>
                 <Fold id="indicators" title="Indicators">
             <dl className="indicators">
-              {state.range && (
-                <div>
-                  <dt>{state.range.label}</dt>
-                  <dd>
-                    {price(state.range.lo)}–{price(state.range.hi)}
-                  </dd>
-                </div>
-              )}
               <div>
                 <dt>RSI</dt>
                 <dd>
@@ -1737,8 +784,7 @@ export default function Dashboard() {
             )}
 
             <p className="note side-disclaimer">
-              Signals only, never trades. Daily trend is the main strategy, on a paper test; NY practice has no
-              proven edge (23-year test).{" "}
+              Signals only, never trades. Both strategies are on a paper test; past results are no promise.{" "}
               <a href="/how">How it has done</a>
             </p>
           </div>
@@ -1762,12 +808,10 @@ export default function Dashboard() {
       <Toaster />
       {perfOpen && (
         <Performance
-          events={signals}
           my={my}
           rules={state.account}
           tz={state.display.tz}
           onClose={closePerf}
-          taken={myTrades.taken}
           swing={me?.role === "admin" ? (state.swing_paper ?? null) : undefined}
         />
       )}
@@ -1776,7 +820,7 @@ export default function Dashboard() {
         <ChatPanel
           chat={chat}
           onClose={() => setChatOpen(false)}
-          stamp={t.stamp}
+          stamp={stamp}
           now={now}
           style={anchorNear(fab.spot, 58)}
         />

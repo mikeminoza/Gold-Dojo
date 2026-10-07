@@ -1,5 +1,5 @@
 /** Plain-words guide to each strategy: the idea, the rules, what to expect and how it tested. */
-export default function StrategyGuide({ strategy }: { strategy: "trend" | "ny" }) {
+export default function StrategyGuide({ strategy }: { strategy: "trend" | "h4" }) {
   if (strategy === "trend") {
     return (
       <div className="strategy-guide">
@@ -43,21 +43,36 @@ export default function StrategyGuide({ strategy }: { strategy: "trend" | "ny" }
   return (
     <div className="strategy-guide">
       <p>
-        <strong>The idea:</strong> the New York open (8:30 AM New York, when US data comes out) often starts a strong
-        move. Trade the break out of its first hour.
+        <strong>The idea:</strong> the same trend-following idea as Daily trend, on faster 4-hour candles: buy when
+        gold breaks to a new high, then ride the move. Long only.
       </p>
-      <h3>The rules, on 30-minute candles</h3>
+      <h3>One rule, on 4-hour candles</h3>
       <ul>
-        <li>The opening range: the high and low of the first 60 minutes of the New York session.</li>
-        <li>Buy when price breaks above the range, sell when it breaks below, in the direction of the 50-day trend.</li>
-        <li>Stop on the other side of the range (between 0.5 and 1 × ATR), target 2 × the risk.</li>
-        <li>Any trade still open closes at the end of the session (11:30 AM New York).</li>
-        <li>Paused around major US news and after too many losses in a row.</li>
+        <li>
+          <strong>4-hour breakout:</strong> buy when a 4-hour candle closes above the highest price of the previous 100
+          four-hour candles (about 17 trading days).
+        </li>
+      </ul>
+      <h3>Managing the trade</h3>
+      <ul>
+        <li>Buy at the next 4-hour candle&apos;s open, after the signal candle closes.</li>
+        <li>Stop 3 × ATR (three times the average 4-hour range, over 20 candles) below the entry.</li>
+        <li>The stop follows 3 × ATR below the highest price since entry. It never moves down.</li>
+        <li>No take-profit: the trade ends only when the trailing stop is hit.</li>
+        <li>Risk 1% of the account per trade. Stops are wide, so a cent account helps small balances.</li>
+      </ul>
+      <h3>What to expect</h3>
+      <ul>
+        <li>About 14 trades a year, held for days.</li>
+        <li>When gold isn&apos;t trending it gets stopped out often; losing streaks are normal.</li>
       </ul>
       <h3>How it tested</h3>
       <p>
-        <strong>No proven edge.</strong> On 23 years of data, after spread and slippage, it didn&apos;t make money
-        reliably. Use it to practice reading breakouts and placing stops on a demo account, not for real money.
+        23 years of gold data, with a $0.50 spread, $0.20 slippage on each fill and 0.02% a night financing.{" "}
+        <strong>2003–2018: roughly break-even</strong> (208 trades, profit factor 1.02, +1.4R).{" "}
+        <strong>2019–2026: profitable</strong> (110 trades, profit factor 2.12, +39R). So most of its profit came from
+        gold&apos;s rise since 2019, and it may do poorly if gold stops trending. Past results are no promise; it&apos;s on
+        a paper test here.
       </p>
     </div>
   );

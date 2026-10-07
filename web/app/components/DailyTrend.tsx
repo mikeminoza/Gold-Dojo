@@ -9,8 +9,11 @@ const r = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFix
 
 type Taken = { taken: Map<string, number>; mark: (id: string, lots: number | null) => Promise<void>; available: boolean };
 
+/** Which candles a trend strategy reads: Daily trend's or 4-hour trend's. */
+export type Candle = "daily" | "4-hour";
+
 /**
- * Daily trend mode: two long-only rules on daily candles, forward-tested on paper (trend_daily.py).
+ * A trend strategy's panel (Daily trend or 4-hour trend): long-only rules, forward-tested on paper.
  * Shows each rule's open paper trade (with a size for your account and the financing so far) or how
  * far price is from its trigger, its past paper trades, and what a cent account is.
  */
@@ -21,7 +24,9 @@ export default function DailyTrend({
   bid,
   day,
   myTrades,
+  candle = "daily",
 }: {
+  candle?: Candle;
   trend: DailyTrendState;
   account: MyAccount;
   rules: LiveState["account"];
@@ -34,9 +39,10 @@ export default function DailyTrend({
   return (
     <div className="daily-trend">
       <p className="note">
-        Long-only rules on daily candles, a few trades a year, held for days to weeks. The only rules that made money
-        in both periods of the 23-year test, mostly by riding gold&apos;s long rise. Tracked on paper since{" "}
-        {trend.started ? day(trend.started) : "today"}.
+        {candle === "daily"
+          ? "Long-only rules on daily candles, a few trades a year, held for days to weeks. The only rules that made money in both periods of the 23-year test, mostly by riding gold's long rise."
+          : "A long-only rule on 4-hour candles, about 14 trades a year, held for days. Roughly break-even in 2003–2018 and profitable in 2019–2026: most of its profit came from gold's recent rise."}{" "}
+        Tracked on paper since {trend.started ? day(trend.started) : "today"}.
       </p>
       <ul className="trend-rules">
         {trend.rules.map((x) => {
@@ -87,13 +93,13 @@ export default function DailyTrend({
                 </>
               ) : (
                 <>
-                  <p>Waiting for {x.waiting ?? "the next daily close"}.</p>
+                  <p>Waiting for {x.waiting ?? `the next ${candle} close`}.</p>
                   {away != null && x.trigger != null && (
                     <div className="trend-gauge" title={`Trigger ${money(x.trigger)}`}>
                       <span>
                         {away > 0
                           ? `${money(away)} (${((100 * away) / bid).toFixed(1)}%) below ${money(x.trigger)}`
-                          : `Price is above ${money(x.trigger)}: watching the daily close`}
+                          : `Price is above ${money(x.trigger)}: watching the ${candle} close`}
                       </span>
                       {/* full when price reaches the trigger, empty when it's 15% or more away */}
                       <i style={{ width: `${Math.max(4, 100 * (1 - Math.min(1, Math.max(away, 0) / (0.15 * bid))))}%` }} aria-hidden />
@@ -130,8 +136,20 @@ export default function DailyTrend({
 }
 
 /** The signal card's short version: what each rule is doing right now. */
-export function TrendBrief({ trend, bid, day }: { trend: DailyTrendState | null; bid: number; day: (t: number) => string }) {
-  if (!trend) return <p className="trend-brief-empty">Starts after the bot&apos;s next restart.</p>;
+export function TrendBrief({
+  trend,
+  bid,
+  day,
+  name,
+  candle,
+}: {
+  trend: DailyTrendState | null;
+  bid: number;
+  day: (t: number) => string;
+  name: string; // the strategy, e.g. "4-hour trend"
+  candle: Candle;
+}) {
+  if (!trend) return <p className="trend-brief-empty">Waiting for the bot to start the {name} test. Rules and levels show here once it does.</p>;
   return (
     <ul className="trend-brief">
       {trend.rules.map((x) => {
@@ -147,7 +165,7 @@ export function TrendBrief({ trend, bid, day }: { trend: DailyTrendState | null;
                   {p.r_now != null && <b data-tone={p.r_now >= 0 ? "profit" : "loss"}> {r(p.r_now)}</b>}
                 </>
               ) : x.pending ? (
-                "Buy at the next daily open"
+                `Buy at the next ${candle} open`
               ) : away != null && away > 0 ? (
                 `Waiting, ${money(away)} below the trigger`
               ) : (
@@ -161,12 +179,14 @@ export function TrendBrief({ trend, bid, day }: { trend: DailyTrendState | null;
   );
 }
 
-/** Daily trend's own trade history (paper), newest first. */
+/** A trend strategy's own trade history (paper), newest first. */
 export function TrendTrades({
   trend,
   day,
   taken,
+  name,
 }: {
+  name: string; // the strategy, e.g. "Daily trend"
   trend: DailyTrendState | null;
   day: (t: number) => string;
   taken: Map<string, number>;
@@ -178,8 +198,8 @@ export function TrendTrades({
   if (!trades.length && !open.length) {
     return (
       <p className="note">
-        No Daily trend trades yet. It trades only a few times a year, so this fills up slowly; the 23-year backtest is
-        under Performance.
+        No {name} trades yet. It trades only a handful of times a year, so this fills up slowly; the 23-year backtest
+        is under Performance.
       </p>
     );
   }
