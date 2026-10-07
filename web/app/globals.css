@@ -5807,3 +5807,10 @@ button[data-busy] {
     grid-auto-flow: column;
   }
 }
+
+/* ---- segmented controls on the profile page: undo the card's big-button spacing ---- */
+
+.login-card .theme-segments button {
+  margin-top: 0;
+  padding: 6px 4px;
+}
