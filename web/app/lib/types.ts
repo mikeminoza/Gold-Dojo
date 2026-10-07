@@ -128,6 +128,10 @@ export type LiveState = {
   real_candles?: number | null; // % of the last day of signal candles built from real XAUUSD prices
   daily_trend?: DailyTrendState | null; // trend_daily.py: long-only daily rules, forward-tested on paper
   h4_trend?: DailyTrendState | null; // the 4-hour breakout rule, same shape, forward-tested on paper
+  // Live paper results vs the backtest, by rule id ("breakout", "pullback", "h4breakout"), once a rule has drift_min_trades trades
+  drift?: Record<string, { percentile: number; alarm: boolean }>;
+  drift_min_trades?: number; // trades a rule needs before the check runs (20)
+  telegram_url?: string | null; // public Telegram channel where the bot posts the same alerts
 
   indicators: {
     ema_fast: number;
@@ -158,6 +162,7 @@ export type SwingPaper = {
 /** trend_daily.py: each long-only daily rule's paper trade (if any), what it waits for, and its results in R. */
 export type DailyTrendState = {
   started: number | null;
+  near_pct?: number; // "Signal coming?" when price is within this % below a breakout trigger (1.0)
   levels?: { ema20: number | null; sma50: number | null; sma200: number | null; hh100: number | null };
   rules: {
     id: string;
@@ -175,6 +180,8 @@ export type DailyTrendState = {
     } | null;
     pending: boolean;
     trigger?: number | null; // the price the rule is waiting for, if it's a single level
+    gap_pct?: number | null; // how far (%) price is below the breakout trigger; null for the pullback rule
+    rs?: number[]; // every closed paper trade's R, oldest first
     waiting: string | null;
     trades: { id?: string; entry: number; exit: number; opened: number; closed: number; nights: number; reason: string; r: number }[];
     count: number;

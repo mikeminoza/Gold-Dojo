@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { useMyAccount } from "../lib/account";
 import { stats, useTrendBacktest, type Result, type Stats } from "../lib/performance";
-import type { LiveState, SwingPaper } from "../lib/types";
+import type { DailyTrendState, LiveState, SwingPaper } from "../lib/types";
 import AccountForm from "./AccountForm";
 import { Skeleton } from "./EmptyState";
 
@@ -99,6 +99,112 @@ function EquityChart({ points, balance, tz }: { points: Stats["equity"]; balance
         <span>{day(t0, tz)}</span>
         <span>{day(t1, tz)}</span>
       </figcaption>
+    </figure>
+  );
+}
+
+/** A small seeded random number generator (mulberry32), so the band is the same on every render. */
+function seeded(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const SIMS = 500;
+
+/**
+ * Where the backtest says the running total (R) usually is after n trades: 500 made-up trade sequences,
+ * each drawn at random (with repeats) from the backtest's own trades, then the 5th, 50th and 95th
+ * percentile at every trade number.
+ */
+function backtestBand(rs: number[], n: number) {
+  const rand = seeded(20031 + rs.length);
+  const sums = new Float64Array(SIMS);
+  const lo = [0];
+  const mid = [0];
+  const hi = [0];
+  const at = (sorted: Float64Array, q: number) => sorted[Math.min(SIMS - 1, Math.floor(q * SIMS))];
+  for (let k = 1; k <= n; k++) {
+    for (let i = 0; i < SIMS; i++) sums[i] += rs[Math.floor(rand() * rs.length)];
+    const sorted = Float64Array.from(sums).sort();
+    lo.push(at(sorted, 0.05));
+    mid.push(at(sorted, 0.5));
+    hi.push(at(sorted, 0.95));
+  }
+  return { lo, mid, hi };
+}
+
+const rText = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)}R`;
+
+/** A rule's live paper trades (running total in R) drawn over the backtest's usual range after as many trades. */
+function LiveVsBacktest({ trades, live, name }: { trades: [number, number][]; live: number[]; name: string }) {
+  const n = Math.max(live.length, 30);
+  const band = useMemo(() => backtestBand(trades.map(([, r]) => r), n), [trades, n]);
+  const W = 1000;
+  const H = 220;
+  const liveSum = live.reduce<number[]>((acc, r) => [...acc, acc[acc.length - 1] + r], [0]);
+  const lo0 = Math.min(0, ...band.lo, ...liveSum);
+  const hi0 = Math.max(0, ...band.hi, ...liveSum);
+  const pad = (hi0 - lo0) * 0.08 || 1;
+  const lo = lo0 - pad;
+  const hi = hi0 + pad;
+  const x = (k: number) => (k / n) * W;
+  const y = (v: number) => H - ((v - lo) / (hi - lo)) * H;
+  const path = (vs: number[]) => vs.map((v, k) => `${k ? "L" : "M"}${x(k).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  const area = `${path(band.hi)}${band.lo
+    .map((v, k) => [k, v] as const)
+    .reverse()
+    .map(([k, v]) => `L${x(k).toFixed(1)},${y(v).toFixed(1)}`)
+    .join("")}Z`;
+  const last = live.length;
+  const now = liveSum[last];
+  const where = !last ? null : now < band.lo[last] ? "below" : now > band.hi[last] ? "above" : "inside";
+
+  return (
+    <figure className="track" data-where={where ?? undefined}>
+      <div
+        className="track-plot"
+        role="img"
+        aria-label={
+          last
+            ? `${name}: ${last} paper ${last === 1 ? "trade" : "trades"}, ${rText(now)}, ${where} the backtest's usual range`
+            : `${name}: the backtest's usual range over ${n} trades; no paper trades yet`
+        }
+      >
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden>
+          <path d={area} className="track-band" />
+          <line className="equity-start" x1="0" x2={W} y1={y(0)} y2={y(0)} vectorEffect="non-scaling-stroke" />
+          <path d={path(band.mid)} className="track-mid" vectorEffect="non-scaling-stroke" />
+          {last > 0 && <path d={path(liveSum)} className="track-live" vectorEffect="non-scaling-stroke" />}
+        </svg>
+        <span className="track-y" style={{ top: "6px" }}>
+          {rText(hi0)}
+        </span>
+        <span className="track-y" style={{ bottom: "6px" }}>
+          {rText(lo0)}
+        </span>
+        {last > 0 && (
+          <i className="equity-dot track-dot" style={{ left: `${(x(last) / W) * 100}%`, top: `${(y(now) / H) * 100}%` }} />
+        )}
+      </div>
+      <figcaption>
+        <span>Trade 1</span>
+        <span className="track-key">
+          <i data-key="live" /> Paper trades <i data-key="mid" /> Backtest middle <i data-key="band" /> 90% of backtest runs
+        </span>
+        <span>Trade {n}</span>
+      </figcaption>
+      <p className="track-note">
+        {last
+          ? `After ${last} paper ${last === 1 ? "trade" : "trades"}: ${rText(now)}, ${where === "inside" ? "inside" : where} the band. `
+          : "No paper trades closed yet: the live line starts with the first one. "}
+        Inside the band = on track. Below it for long = something may be wrong.
+      </p>
     </figure>
   );
 }
@@ -224,13 +330,23 @@ function SwingTab({ swing, tz }: { swing: SwingPaper | null; tz: string }) {
   );
 }
 
+const NO_TRADES: number[] = [];
+/** A rule's closed paper trades in R, oldest first (older bots send only the trade list). */
+function liveRs(tracker: DailyTrendState | null, id: string) {
+  const rule = tracker?.rules.find((x) => x.id === id);
+  if (!rule) return NO_TRADES;
+  return rule.rs ?? [...rule.trades].sort((a, b) => a.closed - b.closed).map((t) => t.r);
+}
+
 /** A trend strategy's 23-year backtest: each rule's curve and numbers at your size, next to holding gold. */
 function TrendTab({
   row,
   account,
   tz,
+  tracker,
 }: {
   row: "daily_trend_backtest" | "h4_trend_backtest"; // the bot_state row it's published in
+  tracker: DailyTrendState | null; // the live paper test of the same rules
   account: { balance: number; risk_percent: number };
   tz: string;
 }) {
@@ -278,6 +394,8 @@ function TrendTab({
               </span>
             </h3>
             <EquityChart points={s.equity} balance={account.balance} tz={tz} />
+            {rule.trades.length > 0 && <h4 className="track-title">Paper test vs backtest</h4>}
+            {rule.trades.length > 0 && <LiveVsBacktest trades={rule.trades} live={liveRs(tracker, id)} name={rule.name} />}
             <Numbers s={s} />
             <Years s={s} />
           </section>
@@ -293,8 +411,12 @@ export default function Performance({
   tz,
   onClose,
   swing,
+  dailyTrend = null,
+  h4Trend = null,
 }: {
   swing?: SwingPaper | null; // undefined = hide the Swing tab (it's for admins only)
+  dailyTrend?: DailyTrendState | null; // the live paper tests, drawn against each backtest
+  h4Trend?: DailyTrendState | null;
   my: ReturnType<typeof useMyAccount>;
   rules: LiveState["account"];
   tz: string;
@@ -353,8 +475,8 @@ export default function Performance({
           )}
         </div>
 
-        {tab === "trend" && <TrendTab key="trend" row="daily_trend_backtest" account={account} tz={tz} />}
-        {tab === "h4" && <TrendTab key="h4" row="h4_trend_backtest" account={account} tz={tz} />}
+        {tab === "trend" && <TrendTab key="trend" row="daily_trend_backtest" account={account} tz={tz} tracker={dailyTrend} />}
+        {tab === "h4" && <TrendTab key="h4" row="h4_trend_backtest" account={account} tz={tz} tracker={h4Trend} />}
         {tab === "swing" && swing !== undefined && <SwingTab swing={swing ?? null} tz={tz} />}
       </div>
     </div>

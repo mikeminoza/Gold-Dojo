@@ -106,11 +106,19 @@ export function maxRisk(account: MyAccount, rules: Rules) {
 }
 
 /** Same rule as the bot's sizing.lot_size: lots so a stop-out costs about risk_percent of the balance. */
-export function lotSize(entry: number, sl: number, tp: number, account: MyAccount, rules: Rules): Sizing {
+export function lotSize(
+  entry: number,
+  sl: number,
+  tp: number,
+  account: MyAccount,
+  rules: Rules,
+  step = LOT_STEP, // the broker's lot step (sizes are rounded down to it)
+  decimals = 2, // how many decimals to write the lot size with
+): Sizing {
   const riskPerLot = Math.abs(entry - sl) * rules.oz_per_lot;
   const wanted = (account.balance * account.risk_percent) / 100;
-  const steps = riskPerLot > 0 ? Math.floor(wanted / riskPerLot / LOT_STEP + 1e-9) : 0;
-  let lots = Math.round(steps * LOT_STEP * 100) / 100;
+  const steps = riskPerLot > 0 ? Math.floor(wanted / riskPerLot / step + 1e-9) : 0;
+  let lots = Math.round(steps * step * 1e8) / 1e8;
   const belowMin = lots < rules.min_lot;
   if (belowMin) lots = rules.min_lot;
 
@@ -123,7 +131,7 @@ export function lotSize(entry: number, sl: number, tp: number, account: MyAccoun
   let note = `Risks ${pct(actual)} of the account.`;
   if (actual > limit) {
     verdict = "skip";
-    note = `Even ${lots.toFixed(2)} lot risks ${pct(actual)} of the account, above your ${pct(limit)} limit. Consider skipping this one.`;
+    note = `Even ${lots.toFixed(decimals)} lot risks ${pct(actual)} of the account, above your ${pct(limit)} limit. Consider skipping this one.`;
   } else if (belowMin && actual > account.risk_percent + 0.05) {
     verdict = "high";
     note = `The smallest lot risks ${pct(actual)}, a bit above your ${pct(account.risk_percent)} target.`;

@@ -5037,3 +5037,334 @@ button[data-busy] {
     display: none; /* bell only; the title says what it does */
   }
 }
+
+/* ---- Telegram link, "signal coming" badge, readiness meter, broker sizes, paper vs backtest chart ---- */
+
+.strategy-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-1) 0 var(--space-3);
+}
+
+.strategy-meta .strategy-tag {
+  margin: 0;
+}
+
+.telegram-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.telegram-link:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.pref-telegram {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  justify-self: start;
+  column-gap: 8px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: var(--text-base);
+}
+
+.pref-telegram small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+.pref-heading {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-base);
+}
+
+.pref-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.broker-form {
+  margin-top: var(--space-1);
+}
+
+.broker-form .theme-segments {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 260px;
+  background: var(--bg);
+}
+
+.broker-form .pref-row > span {
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.broker-fields {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.trend-near {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  width: fit-content;
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--gold) 50%, transparent);
+  border-radius: 999px;
+  background: var(--next-bg);
+  color: var(--next-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.trend-near i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: near-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes near-pulse {
+  50% {
+    opacity: 0.3;
+    transform: scale(0.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trend-near i {
+    animation: none;
+  }
+}
+
+.trend-brief li[data-near] {
+  border-color: color-mix(in srgb, var(--gold) 50%, transparent);
+}
+
+.trend-brief .trend-near {
+  margin-top: 2px;
+}
+
+.trend-ready {
+  display: grid;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: var(--text-sm);
+}
+
+.trend-ready-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 10px;
+}
+
+.trend-ready-head span:first-child {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-ready[data-tone="profit"] .trend-ready-head span:last-child {
+  color: var(--buy);
+}
+
+.trend-ready[data-tone="loss"] .trend-ready-head span:last-child {
+  color: var(--sell);
+  font-weight: 600;
+}
+
+.trend-ready-bar {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+}
+
+.trend-ready-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--gold);
+}
+
+.trend-ready[data-tone="profit"] .trend-ready-bar i {
+  background: var(--buy);
+}
+
+.trend-ready[data-tone="loss"] .trend-ready-bar i {
+  background: var(--sell);
+}
+
+.trend-size {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+}
+
+.trend-size strong {
+  color: var(--text);
+}
+
+.trend-size[data-verdict="skip"] {
+  outline: 1px solid color-mix(in srgb, var(--sell) 60%, transparent);
+}
+
+.trend-size-warn {
+  color: var(--sell);
+  font-weight: 500;
+}
+
+.trend-size-note {
+  font-size: var(--text-sm);
+}
+
+.trend-size-note .link-button {
+  font-size: inherit;
+}
+
+.link-button:focus-visible,
+.telegram-link:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.telegram-link:focus-visible {
+  border-radius: 999px;
+}
+
+.track-title {
+  margin: var(--space-2) 0 0;
+  color: var(--text);
+  font-size: var(--text-base);
+}
+
+.track {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.track-plot {
+  position: relative;
+  height: 180px;
+  border-radius: 10px;
+  background: var(--inset);
+}
+
+.track-plot svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.track-band {
+  fill: color-mix(in srgb, var(--muted) 22%, transparent);
+}
+
+.track-mid {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.track-live {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.track-dot {
+  color: var(--gold);
+}
+
+.track-y {
+  position: absolute;
+  left: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.track figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.track-key {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.track-key i {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  margin-left: 6px;
+  border-radius: 2px;
+  background: var(--gold);
+}
+
+.track-key i[data-key="mid"] {
+  height: 0;
+  border-top: 2px dashed var(--muted);
+  background: none;
+}
+
+.track-key i[data-key="band"] {
+  height: 10px;
+  background: color-mix(in srgb, var(--muted) 30%, transparent);
+}
+
+.track-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.track[data-where="below"] .track-note {
+  color: var(--sell);
+}
+
+@media (max-width: 760px) {
+  .track-plot {
+    height: 150px;
+  }
+
+  .track-key {
+    order: 3;
+    width: 100%;
+  }
+}

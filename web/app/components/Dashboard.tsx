@@ -21,7 +21,9 @@ import Fold from "./Fold";
 import Toaster from "./Toaster";
 import Tour from "./Tour";
 import { toast as showToast } from "../lib/toast";
-import DailyTrend, { TrendBrief, TrendTrades } from "./DailyTrend";
+import DailyTrend, { nearTrigger, TrendBrief, TrendTrades } from "./DailyTrend";
+import { TelegramIcon } from "./Preferences";
+import { safeLink } from "../lib/links";
 import ProfileMenu, { type Me } from "./ProfileMenu";
 import { LotCalculator, PriceAlerts, useAlertWatcher, usePriceAlerts, type PriceAlert } from "./Tools";
 
@@ -204,12 +206,18 @@ function chatSound() {
   }
 }
 
-/** Sound + notification when a trend strategy's rule signals a buy, opens or closes a paper trade. */
+/**
+ * Sound + notification when a trend strategy's rule signals a buy, opens or closes a paper trade, or when
+ * price comes close to a breakout trigger ("Signal coming?", once per rule and trigger).
+ */
 function useTrendAlerts(trend: DailyTrendState | null | undefined, enabled: boolean, strategy: Strategy) {
   const seen = useRef<Set<string> | null>(null);
   useEffect(() => {
     if (!trend) return;
     const events = trend.rules.flatMap((x) => [
+      ...(nearTrigger(trend, x) != null
+        ? [{ key: `near-${x.id}-${x.trigger ?? ""}`, close: false, text: `Signal coming? ${x.name}: price is ${nearTrigger(trend, x)!.toFixed(2)}% below the trigger${x.trigger != null ? ` ${price(x.trigger)}` : ""}` }]
+        : []),
       ...(x.pending ? [{ key: `pending-${x.id}-${trend.levels?.hh100 ?? ""}-${x.trigger ?? ""}`, close: false, text: `${x.name}: buy at the next ${CANDLE[strategy]} open` }] : []),
       ...(x.position ? [{ key: `open-${x.id}-${x.position.opened}`, close: false, text: `${x.name}: bought at ${price(x.position.entry)}` }] : []),
       ...x.trades.map((tr) => ({
@@ -407,6 +415,7 @@ export default function Dashboard() {
   const trendRules = trend?.rules ?? [];
   const word = trendRules.some((x) => x.position) ? "Long" : trendRules.some((x) => x.pending) ? "Buy" : "Wait";
   const cardSide = word === "Wait" ? "WAIT" : "BUY";
+  const telegram = safeLink(state?.telegram_url); // the bot's public channel, if it has one
 
   useEffect(() => {
     if (state) {
@@ -637,7 +646,15 @@ export default function Dashboard() {
                 <span>{follow.includes(strategy) ? "Alerts on" : "Alerts off"}</span>
               </button>
             </div>
-            <p className="strategy-tag">{TAGS[strategy]}</p>
+            <div className="strategy-meta">
+              <p className="strategy-tag">{TAGS[strategy]}</p>
+              {telegram && (
+                <a className="telegram-link" href={telegram} target="_blank" rel="noopener noreferrer">
+                  <TelegramIcon />
+                  Get alerts on Telegram
+                </a>
+              )}
+            </div>
             <h1 className="signal-word" key={`${strategy}-${word}`}>
               {word}
             </h1>
@@ -711,11 +728,12 @@ export default function Dashboard() {
                       key={strategy}
                       trend={trend}
                       account={account}
-                      rules={state.account}
                       bid={state.bid}
                       day={(time) => dayLabel(time, now, state.display.tz)}
                       myTrades={myTrades}
                       candle={CANDLE[strategy]}
+                      drift={state.drift}
+                      minTrades={state.drift_min_trades ?? 20}
                     />
                   </section>
                 ) : (
@@ -813,6 +831,8 @@ export default function Dashboard() {
           tz={state.display.tz}
           onClose={closePerf}
           swing={me?.role === "admin" ? (state.swing_paper ?? null) : undefined}
+          dailyTrend={state.daily_trend ?? null}
+          h4Trend={state.h4_trend ?? null}
         />
       )}
       <Tour />

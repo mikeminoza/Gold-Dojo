@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { safeLink } from "../lib/links";
+import { supabase } from "../lib/supabase";
 import { toast } from "../lib/toast";
+import BrokerForm from "./BrokerForm";
 import Toaster from "./Toaster";
 
 type Theme = "dark" | "light" | "system";
@@ -24,8 +27,31 @@ function write(key: string, value: string | null) {
   }
 }
 
-/** This browser's settings, all in one place: theme, sound, and resetting the layout and the tour. */
+/** The bot's public Telegram channel, if it has one (read once from its live state). */
+function useTelegramUrl() {
+  const client = supabase();
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!client) return;
+    let stopped = false;
+    client
+      .from("bot_state")
+      .select("telegram_url:data->>telegram_url")
+      .eq("id", "live")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!stopped) setUrl(safeLink((data as { telegram_url?: string | null } | null)?.telegram_url));
+      });
+    return () => {
+      stopped = true;
+    };
+  }, [client]);
+  return url;
+}
+
+/** This browser's settings, all in one place: theme, sound, broker, and resetting the layout and the tour. */
 export default function Preferences() {
+  const telegram = useTelegramUrl();
   const [theme, setTheme] = useState<Theme>(() => {
     const t = read("gold-theme");
     return t === "dark" || t === "light" ? t : "system";
@@ -76,6 +102,16 @@ export default function Preferences() {
         </span>
         <i className="switch" aria-hidden />
       </button>
+      {telegram && (
+        <a className="telegram-link pref-telegram" href={telegram} target="_blank" rel="noopener noreferrer">
+          <TelegramIcon />
+          Get alerts on Telegram
+          <small>Same signals, even with the site closed</small>
+        </a>
+      )}
+      <h3 className="pref-heading">Your broker</h3>
+      <p className="pref-sub">Lot sizes are rounded down to what your broker accepts, with the real risk after rounding.</p>
+      <BrokerForm />
       <div className="pref-actions">
         <button
           type="button"
@@ -104,5 +140,14 @@ export default function Preferences() {
       </div>
       <Toaster />
     </section>
+  );
+}
+
+/** The paper-plane mark for the Telegram link. */
+export function TelegramIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden>
+      <path d="M21 4L3 11l6 2 2 6 3-4 5 4 2-15zM9 13l12-9" />
+    </svg>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { lotSize, maxRisk, type MyAccount } from "../lib/account";
+import { lotDecimals, ozPerLotInDollars, useBroker } from "../lib/broker";
 import { toast } from "../lib/toast";
 import type { LiveState, Side } from "../lib/types";
 import EmptyState from "./EmptyState";
@@ -179,7 +180,11 @@ export function LotCalculator({
   const ok = stopText.trim() !== "" && stop > 0 && entry > 0 && !wrongSide;
   const riskDist = Math.abs(entry - stop);
   const target = targetText.trim() ? Number(targetText) : side === "BUY" ? entry + 2 * riskDist : entry - 2 * riskDist;
-  const size = ok ? lotSize(entry, stop, target, account, rules) : null;
+  // Sized for the visitor's broker (Settings: Your broker): its smallest lot, lot step and lot size
+  const broker = useBroker();
+  const dp = lotDecimals(broker);
+  const brokerRules = { ...rules, oz_per_lot: ozPerLotInDollars(broker), min_lot: broker.minLot };
+  const size = ok ? lotSize(entry, stop, target, account, brokerRules, broker.lotStep, dp) : null;
   const rr = ok && riskDist > 0 ? Math.abs(target - entry) / riskDist : null;
   const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -243,7 +248,8 @@ export function LotCalculator({
       {size && (
         <div className="size" data-verdict={size.verdict}>
           <p>
-            Trade <strong>{size.lots.toFixed(2)} lot</strong>
+            Trade <strong>{size.lots.toFixed(dp)} lot</strong>
+            {broker.type === "cent" && " on your cent account"}
           </p>
           <p>
             Risk {money(size.risk)} ({size.risk_percent.toFixed(1)}%), target {money(size.reward)}
@@ -254,7 +260,8 @@ export function LotCalculator({
       )}
       <p className="note">
         For your {money(account.balance).replace(".00", "")} account at {account.risk_percent}% risk (limit{" "}
-        {Number(maxRisk(account, rules).toFixed(1))}%). Change it on your profile.
+        {Number(maxRisk(account, rules).toFixed(1))}%), rounded down to your broker&apos;s {broker.lotStep} lot step
+        {broker.type === "cent" && " (a cent lot moves like 0.01 standard lot)"}. Change both on your profile.
       </p>
     </>
   );
