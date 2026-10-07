@@ -1,10 +1,12 @@
 import "server-only";
+import { safeLink } from "./links";
 import type { DailyTrendState, LiveState, TrendBacktest } from "./types";
 
 /**
  * The public results page's data: read on the server with the secret key (the database only lets
  * members read), then cut down to past results only. Nothing here is a signal: no open trades, no
- * entries, stops or triggers, just closed trades' dates and R, and the backtest's totals.
+ * entries, stops or triggers, just closed trades' dates and R, the backtest's totals and the public
+ * Telegram channel's link.
  */
 export type PublicRule = {
   id: string;
@@ -41,7 +43,12 @@ export type PublicStrategy = {
   } | null;
 };
 
-export type PublicResults = { updated: number | null; tz: string; strategies: PublicStrategy[] };
+export type PublicResults = {
+  updated: number | null;
+  tz: string;
+  telegram: string | null; // the bot's public Telegram channel (plain https links only)
+  strategies: PublicStrategy[];
+};
 
 export const REVALIDATE_S = 300;
 
@@ -107,6 +114,7 @@ export async function loadPublicResults(): Promise<PublicResults | null> {
     return {
       updated: num(live?.updated),
       tz: typeof live?.display?.tz === "string" ? live.display.tz : "UTC",
+      telegram: safeLink(live?.telegram_url),
       strategies: [
         { name: "Daily trend", ...paper(live?.daily_trend), backtest: backtest(row("daily_trend_backtest") as TrendBacktest | null) },
         { name: "4-hour trend", ...paper(live?.h4_trend), backtest: backtest(row("h4_trend_backtest") as TrendBacktest | null) },

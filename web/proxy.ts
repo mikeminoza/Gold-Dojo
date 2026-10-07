@@ -3,7 +3,8 @@ import { authConfigured, memberFor, sessionClient } from "./app/lib/members";
 
 /**
  * Accounts-only site: every page, API route and script file needs a signed-in account that isn't
- * blocked. Only the sign-in screen, the public results page, the sign-in steps under /auth/ and the styling are open.
+ * blocked. Only the sign-in screen, the public results page, the sign-in steps under /auth/, the styling, the app
+ * manifest and the push service worker are open.
  * Also refreshes the Supabase session cookies on the way through.
  */
 export async function proxy(request: NextRequest) {
@@ -15,6 +16,9 @@ export async function proxy(request: NextRequest) {
     pathname === "/favicon.ico" ||
     pathname === "/icon-dark.svg" ||
     pathname === "/icon-light.svg" ||
+    // installing to the home screen and push notifications: the app manifest and the (notifications-only) service worker
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
     // styling for the sign-in screen: stylesheets and fonts hold no secrets (the scripts stay locked)
     (pathname.startsWith("/_next/static/") && pathname.endsWith(".css")) ||
     pathname.startsWith("/_next/static/media/");

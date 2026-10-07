@@ -11,7 +11,103 @@ import TradeExplain, { type ExplainTrade } from "./TradeExplain";
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const r = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}R`;
 
-type Taken = { taken: Map<string, number>; mark: (id: string, lots: number | null) => Promise<void>; available: boolean };
+type Taken = {
+  taken: Map<string, number>;
+  mark: (id: string, lots: number | null) => Promise<void>;
+  available: boolean;
+  fills: Map<string, number>; // the price your broker filled you at, by trade id
+  setFill: (id: string, price: number | null) => Promise<"saved" | "not_set_up" | "failed">;
+  fillsAvailable: boolean;
+};
+
+// The backtest's costs per fill: $0.50 spread + $0.20 slippage per oz
+const BACKTEST_COST_OZ = 0.7;
+
+/** "$0.45 worse" / "$0.45 better" / "the same": your fill against the bot's paper entry (longs only, so higher is worse). */
+function fillWords(fill: number, entry: number) {
+  const diff = fill - entry;
+  if (Math.abs(diff) < 0.005) return "the same";
+  return `${money(Math.abs(diff))} ${diff > 0 ? "worse" : "better"}`;
+}
+
+const fillTone = (gap: number) => (gap > 0.005 ? "loss" : gap < -0.005 ? "profit" : undefined);
+
+/**
+ * Broker price check: what your broker actually filled you at, next to the bot's paper entry, in $ per oz
+ * and as a share of the stop distance (so you can see how much of the risk the difference eats).
+ */
+function FillPrice({
+  tradeId,
+  entry,
+  stopDistance,
+  myTrades,
+}: {
+  tradeId: string;
+  entry: number;
+  stopDistance: number;
+  myTrades: Taken;
+}) {
+  const saved = myTrades.fills.get(tradeId);
+  const [draft, setDraft] = useState(saved != null ? String(saved) : "");
+  const [busy, setBusy] = useState(false);
+  const inputId = `fill-${tradeId}`;
+  const save = async () => {
+    const text = draft.trim();
+    const price = text ? Number(text) : null;
+    if (price !== null && !(Number.isFinite(price) && price > 0 && price < 100000)) {
+      toast("Enter a price like 2650.40");
+      return;
+    }
+    if (price === (saved ?? null)) return;
+    setBusy(true);
+    const result = await myTrades.setFill(tradeId, price);
+    setBusy(false);
+    toast(
+      result === "saved"
+        ? price
+          ? "Fill price saved"
+          : "Fill price cleared"
+        : result === "not_set_up"
+          ? "Fill prices aren't set up yet"
+          : "Couldn't save it. Try again.",
+    );
+  };
+  if (!myTrades.fillsAvailable) return null;
+  const gap = saved != null ? saved - entry : 0;
+  return (
+    <div className="fill-check">
+      <form
+        className="fill-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <label htmlFor={inputId}>Your fill price</label>
+        <input
+          id={inputId}
+          type="number"
+          inputMode="decimal"
+          step="any"
+          min={0}
+          placeholder={entry.toFixed(2)}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        <button type="submit" disabled={busy}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </form>
+      {saved != null && (
+        <p className="fill-diff" data-tone={fillTone(gap)}>
+          Your fill {money(saved)} vs the bot&apos;s {money(entry)}: {fillWords(saved, entry)}
+          {Math.abs(gap) >= 0.005 && " per oz"} (≈ {((100 * Math.abs(gap)) / Math.max(stopDistance, 0.01)).toFixed(1)}% of
+          the stop distance)
+        </p>
+      )}
+    </div>
+  );
+}
 
 /** Which candles a trend strategy reads: Daily trend's or 4-hour trend's. */
 export type Candle = "daily" | "4-hour";
@@ -195,6 +291,15 @@ export default function DailyTrend({
                       </button>
                     </div>
                   )}
+                  {p.id && took && (
+                    <FillPrice
+                      key={myTrades.fills.get(p.id) ?? "none"}
+                      tradeId={p.id}
+                      entry={p.entry}
+                      stopDistance={p.entry - p.sl}
+                      myTrades={myTrades}
+                    />
+                  )}
                 </>
               ) : (
                 <>
@@ -293,12 +398,14 @@ export function TrendTrades({
   trend,
   day,
   taken,
+  fills,
   name,
 }: {
   name: string; // the strategy, e.g. "Daily trend"
   trend: DailyTrendState | null;
   day: (t: number) => string;
   taken: Map<string, number>;
+  fills?: Map<string, number>; // your broker's fill price on trades you took
 }) {
   const [shown, setShown] = useState<string | null>(null); // the row whose "Explain" panel is open
   const trades = (trend?.rules ?? [])
@@ -313,6 +420,21 @@ export function TrendTrades({
       </p>
     );
   }
+  // Broker price check: your fill against the bot's entry on every taken trade you entered a fill for
+  const fillOf = (id: string | undefined) => (id && taken.has(id) ? fills?.get(id) : undefined);
+  const checked = [
+    ...open.map((x) => ({ fill: fillOf(x.position!.id), entry: x.position!.entry })),
+    ...trades.map((t) => ({ fill: fillOf(t.id), entry: t.entry })),
+  ].filter((x): x is { fill: number; entry: number } => x.fill != null);
+  const avgGap = checked.length ? checked.reduce((sum, x) => sum + x.fill - x.entry, 0) / checked.length : 0;
+  const fillNote = (id: string | undefined, entry: number) => {
+    const fill = fillOf(id);
+    return fill == null ? null : (
+      <small className="fill-row" data-tone={fillTone(fill - entry)}>
+        Your fill: {fillWords(fill, entry)}
+      </small>
+    );
+  };
   const toggle = (key: string) => (
     <td className="explain-cell">
       <button
@@ -335,7 +457,18 @@ export function TrendTrades({
       </tr>
     );
   return (
-    <table className="results-split perf-years trend-trades">
+    <>
+      {checked.length > 0 && (
+        <p className="fill-summary" data-tone={avgGap > BACKTEST_COST_OZ ? "loss" : undefined}>
+          Your average fill vs the bot: {avgGap > 0 ? "+" : avgGap < 0 ? "−" : ""}
+          {money(Math.abs(avgGap))} per oz over {checked.length} {checked.length === 1 ? "trade" : "trades"}{" "}
+          (+ is worse).{" "}
+          {avgGap > BACKTEST_COST_OZ
+            ? `That's more than the ~${money(BACKTEST_COST_OZ)} per oz of spread and slippage the backtest assumed, so your real costs are higher than the tested results show.`
+            : `Within the ~${money(BACKTEST_COST_OZ)} per oz of spread and slippage the backtest assumed.`}
+        </p>
+      )}
+      <table className="results-split perf-years trend-trades">
       <thead>
         <tr>
           <th scope="col">Rule</th>
@@ -355,7 +488,10 @@ export function TrendTrades({
             <Fragment key={key}>
               <tr>
                 <th scope="row">{x.name}</th>
-                <td>{day(p.opened)}</td>
+                <td>
+                  {day(p.opened)}
+                  {fillNote(p.id, p.entry)}
+                </td>
                 <td>{p.nights ?? "–"}</td>
                 <td>Open{p.r_now != null && ` ${r(p.r_now)}`}</td>
                 {toggle(key)}
@@ -378,7 +514,10 @@ export function TrendTrades({
             <Fragment key={key}>
               <tr>
                 <th scope="row">{t.rule}</th>
-                <td>{day(t.opened)}</td>
+                <td>
+                  {day(t.opened)}
+                  {fillNote(t.id, t.entry)}
+                </td>
                 <td>{t.nights}</td>
                 <td data-tone={t.r > 0 ? "profit" : t.r < 0 ? "loss" : undefined}>
                   {r(t.r)}
@@ -391,6 +530,7 @@ export function TrendTrades({
           );
         })}
       </tbody>
-    </table>
+      </table>
+    </>
   );
 }

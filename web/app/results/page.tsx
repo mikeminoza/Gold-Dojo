@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import AuthShell from "../components/AuthShell";
+import TelegramCta from "../components/TelegramCta";
 import { loadPublicResults, type PublicRule, type PublicStrategy } from "../lib/publicResults";
 
 export const metadata: Metadata = {
@@ -172,6 +173,8 @@ export default async function Results() {
         ) : (
           <p className="results-empty">The results can&apos;t be loaded right now. Try again in a few minutes.</p>
         )}
+
+        <TelegramCta url={data?.telegram} />
 
         <section className="how-warning">
           <h2>Read this before trusting the numbers</h2>

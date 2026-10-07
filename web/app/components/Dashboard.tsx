@@ -23,6 +23,7 @@ import Tour from "./Tour";
 import { toast as showToast } from "../lib/toast";
 import DailyTrend, { nearTrigger, TrendBrief, TrendTrades } from "./DailyTrend";
 import { TelegramIcon } from "./Preferences";
+import TelegramCta from "./TelegramCta";
 import { safeLink } from "../lib/links";
 import ProfileMenu, { type Me } from "./ProfileMenu";
 import { LotCalculator, PriceAlerts, useAlertWatcher, usePriceAlerts, type PriceAlert } from "./Tools";
@@ -346,6 +347,22 @@ export default function Dashboard() {
     }
     if (scroll) document.querySelector(".side-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+  // The "Get the signals on Telegram" card, until it's hidden with its × (remembered in this browser)
+  const [tgHidden, setTgHidden] = useState(() => {
+    try {
+      return localStorage.getItem("gold-tg-cta-hidden") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const hideTg = () => {
+    setTgHidden(true);
+    try {
+      localStorage.setItem("gold-tg-cta-hidden", "1");
+    } catch {
+      // hidden for this visit only
+    }
+  };
   const [accountOpen, setAccountOpen] = useState(false);
   const [alerts, setAlerts] = useState(() => {
     try {
@@ -646,6 +663,13 @@ export default function Dashboard() {
                 </svg>
                 <span>{follow.includes(strategy) ? "Alerts on" : "Alerts off"}</span>
               </button>
+              <a className="push-link" href="/profile#notifications" title="Turn on phone notifications">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                  <rect x="7" y="2.5" width="10" height="19" rx="2" />
+                  <path d="M11 18.5h2" />
+                </svg>
+                <span className="sr-only">Turn on phone notifications</span>
+              </a>
             </div>
             <div className="strategy-meta">
               <p className="strategy-tag">{TAGS[strategy]}</p>
@@ -693,6 +717,8 @@ export default function Dashboard() {
             </div>
             {accountOpen && <AccountForm my={my} rules={state.account} onDone={() => setAccountOpen(false)} />}
           </section>
+
+          {!tgHidden && <TelegramCta url={telegram} botUrl={askDojo} onHide={hideTg} />}
 
           <div
             className="side-tabs"
@@ -765,6 +791,7 @@ export default function Dashboard() {
                   trend={trend}
                   day={(time) => dayLabel(time, now, state.display.tz)}
                   taken={myTrades.taken}
+                  fills={myTrades.fills}
                   name={STRATEGIES[strategy]}
                 />
               </section>

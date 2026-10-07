@@ -16,6 +16,8 @@ const text = IBM_Plex_Sans({
 export const metadata: Metadata = {
   title: "Gold Dojo",
   description: "Gold Dojo: live XAUUSD trend signals (Daily trend and 4-hour trend) and research",
+  // Added to an iPhone's home screen it opens like an app, which iPhones need for notifications
+  appleWebApp: { capable: true, title: "Gold Dojo", statusBarStyle: "black-translucent" },
 };
 
 // Runs before the page paints so it opens in the saved theme (or the system's) without a flash.

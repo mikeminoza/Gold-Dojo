@@ -6,6 +6,7 @@ import { safeLink } from "../lib/links";
 import { supabase } from "../lib/supabase";
 import { toast } from "../lib/toast";
 import BrokerForm from "./BrokerForm";
+import PushSettings from "./PushSettings";
 import Toaster from "./Toaster";
 
 type Theme = "dark" | "light" | "system";
@@ -102,6 +103,7 @@ export default function Preferences() {
         </span>
         <i className="switch" aria-hidden />
       </button>
+      <PushSettings />
       {telegram && (
         <a className="telegram-link pref-telegram" href={telegram} target="_blank" rel="noopener noreferrer">
           <TelegramIcon />

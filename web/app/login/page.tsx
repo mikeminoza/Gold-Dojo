@@ -1,4 +1,6 @@
 import AuthShell from "../components/AuthShell";
+import TelegramCta from "../components/TelegramCta";
+import { loadPublicResults } from "../lib/publicResults";
 import SubmitButton from "../components/SubmitButton";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -48,7 +50,9 @@ export default async function Login({ searchParams }: PageProps<"/login">) {
   const mode: Mode = m === "register" || m === "forgot" ? m : "signin";
   const message = typeof error === "string" ? ERRORS[error] : undefined;
   const info = typeof note === "string" ? NOTES[note] : undefined;
-  const title = mode === "register" ? "Create your account" : mode === "forgot" ? "Reset your password" : "Sign in";
+  // The public Telegram channel, from the same cached read as the results page (none if it can't load)
+  const telegram = (await loadPublicResults())?.telegram ?? null;
+  const title = mode ==="register" ? "Create your account" : mode === "forgot" ? "Reset your password" : "Sign in";
 
   return (
     <AuthShell>
@@ -119,6 +123,7 @@ export default async function Login({ searchParams }: PageProps<"/login">) {
           <Link href="/results">See the paper-test results</Link>
         </p>
       </div>
+      <TelegramCta url={telegram} />
     </AuthShell>
   );
 }

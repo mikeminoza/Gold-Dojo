@@ -5814,3 +5814,281 @@ button[data-busy] {
   margin-top: 0;
   padding: 6px 4px;
 }
+
+/* ---- "Get the signals on Telegram" card: dashboard sidebar, sign-in page, public results ---- */
+
+.tg-cta {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, var(--line));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--gold) 12%, transparent), transparent 70%),
+    var(--panel);
+  color: var(--text);
+}
+
+.tg-cta-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--gold) 18%, transparent);
+  color: var(--gold);
+}
+
+.tg-cta-text {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tg-cta h2 {
+  margin: 0;
+  padding-right: var(--space-5); /* room for the × */
+  font-size: var(--text-lg);
+  line-height: 1.3;
+}
+
+.tg-cta p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+
+.tg-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-1);
+}
+
+.tg-cta-join {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--bg);
+  font-size: var(--text-base);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.tg-cta-join:hover {
+  background: color-mix(in srgb, var(--gold) 85%, var(--text));
+}
+
+.tg-cta-ask {
+  color: var(--gold);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.tg-cta-hide {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tg-cta-hide:hover {
+  background: color-mix(in srgb, var(--muted) 15%, transparent);
+  color: var(--text);
+}
+
+.login > .tg-cta {
+  width: 100%;
+  max-width: 420px;
+  margin: var(--space-4) auto 0;
+}
+
+.results-card .tg-cta {
+  margin: var(--space-6) 0;
+}
+
+.tg-cta-join:focus-visible,
+.tg-cta-ask:focus-visible,
+.tg-cta-hide:focus-visible,
+.push-link:focus-visible,
+.fill-form input:focus-visible,
+.fill-form button:focus-visible,
+.push-strategies input:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* ---- dashboard: the phone-notifications link next to the alerts bell ---- */
+
+.push-link {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+}
+
+.push-link:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* ---- broker price check: your fill vs the bot's paper entry ---- */
+
+.fill-check {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.fill-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+}
+
+.fill-form label {
+  color: var(--muted);
+}
+
+.fill-form input {
+  width: 110px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--inset);
+  color: var(--text);
+  font: inherit;
+}
+
+.fill-form button {
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.fill-form button:hover:not(:disabled) {
+  border-color: var(--gold);
+}
+
+.fill-diff,
+.fill-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+
+.fill-summary {
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--inset);
+}
+
+.fill-diff[data-tone="loss"],
+.fill-row[data-tone="loss"],
+.fill-summary[data-tone="loss"] {
+  color: var(--sell);
+}
+
+.fill-diff[data-tone="profit"],
+.fill-row[data-tone="profit"] {
+  color: var(--buy);
+}
+
+.fill-row {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+/* ---- profile: phone notifications ---- */
+
+.push-settings {
+  display: grid;
+  gap: var(--space-2);
+  scroll-margin-top: var(--space-6);
+}
+
+.push-strategies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--text-base);
+}
+
+.push-strategies legend {
+  width: 100%;
+  margin-bottom: var(--space-1);
+  padding: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.push-strategies label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.push-strategies input {
+  width: auto;
+  margin: 0;
+  accent-color: var(--gold);
+}
+
+.push-message {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--next-bg);
+  color: var(--text);
+  font-size: var(--text-md);
+}
+
+@media (max-width: 760px) {
+  .tg-cta {
+    padding: var(--space-3);
+  }
+
+  .tg-cta-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .fill-form input {
+    flex: 1 1 100px;
+  }
+}
