@@ -243,6 +243,13 @@ function useTrendAlerts(trend: DailyTrendState | null | undefined, enabled: bool
 
 /** The two strategies: Daily trend (the main one) and 4-hour trend, each its own tracker in the bot's state. */
 type Strategy = "trend" | "h4";
+/** A short line under the big word. */
+const CAPTIONS: Record<string, string> = {
+  Wait: "No setup yet: nothing to do",
+  Buy: "Buy at the next open",
+  Long: "In a paper trade",
+};
+
 const STRATEGIES: Record<Strategy, string> = { trend: "Daily trend", h4: "4-hour trend" };
 const CANDLE: Record<Strategy, "daily" | "4-hour"> = { trend: "daily", h4: "4-hour" };
 const TAGS: Record<Strategy, string> = {
@@ -650,45 +657,38 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                className="strategy-follow"
-                aria-pressed={follow.includes(strategy)}
-                onClick={() => toggleFollow(strategy)}
-                title={`${follow.includes(strategy) ? "Stop" : "Get"} alerts for ${STRATEGIES[strategy]}`}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
-                  <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0" />
-                  {!follow.includes(strategy) && <path d="M3 3l18 18" />}
-                </svg>
-                <span>{follow.includes(strategy) ? "Alerts on" : "Alerts off"}</span>
-              </button>
-              <a className="push-link" href="/profile#notifications" title="Turn on phone notifications">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
-                  <rect x="7" y="2.5" width="10" height="19" rx="2" />
-                  <path d="M11 18.5h2" />
-                </svg>
-                <span className="sr-only">Turn on phone notifications</span>
-              </a>
             </div>
             <div className="strategy-meta">
               <p className="strategy-tag">{TAGS[strategy]}</p>
-              {telegram && (
-                <a className="telegram-link" href={telegram} target="_blank" rel="noopener noreferrer">
-                  <TelegramIcon />
-                  Get alerts on Telegram
+              <div className="card-actions">
+                <button
+                  type="button"
+                  className="strategy-follow"
+                  aria-pressed={follow.includes(strategy)}
+                  onClick={() => toggleFollow(strategy)}
+                  aria-label={`${follow.includes(strategy) ? "Stop" : "Get"} alerts for ${STRATEGIES[strategy]}`}
+                  title={`Alerts for ${STRATEGIES[strategy]}: ${follow.includes(strategy) ? "on" : "off"}`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                    <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0" />
+                    {!follow.includes(strategy) && <path d="M3 3l18 18" />}
+                  </svg>
+                </button>
+                <a className="push-link" href="/profile#notifications" title="Turn on phone notifications">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                    <rect x="7" y="2.5" width="10" height="19" rx="2" />
+                    <path d="M11 18.5h2" />
+                  </svg>
+                  <span className="sr-only">Turn on phone notifications</span>
                 </a>
-              )}
-              {askDojo && (
-                <a className="telegram-link" href={askDojo} target="_blank" rel="noopener noreferrer">
-                  <TelegramIcon />
-                  Ask Dojo
-                </a>
-              )}
+              </div>
             </div>
-            <h1 className="signal-word" key={`${strategy}-${word}`}>
-              {word}
-            </h1>
+            <div className="signal-head">
+              <h1 className="signal-word" key={`${strategy}-${word}`}>
+                {word}
+              </h1>
+              <p className="signal-caption">{CAPTIONS[word]}</p>
+            </div>
             <TrendBrief
               trend={trend}
               bid={state.bid}
@@ -696,6 +696,22 @@ export default function Dashboard() {
               name={STRATEGIES[strategy]}
               candle={CANDLE[strategy]}
             />
+            {(telegram || askDojo) && (
+              <div className="card-links">
+                {telegram && (
+                  <a className="telegram-link" href={telegram} target="_blank" rel="noopener noreferrer">
+                    <TelegramIcon />
+                    Alerts on Telegram
+                  </a>
+                )}
+                {askDojo && (
+                  <a className="telegram-link" href={askDojo} target="_blank" rel="noopener noreferrer">
+                    <TelegramIcon />
+                    Ask Dojo
+                  </a>
+                )}
+              </div>
+            )}
           </section>
 
           <section className="side-block risk-block">

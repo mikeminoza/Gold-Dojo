@@ -380,11 +380,21 @@ export function TrendBrief({
               ) : x.pending ? (
                 `Buy at the next ${candle} open`
               ) : away != null && away > 0 ? (
-                `Waiting, ${money(away)} below the trigger`
+                <>
+                  {((100 * away) / bid).toFixed(1)}% below the trigger {money(x.trigger!)}
+                </>
+              ) : x.waiting ? (
+                `Waiting for ${x.waiting}`
               ) : (
                 "Waiting for the setup"
               )}
             </span>
+            {!p && !x.pending && away != null && away > 0 && (
+              // full when price reaches the trigger, empty when it's 15% or more away
+              <i className="brief-gauge" aria-hidden>
+                <i style={{ width: `${Math.max(4, 100 * (1 - Math.min(1, away / (0.15 * bid))))}%` }} />
+              </i>
+            )}
             {gap != null && <NearBadge gap={gap} />}
           </li>
         );
