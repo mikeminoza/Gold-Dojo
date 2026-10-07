@@ -5797,3 +5797,13 @@ button[data-busy] {
 .tool-hint + .alert-list {
   margin-top: var(--space-3);
 }
+
+/* ---- phone bottom bar: one equal column per item, whatever the count ---- */
+
+@media (max-width: 760px) {
+  .bottom-bar {
+    grid-template-columns: none;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+  }
+}

@@ -817,7 +817,7 @@ export default function Dashboard() {
       </div>
 
       <BottomBar
-        tab={chatOpen ? null : sideTab === "tools" ? "signal" : sideTab}
+        tab={chatOpen ? null : sideTab}
         chatOpen={chatOpen}
         onTab={(tab) => {
           setChatOpen(false); // leave the chat for the chosen section

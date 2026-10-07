@@ -8,7 +8,13 @@ const ICONS: Record<string, ReactNode> = {
   chart: <path d="M4 20h16M6 16l4-5 3 3 5-7" />,
   signal: <path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" />,
   trades: <path d="M4 6h16M4 12h16M4 18h10" />,
-  trend: <path d="M3 17l6-6 4 4 8-8M15 7h6v6" />,
+  tools: (
+    <>
+      <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+      <circle cx="15" cy="7" r="2" />
+      <circle cx="9" cy="17" r="2" />
+    </>
+  ),
   chat: <path d="M20 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 20 12z" />,
 };
 
@@ -42,6 +48,7 @@ export default function BottomBar({
       {item("chart", "Chart", onChart)}
       {item("signal", "Signal", () => onTab("signal"), tab === "signal")}
       {item("trades", "Trades", () => onTab("trades"), tab === "trades")}
+      {item("tools", "Tools", () => onTab("tools"), tab === "tools")}
       {item("chat", "Chat", onChat, chatOpen, chatOpen ? 0 : unread)}
     </nav>
   );
