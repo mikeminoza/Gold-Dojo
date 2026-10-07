@@ -4794,3 +4794,21 @@ button[data-busy] {
   cursor: pointer;
   pointer-events: auto;
 }
+
+/* ---- Daily trend as the main strategy; NY breakout marked as practice ---- */
+
+.practice-tag {
+  justify-self: start;
+  margin: 0 0 var(--space-2);
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.trend-main h2 {
+  margin-bottom: var(--space-2);
+}

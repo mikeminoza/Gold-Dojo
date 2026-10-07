@@ -40,9 +40,9 @@ export default function BottomBar({
   return (
     <nav className="bottom-bar" aria-label="Sections">
       {item("chart", "Chart", onChart)}
-      {item("signal", "Signal", () => onTab("signal"), tab === "signal")}
-      {item("trades", "Trades", () => onTab("trades"), tab === "trades")}
       {item("trend", "Trend", () => onTab("trend"), tab === "trend")}
+      {item("signal", "NY", () => onTab("signal"), tab === "signal")}
+      {item("trades", "Trades", () => onTab("trades"), tab === "trades")}
       {item("chat", "Chat", onChat, chatOpen, chatOpen ? 0 : unread)}
     </nav>
   );

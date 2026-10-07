@@ -810,9 +810,9 @@ function ContextTags({ ctx }: { ctx: TradeContext }) {
 }
 
 const SIDE_TABS: [SideTab | "tools", string][] = [
-  ["signal", "Signal"],
-  ["trades", "Trades"],
   ["trend", "Daily trend"],
+  ["signal", "NY practice"],
+  ["trades", "Trades"],
   ["tools", "Tools"],
 ];
 
@@ -1065,16 +1065,17 @@ export default function Dashboard() {
   const closePerf = useCallback(() => setPerfOpen(false), []);
   const [sideTab, setSideTab] = useState<SideTab>(() => {
     try {
-      const v = localStorage.getItem("gold-side-tab");
-      return v === "trades" || v === "trend" || v === "tools" ? v : "signal";
+      // new key: Daily trend became the main tab, so everyone starts there once
+      const v = localStorage.getItem("gold-tab");
+      return v === "signal" || v === "trades" || v === "tools" ? v : "trend";
     } catch {
-      return "signal";
+      return "trend";
     }
   });
   const chooseTab = (tab: SideTab, scroll = false) => {
     setSideTab(tab);
     try {
-      localStorage.setItem("gold-side-tab", tab);
+      localStorage.setItem("gold-tab", tab);
     } catch {
       // not remembered
     }
@@ -1388,11 +1389,13 @@ export default function Dashboard() {
         </section>
 
         <aside className="sidebar">
+          {sideTab === "signal" && (
           <section
             className="signal-card"
             aria-live="polite"
             data-fresh={state.history[0] && now - state.history[0].time < 60 ? state.history[0].type : undefined}
           >
+            <p className="practice-tag">NY breakout · practice only, no proven edge</p>
             <h1 className="signal-word" key={word}>
               {word}
             </h1>
@@ -1448,6 +1451,10 @@ export default function Dashboard() {
               </p>
             )}
             <SessionSchedule state={state} now={now} t={t} />
+          </section>
+          )}
+
+          <section className="side-block risk-block">
             <div className="risk-stat">
               <span>Risk per trade</span>
               <strong>{usd((account.balance * account.risk_percent) / 100)}</strong>
@@ -1534,7 +1541,10 @@ export default function Dashboard() {
 
             {sideTab === "trend" &&
               (state.daily_trend ? (
-                <Fold id="trend" title="Daily trend" extra="forward test (paper)">
+                <section className="side-block trend-main">
+                  <h2>
+                    Daily trend <span className="tz-note">main strategy · paper test</span>
+                  </h2>
                   <DailyTrend
                     trend={state.daily_trend}
                     account={account}
@@ -1543,7 +1553,7 @@ export default function Dashboard() {
                     day={(time) => dayLabel(time, now, state.display.tz)}
                     myTrades={myTrades}
                   />
-                </Fold>
+                </section>
               ) : (
                 <section className="side-block">
                   <EmptyState icon="wait" title="Daily trend is starting">
@@ -1599,7 +1609,8 @@ export default function Dashboard() {
             )}
 
             <p className="note side-disclaimer">
-              Signals only, for learning and demo trading: a 23-year test found no reliable edge.{" "}
+              Signals only, never trades. Daily trend is the main strategy, on a paper test; NY breakout is practice
+              only (a 23-year test found no edge).{" "}
               <a href="/how">How it has done</a>
             </p>
           </div>

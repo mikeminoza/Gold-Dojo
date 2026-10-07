@@ -82,7 +82,7 @@ export default function Preferences() {
           className="journal-csv"
           onClick={() => {
             write("gold-folded", null);
-            write("gold-side-tab", null);
+            write("gold-tab", null);
             toast("Sidebar reset: all sections open");
           }}
         >

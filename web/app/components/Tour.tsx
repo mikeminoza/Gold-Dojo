@@ -7,9 +7,9 @@ export const TOUR_EVENT = "gold-tour"; // window event that restarts the tour (f
 
 const STEPS: { target: string; title: string; text: string }[] = [
   {
-    target: ".signal-card",
-    title: "The signal",
-    text: "Buy, Sell or Wait for gold, with the entry, stop and target when a trade is open, and when the next New York session starts.",
+    target: ".side-panel",
+    title: "Daily trend, the main strategy",
+    text: "Two long-only rules on daily candles: what each is waiting for, any open paper trade with a size for your account, and the results so far.",
   },
   {
     target: ".chart-panel",
@@ -18,8 +18,8 @@ const STEPS: { target: string; title: string; text: string }[] = [
   },
   {
     target: ".side-tabs",
-    title: "Trades, Daily trend and tools",
-    text: "Past signals and your results, the long-only Daily trend test, price alerts and the lot size calculator.",
+    title: "NY practice, trades and tools",
+    text: "The New York breakout signals (practice only), past signals and your results, price alerts and the lot size calculator.",
   },
   {
     target: ".profile-trigger",
