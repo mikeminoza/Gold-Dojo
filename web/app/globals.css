@@ -5788,3 +5788,12 @@ button[data-busy] {
     padding: 12px;
   }
 }
+
+/* ---- price alerts: room between the add form and what follows ---- */
+
+.tool-row + .empty-state,
+.tool-row + .alert-list,
+.tool-hint + .empty-state,
+.tool-hint + .alert-list {
+  margin-top: var(--space-3);
+}

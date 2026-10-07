@@ -416,6 +416,7 @@ export default function Dashboard() {
   const word = trendRules.some((x) => x.position) ? "Long" : trendRules.some((x) => x.pending) ? "Buy" : "Wait";
   const cardSide = word === "Wait" ? "WAIT" : "BUY";
   const telegram = safeLink(state?.telegram_url); // the bot's public channel, if it has one
+  const askDojo = safeLink(state?.telegram_bot_url); // private chat with the bot's AI helper, if it's on
 
   useEffect(() => {
     if (state) {
@@ -652,6 +653,12 @@ export default function Dashboard() {
                 <a className="telegram-link" href={telegram} target="_blank" rel="noopener noreferrer">
                   <TelegramIcon />
                   Get alerts on Telegram
+                </a>
+              )}
+              {askDojo && (
+                <a className="telegram-link" href={askDojo} target="_blank" rel="noopener noreferrer">
+                  <TelegramIcon />
+                  Ask Dojo
                 </a>
               )}
             </div>

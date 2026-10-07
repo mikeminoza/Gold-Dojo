@@ -132,6 +132,7 @@ export type LiveState = {
   drift?: Record<string, { percentile: number; alarm: boolean }>;
   drift_min_trades?: number; // trades a rule needs before the check runs (20)
   telegram_url?: string | null; // public Telegram channel where the bot posts the same alerts
+  telegram_bot_url?: string | null; // private chat with the bot: Ask Dojo, the AI helper
   bot_health?: BotHealth; // for the admin page: version, uptime, errors, price source
 
 

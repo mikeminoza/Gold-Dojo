@@ -38,6 +38,7 @@ import news
 import sessions
 import sizing
 import strategy
+import telegram_ask
 import telegram_notify
 
 STATE_FILE = Path(__file__).with_name("state.json")
@@ -108,6 +109,8 @@ class Bot:
         self.h4trend = (trend_daily.DailyTrend(self._h4_mem, trend_daily.H4_RULES)
                         if config.H4_TREND and not demo else None)
         self.silence = guards.Silence()
+        self.last_bid = None
+        self.ask = None if demo else telegram_ask.AskDojo(self.ask_context, self.ask_status)
         self.drift = {}            # rule -> {"percentile", "alarm"} from the daily drift check
         self.drift_checked = 0.0
         self.health = None  # set by main() when running as a web service
@@ -474,6 +477,28 @@ class Bot:
         if self.telegram:
             telegram_notify.send("🗓 " + text)
 
+    def ask_status(self):
+        """/status on Telegram: what each rule is doing right now."""
+        bid = self.last_bid
+        if bid is None:
+            return "The bot is starting up. Try again in a minute."
+        lines = [f"Gold {bid:.2f} (paper test, not financial advice)."]
+        for label, tracker in (("Daily trend", self.trend), ("4-hour trend", self.h4trend)):
+            if tracker:
+                lines.append(f"{label}:\n" + "\n".join("- " + weekly_summary._rule_line(tracker, r, bid)
+                                                         for r in tracker.rules))
+        return "\n\n".join(lines)
+
+    def ask_context(self):
+        """Live facts for Ask Dojo's AI: the status plus each strategy's paper record."""
+        text = self.ask_status()
+        for label, tracker in (("Daily trend", self.trend), ("4-hour trend", self.h4trend)):
+            if tracker:
+                started = (pd.Timestamp(tracker.started, unit="s", tz="UTC").strftime("%Y-%m-%d")
+                           if tracker.started else "today")
+                text += f"\n{label} paper test since {started}: {weekly_summary._record(tracker)}."
+        return text + f"\nNow (UTC): {pd.Timestamp.now(tz='UTC'):%Y-%m-%d %H:%M}."
+
     def post_recaps(self, df):
         """Once a session has ended, post its recap in the website chat (once per session)."""
         if not config.RECAP_TO_CHAT or "sess_end" not in df or not self.cloud.enabled:
@@ -561,6 +586,8 @@ class Bot:
             "drift_min_trades": config.DRIFT_MIN_TRADES,
             # public Telegram channel with the same alerts (set TELEGRAM_CHANNEL_URL on the host)
             "telegram_url": os.getenv("TELEGRAM_CHANNEL_URL") or None,
+            # private chat with the bot (Ask Dojo), e.g. https://t.me/golddojo_alerts_bot
+            "telegram_bot_url": (os.getenv("TELEGRAM_BOT_URL") or None) if self.ask and self.ask.enabled else None,
             "bot_health": self.health_summary(),
             # share of the last day of signal candles built from real XAUUSD prices (None: PAXG-only feed)
             "real_candles": getattr(self.feed, "real_share", lambda: None)(),
@@ -656,6 +683,8 @@ class Bot:
             if saved:
                 print(f"Loaded {len(saved)} saved minutes of real XAUUSD prices")
         self.start()
+        if self.ask:
+            self.ask.start()
         if self.report:
             self.report.started()
         self.last_bar_time = self.df["time"].iat[-1]  # don't alert on a stale candle at startup
@@ -692,6 +721,7 @@ class Bot:
                                 self.on_candle_close()
                             else:  # the source hasn't published the new candle yet
                                 self.next_candle_check = now + CANDLE_RETRY_SECONDS
+                        self.last_bid = bid
                         self.check_near(bid)
                         self.post_weekly(bid)
                         self.save()

@@ -128,6 +128,11 @@ H4_TREND = True
 # New York breakout signals: off (no edge after costs in the 23-year test). The bot still watches
 # M30 candles for the chart, indicators and alarms; an open NY trade (if any) is still closed normally.
 NY_SIGNALS = False
+# Ask Dojo (telegram_ask.py): people message the Telegram bot privately and an AI (Gemini free tier)
+# answers questions about the strategies and live state. Needs TELEGRAM_BOT_TOKEN and GEMINI_API_KEY.
+TELEGRAM_ASK = True
+TELEGRAM_ASK_PER_DAY = 20     # questions per person per day
+TELEGRAM_ASK_PER_MINUTE = 8   # for everyone together (stays under the free quota)
 
 # Paper tracking of the daily swing candidate (swing_paper.py, docs/swing-research.md): recorded only,
 # never shown as a signal. Re-test it against the backtest and buy-and-hold after 6-12 months.
