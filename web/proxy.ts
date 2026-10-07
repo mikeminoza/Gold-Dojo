@@ -3,13 +3,14 @@ import { authConfigured, memberFor, sessionClient } from "./app/lib/members";
 
 /**
  * Accounts-only site: every page, API route and script file needs a signed-in account that isn't
- * blocked. Only the sign-in screen, the sign-in steps under /auth/ and the styling are open.
+ * blocked. Only the sign-in screen, the public results page, the sign-in steps under /auth/ and the styling are open.
  * Also refreshes the Supabase session cookies on the way through.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const open =
     pathname === "/login" ||
+    pathname === "/results" || // the public paper-test record: past results only, no live signal
     pathname.startsWith("/auth/") ||
     pathname === "/favicon.ico" ||
     pathname === "/icon-dark.svg" ||

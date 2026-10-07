@@ -115,6 +115,9 @@ export default async function Login({ searchParams }: PageProps<"/login">) {
           )}
           {mode !== "signin" && <Link href="/login">Back to sign in</Link>}
         </p>
+        <p className="login-results">
+          <Link href="/results">See the paper-test results</Link>
+        </p>
       </div>
     </AuthShell>
   );

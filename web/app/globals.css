@@ -5368,3 +5368,423 @@ button[data-busy] {
     width: 100%;
   }
 }
+
+/* ---- admin: bot health card ------------------------------------------- */
+
+.auth .login:has(.health-card) {
+  gap: 20px;
+}
+
+.health-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.health-head h2 {
+  margin-right: auto;
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.health-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.health-status i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--buy);
+}
+
+.health-status[data-status="late"] i {
+  background: var(--gold);
+}
+
+.health-status[data-status="off"] {
+  color: var(--sell);
+}
+
+.health-status[data-status="off"] i {
+  background: var(--sell);
+}
+
+.login-card .health-refresh {
+  margin-top: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--gold);
+  font-size: 13px;
+}
+
+.login-card .health-refresh:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.health-refresh:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.health-list {
+  display: grid;
+  margin: 0;
+  font-size: 14px;
+}
+
+.health-list > div {
+  display: grid;
+  grid-template-columns: minmax(130px, 170px) 1fr;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.health-list dt {
+  color: var(--muted);
+}
+
+.health-list dd {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.health-list dd[data-tone="loss"] {
+  color: var(--sell);
+}
+
+.health-error {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--inset);
+  color: var(--text);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+.health-drift[data-tone="profit"] {
+  color: var(--buy);
+}
+
+.health-drift[data-tone="loss"] {
+  color: var(--sell);
+  font-weight: 600;
+}
+
+@media (max-width: 760px) {
+  .health-list > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+/* ---- trend trades: the "Explain" panel -------------------------------- */
+
+.trend-trades .explain-cell {
+  width: 1%;
+  padding-left: 10px;
+  white-space: nowrap;
+}
+
+.explain-toggle {
+  font-size: 12px;
+}
+
+.explain-toggle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.trend-trades .explain-row td {
+  padding: 0 0 10px;
+  border-top: 0;
+  text-align: left;
+  font-weight: 400;
+}
+
+.explain {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--inset);
+}
+
+.explain-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 240px;
+}
+
+.explain-held {
+  fill: color-mix(in srgb, var(--gold) 8%, transparent);
+}
+
+.explain-up line,
+.explain-up rect {
+  stroke: var(--buy);
+  fill: var(--buy);
+}
+
+.explain-down line,
+.explain-down rect {
+  stroke: var(--sell);
+  fill: var(--sell);
+}
+
+.explain-level line {
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+
+.explain-level text {
+  fill: var(--muted);
+  font-size: 11px;
+  font-family: var(--body);
+}
+
+.explain-trigger line {
+  stroke: var(--gold);
+  stroke-dasharray: 5 4;
+}
+
+.explain-trigger text {
+  fill: var(--gold);
+}
+
+.explain-entry line {
+  stroke: var(--text);
+}
+
+.explain-entry text {
+  fill: var(--text);
+}
+
+.explain-sl line {
+  stroke: var(--sell);
+}
+
+.explain-sl text {
+  fill: var(--sell);
+}
+
+.explain-exit line {
+  stroke: var(--text);
+  stroke-dasharray: 2 3;
+}
+
+.explain-best line {
+  stroke: var(--buy);
+  stroke-dasharray: 1 3;
+}
+
+.explain-best text {
+  fill: var(--buy);
+}
+
+.explain-story,
+.explain-wait {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.explain-wait {
+  color: var(--muted);
+}
+
+/* ---- public results page ---------------------------------------------- */
+
+.login-results {
+  font-size: 13px;
+  text-align: center;
+}
+
+.login-results a {
+  color: var(--gold);
+}
+
+.results-card {
+  width: min(760px, 100%);
+  max-width: 760px;
+  padding: 8px 0 24px;
+}
+
+.results-card h1 {
+  font-family: var(--display);
+  font-size: clamp(28px, 5vw, 40px);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.results-card h2 {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.results-card h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.results-card a {
+  color: var(--gold);
+}
+
+.results-card a:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.results-strategy {
+  display: grid;
+  gap: 12px;
+}
+
+.results-since,
+.results-small,
+.results-empty,
+.results-foot {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.results-small {
+  font-size: 13px;
+}
+
+.results-rules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.results-rule,
+.results-backtest {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.results-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0;
+}
+
+.results-stats dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.results-stats dd {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.results-stats dd[data-tone="profit"],
+.results-recent strong[data-tone="profit"],
+.results-backtest td[data-tone="profit"] {
+  color: var(--buy);
+}
+
+.results-stats dd[data-tone="loss"],
+.results-recent strong[data-tone="loss"],
+.results-backtest td[data-tone="loss"] {
+  color: var(--sell);
+}
+
+.results-curve {
+  display: block;
+  width: 100%;
+  height: 90px;
+  overflow: visible;
+}
+
+.results-curve polyline {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.results-curve[data-tone="profit"] polyline {
+  stroke: var(--buy);
+}
+
+.results-curve[data-tone="loss"] polyline {
+  stroke: var(--sell);
+}
+
+.results-zero {
+  stroke: var(--muted);
+  stroke-dasharray: 4 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.results-recent {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  list-style: none;
+}
+
+.results-recent li {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+}
+
+.results-table {
+  overflow-x: auto;
+}
+
+.results-backtest .results-split th,
+.results-backtest .results-split td {
+  padding: 6px 0 6px 10px;
+  white-space: nowrap;
+}
+
+.results-backtest .results-split th:first-child {
+  padding-left: 0;
+  white-space: normal;
+}
+
+@media (max-width: 760px) {
+  .results-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .results-rule,
+  .results-backtest {
+    padding: 12px;
+  }
+}

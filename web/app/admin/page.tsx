@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { currentMember } from "../lib/members";
 import { supabaseServer } from "../lib/supabaseServer";
+import BotHealth, { loadHealth } from "./BotHealth";
 
 export const metadata: Metadata = { title: "Members · Gold Dojo" };
 
@@ -23,18 +24,22 @@ export default async function Admin({ searchParams }: PageProps<"/admin">) {
   const me = await currentMember({ getAll: () => jar.getAll() });
   if (me?.role !== "admin") redirect("/");
   const db = supabaseServer();
-  const [{ data: members }, { data: profiles }] = db
-    ? await Promise.all([
-        db.from("members").select("email, role, blocked, added_at").order("added_at", { ascending: false }),
-        db.from("profiles").select("email, name"),
-      ])
-    : [{ data: [] }, { data: [] }];
+  const [[{ data: members }, { data: profiles }], health] = await Promise.all([
+    db
+      ? Promise.all([
+          db.from("members").select("email, role, blocked, added_at").order("added_at", { ascending: false }),
+          db.from("profiles").select("email, name"),
+        ])
+      : [{ data: [] }, { data: [] }],
+    loadHealth(db).catch(() => null),
+  ]);
   const names = new Map((profiles ?? []).map((p) => [p.email.toLowerCase(), p.name as string]));
   const { note } = await searchParams;
   const message = typeof note === "string" ? NOTES[note] : undefined;
 
   return (
     <AuthShell>
+      <BotHealth health={health} />
       <div className="login-card admin-card">
         <h1>Members</h1>
         <p>

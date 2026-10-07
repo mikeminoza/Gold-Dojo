@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { MyAccount } from "../lib/account";
 import { brokerSize, lotDecimals, ozPerLotInDollars, useBroker } from "../lib/broker";
 import { toast } from "../lib/toast";
 import type { DailyTrendState, LiveState } from "../lib/types";
 import BrokerForm from "./BrokerForm";
+import TradeExplain, { type ExplainTrade } from "./TradeExplain";
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const r = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}R`;
@@ -299,8 +300,9 @@ export function TrendTrades({
   day: (t: number) => string;
   taken: Map<string, number>;
 }) {
+  const [shown, setShown] = useState<string | null>(null); // the row whose "Explain" panel is open
   const trades = (trend?.rules ?? [])
-    .flatMap((x) => x.trades.map((t) => ({ ...t, rule: x.name })))
+    .flatMap((x) => x.trades.map((t) => ({ ...t, rule: x.name, ruleId: x.id })))
     .sort((a, b) => b.closed - a.closed);
   const open = (trend?.rules ?? []).filter((x) => x.position);
   if (!trades.length && !open.length) {
@@ -311,36 +313,83 @@ export function TrendTrades({
       </p>
     );
   }
+  const toggle = (key: string) => (
+    <td className="explain-cell">
+      <button
+        type="button"
+        className="link-button explain-toggle"
+        aria-expanded={shown === key}
+        aria-controls={`explain-${key}`}
+        onClick={() => setShown(shown === key ? null : key)}
+      >
+        {shown === key ? "Hide" : "Explain"}
+      </button>
+    </td>
+  );
+  const panel = (key: string, trade: ExplainTrade) =>
+    shown === key && (
+      <tr className="explain-row">
+        <td colSpan={5} id={`explain-${key}`}>
+          <TradeExplain trade={trade} />
+        </td>
+      </tr>
+    );
   return (
-    <table className="results-split perf-years">
+    <table className="results-split perf-years trend-trades">
       <thead>
         <tr>
           <th scope="col">Rule</th>
           <th scope="col">Bought</th>
           <th scope="col">Nights</th>
           <th scope="col">Result</th>
+          <th scope="col">
+            <span className="sr-only">Explain</span>
+          </th>
         </tr>
       </thead>
       <tbody>
-        {open.map((x) => (
-          <tr key={`open-${x.id}`}>
-            <th scope="row">{x.name}</th>
-            <td>{day(x.position!.opened)}</td>
-            <td>{x.position!.nights ?? "–"}</td>
-            <td>Open{x.position!.r_now != null && ` ${r(x.position!.r_now)}`}</td>
-          </tr>
-        ))}
-        {trades.map((t) => (
-          <tr key={t.id ?? `${t.rule}-${t.opened}`}>
-            <th scope="row">{t.rule}</th>
-            <td>{day(t.opened)}</td>
-            <td>{t.nights}</td>
-            <td data-tone={t.r > 0 ? "profit" : t.r < 0 ? "loss" : undefined}>
-              {r(t.r)}
-              {t.id && taken.has(t.id) && " ✓"}
-            </td>
-          </tr>
-        ))}
+        {open.map((x) => {
+          const p = x.position!;
+          const key = `open-${x.id}`;
+          return (
+            <Fragment key={key}>
+              <tr>
+                <th scope="row">{x.name}</th>
+                <td>{day(p.opened)}</td>
+                <td>{p.nights ?? "–"}</td>
+                <td>Open{p.r_now != null && ` ${r(p.r_now)}`}</td>
+                {toggle(key)}
+              </tr>
+              {panel(key, {
+                rule: x.id,
+                entry: p.entry,
+                opened: p.opened,
+                sl: p.sl,
+                trigger: p.trigger,
+                stop: p.stop,
+                rNow: p.r_now,
+              })}
+            </Fragment>
+          );
+        })}
+        {trades.map((t) => {
+          const key = t.id ?? `${t.ruleId}-${t.opened}`;
+          return (
+            <Fragment key={key}>
+              <tr>
+                <th scope="row">{t.rule}</th>
+                <td>{day(t.opened)}</td>
+                <td>{t.nights}</td>
+                <td data-tone={t.r > 0 ? "profit" : t.r < 0 ? "loss" : undefined}>
+                  {r(t.r)}
+                  {t.id && taken.has(t.id) && " ✓"}
+                </td>
+                {toggle(key)}
+              </tr>
+              {panel(key, { ...t, rule: t.ruleId })}
+            </Fragment>
+          );
+        })}
       </tbody>
     </table>
   );

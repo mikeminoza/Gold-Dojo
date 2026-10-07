@@ -109,7 +109,8 @@ export default function How() {
           </ul>
           <p>
             The <strong>Performance</strong> button shows each strategy&apos;s backtest at your account size, and the
-            Trades tab its paper trades so far.
+            Trades tab its paper trades so far. The public <Link href="/results">results page</Link> shows the paper
+            record and backtest to anyone, without signing in.
           </p>
         </section>
 

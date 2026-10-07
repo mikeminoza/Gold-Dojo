@@ -132,6 +132,8 @@ export type LiveState = {
   drift?: Record<string, { percentile: number; alarm: boolean }>;
   drift_min_trades?: number; // trades a rule needs before the check runs (20)
   telegram_url?: string | null; // public Telegram channel where the bot posts the same alerts
+  bot_health?: BotHealth; // for the admin page: version, uptime, errors, price source
+
 
   indicators: {
     ema_fast: number;
@@ -147,6 +149,18 @@ export type LiveState = {
   chart: { timeframes: string[]; default: string };
 };
 
+/** The bot's own health, for the admin page (bot.py health_summary). Times are UTC seconds. */
+export type BotHealth = {
+  version: string | null; // short git commit it's running
+  started: number | null; // when this run started
+  restarts_24h: number;
+  errors: number; // loop errors since the last daily report
+  last_error: string | null;
+  source: string; // where prices come from
+  telegram: boolean;
+  weekly_sent: string | null; // ISO week of the last weekly summary, e.g. "2026-W40"
+};
+
 /** swing_paper.py: what the 100-day breakout rule would have done since tracking started (R = result / risk). */
 export type SwingPaper = {
   rule: string;
@@ -157,6 +171,22 @@ export type SwingPaper = {
   total_r: number;
   win_rate: number | null;
   profit_factor: number | null;
+};
+
+/** A closed trend paper trade. sl, trigger and best are missing on older trades. */
+export type TrendTrade = {
+  id?: string;
+  entry: number;
+  exit: number;
+  opened: number;
+  closed: number;
+  nights: number;
+  reason: string;
+  pnl?: number;
+  r: number;
+  sl?: number; // the starting stop
+  trigger?: number | null; // the level that triggered the buy
+  best?: number; // highest price while it was held
 };
 
 /** trend_daily.py: each long-only daily rule's paper trade (if any), what it waits for, and its results in R. */
@@ -177,13 +207,14 @@ export type DailyTrendState = {
       nights?: number;
       swap_oz?: number; // estimated overnight financing so far, $ per oz
       r_now?: number;
+      trigger?: number | null; // the level that triggered the buy
     } | null;
     pending: boolean;
     trigger?: number | null; // the price the rule is waiting for, if it's a single level
     gap_pct?: number | null; // how far (%) price is below the breakout trigger; null for the pullback rule
     rs?: number[]; // every closed paper trade's R, oldest first
     waiting: string | null;
-    trades: { id?: string; entry: number; exit: number; opened: number; closed: number; nights: number; reason: string; r: number }[];
+    trades: TrendTrade[];
     count: number;
     total_r: number;
     win_rate: number | null;
