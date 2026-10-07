@@ -105,8 +105,11 @@ class Rule:
         atr, prev_atr = float(d["atr"].iat[i]), float(d["atr"].iat[i - 1])
         if self.position is None and self.pending:
             dist = self.k * prev_atr
+            # the level that triggered it (for the website's trade explainer)
+            level = d["hh100"].iat[i - 1] if KIND[self.rule] == "breakout" else d["ema20"].iat[i - 1]
             self.position = {"entry": round(o, 2), "sl": round(o - dist, 2), "stop": round(o - dist, 2),
-                             "risk": round(dist, 2), "best": o, "opened": day}
+                             "risk": round(dist, 2), "best": o, "opened": day,
+                             "trigger": round(float(level), 2) if np.isfinite(level) else None}
             events.append({"rule": self.rule, "type": "open", **self.position})
         self.pending = False
         p = self.position
@@ -126,6 +129,7 @@ class Rule:
         nights = max(0, day // 86400 - p["opened"] // 86400)  # rollovers passed (UTC dates)
         net = (price - p["entry"]) - SPREAD - 2 * SLIPPAGE - SWAP_PER_NIGHT * p["entry"] * nights
         trade = {"id": f"dt-{self.rule}-{p['opened']}", "entry": p["entry"], "exit": round(price, 2), "opened": p["opened"], "closed": day,
+                 "sl": p["sl"], "trigger": p.get("trigger"), "best": round(p["best"], 2),
                  "nights": nights, "reason": reason, "pnl": round(net, 2), "r": round(net / p["risk"], 2)}
         self.trades = (self.trades + [trade])[-KEEP:]
         self.position = None
@@ -205,6 +209,7 @@ class DailyTrend:
             if x.position:
                 p = x.position
                 pos = {k: p[k] for k in ("entry", "stop", "sl", "risk", "opened")}
+                pos["trigger"] = p.get("trigger")
                 pos["id"] = f"dt-{r}-{p['opened']}"
                 nights = max(0, round((time.time() - p["opened"]) / 86400))
                 pos["nights"] = nights

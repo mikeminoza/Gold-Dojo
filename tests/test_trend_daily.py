@@ -70,3 +70,18 @@ def test_near_trigger_warns_once_per_level_and_rearms():
     s = t.summary(trig * 0.995)
     assert s["rules"][0]["gap_pct"] == 0.5 and s["near_pct"] == trend_daily.NEAR_PCT
     assert trend_daily.DailyTrend(t.memory()).warned == t.warned  # survives a restart
+
+
+def test_weekly_summary_text_and_schedule():
+    import weekly_summary
+    c = np.r_[np.full(240, 2000.0) + np.sin(np.arange(240)) * 5]
+    d = _daily(c)
+    t = trend_daily.DailyTrend()
+    t.update(d)
+    txt = weekly_summary.text([("Daily trend", t), ("4-hour trend", None)], 1990.0, d)
+    assert txt.startswith("Weekly summary (paper test). Gold 1990.00") and "100-day breakout: waiting" in txt
+    assert "no closed paper trades yet" in txt and "4-hour" not in txt
+    sunday_eve = pd.Timestamp("2026-10-11 19:00", tz=weekly_summary.config.DISPLAY_TZ).timestamp()
+    assert weekly_summary.due(None, sunday_eve)
+    assert not weekly_summary.due(weekly_summary.week_key(sunday_eve), sunday_eve)
+    assert not weekly_summary.due(None, sunday_eve - 2 * 86400)  # Friday

@@ -33,6 +33,7 @@ import real_candles
 import session_recap
 import swing_paper
 import trend_daily
+import weekly_summary
 import news
 import sessions
 import sizing
@@ -97,6 +98,7 @@ class Bot:
         self.backtest = backtest_refresh.BacktestRefresher(self.cloud, feed.candle_seconds(config.TIMEFRAME))
         self.last_bar_time = None
         self._swing_mem = self._report_mem = self._trend_mem = self._h4_mem = None  # set by load()
+        self.weekly_sent = None  # ISO week of the last weekly summary
         self.position, self.history = self.load()
         self.report = health_report.HealthReport(self._report_mem) if config.HEALTH_REPORT and not demo else None
         self.recorder = (market_recorder.MinuteRecorder(getattr(feed, "gap", None))
@@ -130,6 +132,7 @@ class Bot:
         self._report_mem = data.get("health_report")
         self._trend_mem = data.get("daily_trend")
         self._h4_mem = data.get("h4_trend")
+        self.weekly_sent = data.get("weekly_sent")
         if "side" in data:  # older state.json held only the position
             return data, []
         data = data or {}
@@ -152,6 +155,7 @@ class Bot:
             memory["daily_trend"] = self.trend.memory()
         if self.h4trend:
             memory["h4_trend"] = self.h4trend.memory()
+        memory["weekly_sent"] = self.weekly_sent
         STATE_FILE.write_text(json.dumps(memory, default=live_state._plain))
         self.cloud.remember(memory)  # a copy in Supabase survives restarts on hosts that wipe their disk
 
@@ -458,6 +462,18 @@ class Bot:
                 if self.telegram:
                     telegram_notify.send("👀 " + text)
 
+    def post_weekly(self, bid):
+        """Sunday evening: a weekly summary of both trend strategies in chat and on Telegram."""
+        if self.demo or not (self.trend or self.h4trend) or not weekly_summary.due(self.weekly_sent):
+            return
+        self.weekly_sent = weekly_summary.week_key()
+        text = weekly_summary.text([("Daily trend", self.trend), ("4-hour trend", self.h4trend)], bid,
+                                   self.daily_bars())
+        print(f"{datetime.now():%H:%M:%S} {text}")
+        self.cloud.post_chat(text)
+        if self.telegram:
+            telegram_notify.send("🗓 " + text)
+
     def post_recaps(self, df):
         """Once a session has ended, post its recap in the website chat (once per session)."""
         if not config.RECAP_TO_CHAT or "sess_end" not in df or not self.cloud.enabled:
@@ -545,6 +561,7 @@ class Bot:
             "drift_min_trades": config.DRIFT_MIN_TRADES,
             # public Telegram channel with the same alerts (set TELEGRAM_CHANNEL_URL on the host)
             "telegram_url": os.getenv("TELEGRAM_CHANNEL_URL") or None,
+            "bot_health": self.health_summary(),
             # share of the last day of signal candles built from real XAUUSD prices (None: PAXG-only feed)
             "real_candles": getattr(self.feed, "real_share", lambda: None)(),
             "indicators": {
@@ -559,6 +576,22 @@ class Bot:
         }
         live_state.write(state)      # this PC (handy for checking what the bot sees)
         self.cloud.publish(state)    # Supabase -> the website
+
+    def health_summary(self):
+        """For the admin page: version, uptime, restarts and errors, price source, Telegram."""
+        import binance_feed
+        starts = self.report.starts if self.report else []
+        now = time.time()
+        return {
+            "version": (os.getenv("RENDER_GIT_COMMIT") or "")[:7] or None,
+            "started": starts[-1] if starts else None,
+            "restarts_24h": sum(t > now - 86400 for t in starts[1:]),
+            "errors": self.report.errors if self.report else 0,
+            "last_error": self.report.last_error if self.report else None,
+            "source": binance_feed._printed.get("source") or config.PRICE_FEED,
+            "telegram": self.telegram,
+            "weekly_sent": self.weekly_sent,
+        }
 
     # --- main loop ---------------------------------------------------------
     def start(self):
@@ -660,6 +693,7 @@ class Bot:
                             else:  # the source hasn't published the new candle yet
                                 self.next_candle_check = now + CANDLE_RETRY_SECONDS
                         self.check_near(bid)
+                        self.post_weekly(bid)
                         self.save()
                         self.publish(bid, ask)
                         self.post_health_report()
