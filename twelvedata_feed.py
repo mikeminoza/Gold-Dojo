@@ -46,7 +46,8 @@ def _fetch(timeframe, count):
     if r.status_code != 200 or body.get("status") != "ok":
         raise RuntimeError(f"Twelve Data: {body.get('message') or r.status_code}"[:160])
     df = pd.DataFrame(body["values"])
-    df["time"] = pd.to_datetime(df["datetime"], utc=True)
+    # same time precision as the PAXG candles, so the two can be merged (pandas refuses mixed units)
+    df["time"] = pd.to_datetime(df["datetime"], utc=True).astype("datetime64[ms, UTC]")
     for c in ("open", "high", "low", "close"):
         df[c] = df[c].astype(float)
     df["tick_volume"] = 0

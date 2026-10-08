@@ -35,6 +35,8 @@ def test_real_candles_closed_only_and_cached(monkeypatch):
     monkeypatch.setattr(td.requests, "get", get)
     df = td.get_bars("H4", 80)
     assert len(df) == 80 and df["close"].iat[-1] == 2005.0 and calls[0]["symbol"] == "XAU/USD"
+    # same time precision as the PAXG candles: mixing units broke the strategy's merge on the live bot
+    assert str(df["time"].dtype) == "datetime64[ms, UTC]"
     td.get_bars("H4", 80)
     assert len(calls) == 1  # served from the cache
     assert td.status()["source"] == "Twelve Data"

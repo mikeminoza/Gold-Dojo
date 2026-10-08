@@ -107,7 +107,7 @@ def _base_bars(timeframe, count, include_forming):
     """Real XAU/USD from Twelve Data for D1 / H4 when available, else PAXG shifted to spot."""
     real = twelvedata_feed.get_bars(timeframe, count, include_forming)
     if real is not None and len(real) >= min(count, 60):
-        return real
+        return real.assign(time=real["time"].astype("datetime64[ms, UTC]"))  # same precision as PAXG
     return _to_spot(paxg.get_bars(config.BINANCE_SYMBOL, timeframe, count, include_forming))
 
 
