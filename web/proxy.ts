@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authConfigured, memberFor, sessionClient } from "./app/lib/members";
 
 /**
- * Accounts-only site: every page, API route and script file needs a signed-in account that isn't
- * blocked. Only the sign-in screen, the public results page, the sign-in steps under /auth/, the styling, the app
+ * Auth for the whole site (Next 16's "proxy", the old middleware). Accounts-only: every page, API
+ * route and script file needs a signed-in account that isn't blocked; /login is for visitors only. Only the sign-in screen, the public results page, the sign-in steps under /auth/, the styling, the app
  * manifest and the push service worker are open.
  * Also refreshes the Supabase session cookies on the way through.
  */
@@ -41,15 +41,20 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const send = (r: NextResponse) => {
+    response.cookies.getAll().forEach((c) => r.cookies.set(c));
+    return r; // redirects and refusals keep any refreshed session cookies
+  };
+  const go = (path: string) => send(NextResponse.redirect(new URL(path, request.url)));
+
+  // Guest-only: the sign-in screen sends members who are already signed in to the signals
+  if (pathname === "/login" && user) {
+    const member = await memberFor(user).catch(() => undefined);
+    if (member?.name) return go("/");
+  }
   if (open) return response;
 
   const api = pathname.startsWith("/api/") || pathname.startsWith("/_next/");
-  // Redirects and refusals keep any refreshed session cookies
-  const send = (r: NextResponse) => {
-    response.cookies.getAll().forEach((c) => r.cookies.set(c));
-    return r;
-  };
-  const go = (path: string) => send(NextResponse.redirect(new URL(path, request.url)));
   const refuse = (status: number, error: string) => send(NextResponse.json({ error }, { status }));
 
   if (!user) return api ? refuse(401, "Sign in first.") : go("/login");

@@ -3,14 +3,13 @@ import Link from "next/link";
 import AuthShell from "../components/AuthShell";
 import TelegramCta from "../components/TelegramCta";
 import { loadPublicResults, type PublicRule, type PublicStrategy } from "../lib/publicResults";
+import { viewer } from "../lib/viewer";
 
 export const metadata: Metadata = {
   title: "Results · Gold Dojo",
   description: "Gold Dojo's paper-test record and 23-year backtest for its two gold trend strategies.",
 };
 
-// Re-read the results at most every 5 minutes (open to everyone, so it's served from the cache)
-export const revalidate = 300;
 
 const fmtR = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}R`;
 const tone = (n: number | null) => (n == null || n === 0 ? undefined : n > 0 ? "profit" : "loss");
@@ -152,10 +151,28 @@ function Strategy({ s, date }: { s: PublicStrategy; date: (t: number, year?: boo
 
 /** Open to everyone: the paper-test record and backtest summary, with no live signal or open trade. */
 export default async function Results() {
-  const data = await loadPublicResults();
+  // the numbers are cached for 5 minutes (loadPublicResults); only the links depend on who's looking
+  const [data, me] = await Promise.all([loadPublicResults(), viewer()]);
   const date = dateIn(data?.tz ?? "UTC");
   return (
-    <AuthShell>
+    <AuthShell
+      actions={
+        me ? (
+          <Link href="/" className="auth-action">
+            Live signals
+          </Link>
+        ) : (
+          <>
+            <Link href="/login" className="auth-action auth-action-quiet">
+              Sign in
+            </Link>
+            <Link href="/login?mode=register" className="auth-action">
+              Create account
+            </Link>
+          </>
+        )
+      }
+    >
       <article className="how-card results-card">
         <h1>Paper-test results</h1>
         <p className="how-lead">
@@ -187,7 +204,13 @@ export default async function Results() {
 
         <p className="results-foot">
           {data?.updated ? `Updated ${date(data.updated)}. ` : ""}
-          Members see the live signals: <Link href="/login">sign in or create an account</Link>.
+          {me ? (
+            <Link href="/">Back to the live signals</Link>
+          ) : (
+            <>
+              Members see the live signals: <Link href="/login">sign in or create an account</Link>.
+            </>
+          )}
         </p>
       </article>
     </AuthShell>

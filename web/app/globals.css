@@ -6232,3 +6232,51 @@ button[data-busy] {
   padding-top: var(--space-2);
   border-top: 1px solid var(--inset-border);
 }
+
+/* ---- header links on open pages (results): Sign in / Create account, or Live signals ---- */
+
+.auth-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.auth-action {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--bg);
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.auth-action-quiet {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+}
+
+.auth-action:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .auth-top .instrument span {
+    display: none; /* room for the header links */
+  }
+}
+
+/* ---- open/account pages: the header stays at the top while scrolling ---- */
+
+.auth-top {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  margin-inline: calc(-1 * var(--gutter));
+  padding-inline: var(--gutter);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(10px);
+}
