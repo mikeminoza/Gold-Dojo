@@ -11,7 +11,7 @@ import argparse
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -25,6 +25,8 @@ import cloud_state
 import config
 import health
 import guards
+import monthly_report
+import price_check
 import health_report
 import live_state
 import loss_guard
@@ -101,6 +103,10 @@ class Bot:
         self.last_bar_time = None
         self._swing_mem = self._report_mem = self._trend_mem = self._h4_mem = None  # set by load()
         self.weekly_sent = None  # ISO week of the last weekly summary
+        self.monthly_sent = None  # month of the last monthly report, "YYYY-MM"
+        self.backup_sent = None  # ISO week of the last Telegram backup
+        self.price_result = None  # last price accuracy check (price_check.py)
+        self.price_checked = 0.0
         self.position, self.history = self.load()
         self.report = health_report.HealthReport(self._report_mem) if config.HEALTH_REPORT and not demo else None
         self.recorder = (market_recorder.MinuteRecorder(getattr(feed, "gap", None))
@@ -138,6 +144,9 @@ class Bot:
         self._trend_mem = data.get("daily_trend")
         self._h4_mem = data.get("h4_trend")
         self.weekly_sent = data.get("weekly_sent")
+        self.monthly_sent = data.get("monthly_sent")
+        self.backup_sent = data.get("backup_sent")
+        self.price_result = data.get("price_check")
         if "side" in data:  # older state.json held only the position
             return data, []
         data = data or {}
@@ -161,6 +170,9 @@ class Bot:
         if self.h4trend:
             memory["h4_trend"] = self.h4trend.memory()
         memory["weekly_sent"] = self.weekly_sent
+        memory["monthly_sent"] = self.monthly_sent
+        memory["backup_sent"] = self.backup_sent
+        memory["price_check"] = self.price_result
         STATE_FILE.write_text(json.dumps(memory, default=live_state._plain))
         self.cloud.remember(memory)  # a copy in Supabase survives restarts on hosts that wipe their disk
 
@@ -487,6 +499,67 @@ class Bot:
         if self.push:
             self.push.send(None, text, title="Gold Dojo weekly summary", tag="weekly")
 
+    def check_prices(self):
+        """Once a day: compare the PAXG-based daily / 4-hour candles with the real recorded XAUUSD ones."""
+        raw = getattr(self.feed, "raw_bars", None)
+        if self.demo or raw is None or time.time() - self.price_checked < 86400:
+            return
+        self.price_checked = time.time()
+        was = (self.price_result or {}).get("ok")
+        try:
+            self.price_result = price_check.check(raw, self.symbol)
+        except Exception as e:  # never let this disturb the bot
+            print(f"price check skipped ({e})")
+            return
+        msg = price_check.message(self.price_result, was)
+        if msg:
+            print(f"{datetime.now():%H:%M:%S} {msg}")
+            self.cloud.post_chat(msg, room=config.HEALTH_REPORT_ROOM)
+
+    def post_monthly(self):
+        """On the 1st: last month's paper results vs the backtest, in chat / Telegram / push, and saved."""
+        if self.demo or not (self.trend or self.h4trend) or not monthly_report.due(self.monthly_sent):
+            return
+        self.monthly_sent = monthly_report.month_key()
+        rates = {}
+        try:
+            for row in ("daily_trend_backtest", "h4_trend_backtest"):
+                rates.update(monthly_report.backtest_rates(self.cloud_row(row)))
+        except Exception as e:
+            print(f"monthly report: backtests not loaded ({e})")
+        text, record = monthly_report.build([("Daily trend", self.trend), ("4-hour trend", self.h4trend)], rates)
+        print(f"{datetime.now():%H:%M:%S} {text}")
+        self.cloud.post_chat(text)
+        if self.telegram:
+            telegram_notify.send("📅 " + text)
+        if self.push:
+            self.push.send(None, text, title=f"Gold Dojo: {record['month']} report", tag="monthly")
+        try:  # the permanent record: the last 36 reports
+            saved = (self.cloud_row("monthly_reports") or {}).get("reports", [])
+            saved = ([r for r in saved if r.get("month") != record["month"]] + [record])[-36:]
+            body = {"id": "monthly_reports", "data": {"reports": saved}, "updated_at": datetime.now(timezone.utc).isoformat()}
+            requests.post(f"{self.cloud.url}/rest/v1/bot_state", headers=self.cloud._headers(),
+                          data=json.dumps(body), timeout=20)
+        except Exception as e:
+            print(f"monthly report not saved ({e})")
+
+    def weekly_backup(self):
+        """Once a week: the paper-test record (no personal data) as a file to a private Telegram chat."""
+        chat = os.getenv("TELEGRAM_ADMIN_CHAT_ID")
+        if self.demo or not chat or weekly_summary.week_key() == self.backup_sent:
+            return
+        if pd.Timestamp.now(tz=config.DISPLAY_TZ).weekday() != weekly_summary.POST_WEEKDAY:
+            return
+        self.backup_sent = weekly_summary.week_key()
+        record = {"saved": int(time.time()), "version": (os.getenv("RENDER_GIT_COMMIT") or "")[:7] or None,
+                  "daily_trend": self.trend.memory() if self.trend else None,
+                  "h4_trend": self.h4trend.memory() if self.h4trend else None,
+                  "price_check": self.price_result}
+        name = f"gold-dojo-paper-record-{datetime.now(timezone.utc):%Y-%m-%d}.json"
+        ok = telegram_notify.send_document(chat, name, json.dumps(record, indent=1, default=str).encode(),
+                                           "Weekly backup of the paper-test record. Keep it.")
+        print(f"{datetime.now():%H:%M:%S} weekly backup to Telegram: {'sent' if ok else 'failed'}")
+
     def ask_status(self):
         """/status on Telegram: what each rule is doing right now."""
         bid = self.last_bid
@@ -599,6 +672,7 @@ class Bot:
             # private chat with the bot (Ask Dojo), e.g. https://t.me/golddojo_alerts_bot
             "telegram_bot_url": (os.getenv("TELEGRAM_BOT_URL") or None) if self.ask and self.ask.enabled else None,
             "bot_health": self.health_summary(),
+            "price_check": self.price_result,
             # share of the last day of signal candles built from real XAUUSD prices (None: PAXG-only feed)
             "real_candles": getattr(self.feed, "real_share", lambda: None)(),
             "indicators": {
@@ -740,6 +814,9 @@ class Bot:
                         self.last_bid = bid
                         self.check_near(bid)
                         self.post_weekly(bid)
+                        self.post_monthly()
+                        self.weekly_backup()
+                        self.check_prices()
                         self.save()
                         self.publish(bid, ask)
                         self.post_health_report()

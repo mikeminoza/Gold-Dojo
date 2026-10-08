@@ -25,3 +25,6 @@ data/
 
 # research caches (big, rebuildable)
 research/news/cache/
+
+# local Supabase backups (members' emails, chat): never commit
+backups/

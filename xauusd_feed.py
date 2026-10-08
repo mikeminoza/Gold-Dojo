@@ -112,6 +112,11 @@ def get_bars(symbol, timeframe, count, include_forming=False):
     return bars
 
 
+def raw_bars(symbol, timeframe, count):
+    """PAXG shifted to spot only, without the real-price overlay (for the price accuracy check)."""
+    return _to_spot(paxg.get_bars(config.BINANCE_SYMBOL, timeframe, count, False))
+
+
 def real_share():
     """How much of the last day of signal candles uses real XAUUSD prices (0-100), or None."""
     return _state.get("real_share")

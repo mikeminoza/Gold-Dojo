@@ -25,6 +25,23 @@ def send(text):
         print(f"Telegram send failed: {e}")
 
 
+def send_document(chat_id, filename, data, caption=""):
+    """Send a file (bytes) to one chat, e.g. the weekly backup to a private admin chat."""
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not token or not chat_id:
+        return False
+    try:
+        r = requests.post(API.format(token=token, method="sendDocument"),
+                          data={"chat_id": chat_id, "caption": caption[:1000]},
+                          files={"document": (filename, data, "application/json")}, timeout=60)
+        if not r.ok:
+            print(f"Telegram error {r.status_code}: {r.text[:200]}")
+        return r.ok
+    except requests.RequestException as e:
+        print(f"Telegram send failed: {e}")
+        return False
+
+
 if __name__ == "__main__":
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:

@@ -12,7 +12,8 @@ import pandas as pd
 
 COVERAGE = 0.8      # a candle uses real prices when at least 80% of its minutes were recorded
 KEEP_MINUTES = 30 * 24 * 60  # about a month of minutes in memory
-STEP = {"M1": 1, "M5": 5, "M15": 15, "M30": 30, "H1": 60, "H4": 240}
+# D1 too: gold trades about 23 of 24 hours, so a fully recorded day still clears COVERAGE
+STEP = {"M1": 1, "M5": 5, "M15": 15, "M30": 30, "H1": 60, "H4": 240, "D1": 1440}
 
 _lock = threading.Lock()
 _minutes = {}  # minute start (UTC seconds) -> (open, high, low, close) of the mid price
@@ -32,6 +33,17 @@ def add(row):
 def count():
     with _lock:
         return len(_minutes)
+
+
+def real_bar(start, timeframe):
+    """(open, high, low, close, coverage 0-1) from recorded real minutes for the candle starting at
+    `start` (UTC seconds), or None when nothing was recorded."""
+    step = STEP[timeframe]
+    with _lock:
+        bars = [_minutes[m] for m in range(start, start + step * 60, 60) if m in _minutes]
+    if not bars:
+        return None
+    return (bars[0][0], max(b[1] for b in bars), min(b[2] for b in bars), bars[-1][3], len(bars) / step)
 
 
 def overlay(df, timeframe):
