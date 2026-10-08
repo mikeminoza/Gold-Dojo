@@ -13,7 +13,10 @@ import pandas as pd
 import requests
 
 URL = "https://api.twelvedata.com/time_series"
-INTERVAL = {"D1": "1day", "H4": "4h"}
+# Twelve Data's own 4-hour candles don't start on 00/04/08... UTC (the boundaries the strategy and the
+# PAXG candles use), so 4-hour candles are built from its hourly ones
+INTERVAL = {"D1": "1day", "H4": "1h"}
+PER = {"D1": 1, "H4": 4}     # source candles per candle
 STEP = {"D1": 86400, "H4": 4 * 3600}
 CACHE_SECONDS = 1200        # 20 minutes
 RETRY_AFTER = 900           # after a failure, leave it alone for 15 minutes
@@ -40,7 +43,8 @@ def status():
 
 def _fetch(timeframe, count):
     r = requests.get(URL, params={"symbol": "XAU/USD", "interval": INTERVAL[timeframe], "timezone": "UTC",
-                                  "outputsize": min(MAX_BARS, count + 5), "order": "ASC", "apikey": key()},
+                                  "outputsize": min(MAX_BARS, int((count + 5) * PER[timeframe] * 1.15)), "order": "ASC",
+                                  "apikey": key()},
                      timeout=20)
     body = r.json()
     if r.status_code != 200 or body.get("status") != "ok":
@@ -52,6 +56,13 @@ def _fetch(timeframe, count):
         df[c] = df[c].astype(float)
     df["tick_volume"] = 0
     df = df[["time", "open", "high", "low", "close", "tick_volume"]].sort_values("time").reset_index(drop=True)
+    if timeframe == "H4":
+        if ((df["time"] - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(seconds=1) % 3600 != 0).mean() > 0.2:
+            raise RuntimeError("Twelve Data: hourly candles don't start on the hour; using PAXG")
+        df = (df.set_index("time").resample("4h", label="left", closed="left")
+              .agg({"open": "first", "high": "max", "low": "min", "close": "last", "tick_volume": "sum"})
+              .dropna().reset_index())
+        df["time"] = df["time"].astype("datetime64[ms, UTC]")
     # sanity: real gold, sensible candles, aligned to the timeframe's UTC boundaries
     bad = (df["high"] < df[["open", "close"]].max(axis=1)) | (df["low"] > df[["open", "close"]].min(axis=1))
     if df.empty or bad.any() or (df["close"] <= 0).any():

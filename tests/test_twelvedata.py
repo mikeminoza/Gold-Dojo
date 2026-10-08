@@ -30,11 +30,12 @@ def test_real_candles_closed_only_and_cached(monkeypatch):
 
     def get(url, params, timeout):
         calls.append(params)
-        return Resp({"status": "ok", "values": _values("2026-01-01", 100, 4)})
+        return Resp({"status": "ok", "values": _values("2026-01-01", 400, 1)})  # hourly -> 4-hour
 
     monkeypatch.setattr(td.requests, "get", get)
     df = td.get_bars("H4", 80)
-    assert len(df) == 80 and df["close"].iat[-1] == 2005.0 and calls[0]["symbol"] == "XAU/USD"
+    assert len(df) == 80 and df["close"].iat[-1] == 2005.0 and calls[0]["interval"] == "1h"
+    assert (df["time"].dt.hour % 4 == 0).all()  # built on 00/04/08... UTC
     # same time precision as the PAXG candles: mixing units broke the strategy's merge on the live bot
     assert str(df["time"].dtype) == "datetime64[ms, UTC]"
     td.get_bars("H4", 80)
@@ -55,3 +56,8 @@ def test_falls_back_to_paxg_on_errors_and_odd_data(monkeypatch):
 def test_no_key_means_paxg(monkeypatch):
     monkeypatch.delenv("TWELVEDATA_API_KEY")
     assert td.get_bars("D1", 50) is None and not td.supports("D1")
+
+
+def test_hourly_not_on_the_hour_falls_back(monkeypatch):
+    monkeypatch.setattr(td.requests, "get", lambda *a, **k: Resp({"status": "ok", "values": _values("2026-01-01 00:30", 400, 1)}))
+    assert td.get_bars("H4", 80) is None
