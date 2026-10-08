@@ -6342,13 +6342,18 @@ button[data-busy] {
   margin-top: auto;
 }
 
+.chat-messages {
+  overflow-x: hidden; /* messages wrap; nothing should ever scroll sideways */
+}
+
 .chat-messages li[data-bot] {
-  max-width: 100%;
-  width: 100%;
+  align-self: stretch; /* full width without counting padding twice */
+  max-width: none;
 }
 
 .chat-messages li[data-bot] .chat-bubble {
-  width: 100%;
+  align-self: stretch;
+  box-sizing: border-box;
   border: 1px solid var(--inset-border);
   border-left: 3px solid var(--gold);
   border-radius: 4px 12px 12px 4px;
