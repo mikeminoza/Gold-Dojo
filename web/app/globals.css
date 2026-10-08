@@ -6409,3 +6409,84 @@ button[data-busy] {
 .chat-rooms {
   padding-top: 10px; /* room for the remove (x) buttons on the tabs */
 }
+
+/* ---- chat: delete (trash) and remove-chat (x) buttons that line up ---- */
+
+/* full-width posts (the bot's) have no room beside the bubble: the trash sits in the name row */
+.chat-messages li[data-bot] .chat-meta {
+  padding-right: 32px;
+}
+
+.chat-messages li[data-bot] .chat-delete {
+  top: -3px;
+  right: 0;
+  bottom: auto;
+  left: auto;
+  width: 26px;
+  height: 26px;
+}
+
+/* the remove (x) sits inside the chat's pill, on the right, instead of hanging off its corner */
+.chat-room:has(.chat-room-remove) > button:first-child {
+  padding-right: 28px;
+}
+
+.chat-room-remove {
+  top: 50%;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  transform: translateY(-50%);
+}
+
+.chat-room-remove:hover {
+  background: color-mix(in srgb, var(--sell) 16%, transparent);
+}
+
+.chat-rooms {
+  padding-top: 0;
+}
+
+/* people's messages: the trash sits right next to its bubble (left of your own, right of others') */
+.chat-messages li:not([data-bot]) {
+  display: grid;
+  grid-template-columns: minmax(0, auto) 28px;
+  column-gap: 4px;
+  align-items: center;
+  justify-content: start;
+}
+
+.chat-messages li:not([data-bot]) > * {
+  grid-column: 1 / -1;
+}
+
+.chat-messages li:not([data-bot]) > .chat-bubble {
+  grid-column: 1;
+}
+
+.chat-messages li:not([data-bot]) > .chat-delete {
+  position: static;
+  grid-column: 2; /* auto-placed into the bubble's row */
+}
+
+.chat-messages li[data-mine="true"]:not([data-bot]) {
+  grid-template-columns: 28px minmax(0, auto);
+  justify-content: end;
+  justify-items: end;
+}
+
+.chat-messages li[data-mine="true"]:not([data-bot]) > .chat-bubble {
+  grid-column: 2;
+}
+
+.chat-messages li[data-mine="true"]:not([data-bot]) > .chat-delete {
+  grid-column: 1;
+  order: -1; /* placed before the bubble so it lands in the bubble's row */
+}
+
+.chat-messages li[data-mine="true"]:not([data-bot]) > .chat-meta {
+  order: -2;
+}
