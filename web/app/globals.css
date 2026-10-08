@@ -6490,3 +6490,68 @@ button[data-busy] {
 .chat-messages li[data-mine="true"]:not([data-bot]) > .chat-meta {
   order: -2;
 }
+
+/* ---- chat: admins manage the open chat from a "..." menu in the header (no x on the tabs) ---- */
+
+.chat-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chat-menu {
+  position: relative;
+}
+
+.chat-menu .chat-close {
+  display: grid;
+  place-items: center;
+}
+
+.chat-menu .chat-close[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+  color: var(--text);
+}
+
+.chat-menu-list {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 190px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  box-shadow: 0 12px 32px var(--shadow);
+  animation: menu-in 0.12s ease-out;
+}
+
+.chat-menu-list button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-menu-list .chat-menu-danger {
+  color: var(--sell);
+}
+
+.chat-menu-list button:hover,
+.chat-menu-list button:focus-visible {
+  background: color-mix(in srgb, var(--sell) 12%, transparent);
+  outline: none;
+}
+
+.chat-close:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}

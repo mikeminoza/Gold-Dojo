@@ -33,6 +33,7 @@ export default function ChatPanel({
 }) {
   const [draft, setDraft] = useState("");
   const [removing, setRemoving] = useState<string | null>(null); // chat (room id) asking "remove for everyone?"
+  const [menuOpen, setMenuOpen] = useState(false); // admins: the open chat's options
   const [selected, setSelected] = useState<string | null>(null); // tapped message (phones: shows its delete button)
   const [confirming, setConfirming] = useState<string | null>(null); // message asking "delete for everyone?"
 
@@ -121,9 +122,46 @@ export default function ChatPanel({
             </span>
           </p>
         </div>
-        <button type="button" className="chat-close" onClick={onClose} aria-label="Close chat">
-          ×
-        </button>
+        <div className="chat-head-actions">
+          {chat.isAdmin && room && !KEEP_ROOMS.includes(room.name) && (
+            <div className="chat-menu" onKeyDown={(e) => e.key === "Escape" && setMenuOpen(false)}>
+              <button
+                type="button"
+                className="chat-close"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label={`Options for the ${room.name} chat`}
+                title="Chat options"
+                onClick={() => setMenuOpen((v) => !v)}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <circle cx="5" cy="12" r="1.8" />
+                  <circle cx="12" cy="12" r="1.8" />
+                  <circle cx="19" cy="12" r="1.8" />
+                </svg>
+              </button>
+              {menuOpen && (
+                <div className="chat-menu-list" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="chat-menu-danger"
+                    autoFocus
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setRemoving(room.id);
+                    }}
+                  >
+                    Remove &ldquo;{room.name}&rdquo;
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          <button type="button" className="chat-close" onClick={onClose} aria-label="Close chat">
+            ×
+          </button>
+        </div>
       </header>
 
       <nav className="chat-rooms" aria-label="Chats">
@@ -134,6 +172,7 @@ export default function ChatPanel({
               aria-pressed={r.id === chat.activeId}
               onClick={() => {
                 setRemoving(null);
+                setMenuOpen(false);
                 chat.openRoom(r.id);
               }}
             >
@@ -144,17 +183,6 @@ export default function ChatPanel({
                 </span>
               )}
             </button>
-            {chat.isAdmin && !KEEP_ROOMS.includes(r.name) && (
-              <button
-                type="button"
-                className="chat-room-remove"
-                onClick={() => setRemoving(r.id)}
-                aria-label={`Remove the ${r.name} chat`}
-                title="Remove chat"
-              >
-                ×
-              </button>
-            )}
           </span>
         ))}
         {chat.isAdmin && !adding && (
