@@ -6406,9 +6406,7 @@ button[data-busy] {
   margin: 8px 16px 0;
 }
 
-.chat-rooms {
-  padding-top: 10px; /* room for the remove (x) buttons on the tabs */
-}
+
 
 /* ---- chat: delete (trash) and remove-chat (x) buttons that line up ---- */
 
@@ -6447,7 +6445,7 @@ button[data-busy] {
 }
 
 .chat-rooms {
-  padding-top: 0;
+  padding-block: 12px; /* even space above and below the tabs */
 }
 
 /* people's messages: the trash sits right next to its bubble (left of your own, right of others') */
