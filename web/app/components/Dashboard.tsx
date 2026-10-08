@@ -628,6 +628,7 @@ export default function Dashboard() {
             tzLabel={state.display.label}
             timeframes={state.chart.timeframes}
             defaultTf={state.chart.default}
+            followTf={strategy === "h4" ? "H4" : "D1"}
             offset={state.display.offset}
             history={[]}
             range={null}

@@ -262,6 +262,7 @@ export default function TradingChart({
   periods,
   theme,
   onTimeframe,
+  followTf,
   replay,
   onExitReplay,
   alertPrices = [],
@@ -281,6 +282,8 @@ export default function TradingChart({
   position: Position | null;
   periods: [number, number, number];
   onTimeframe?: (tf: string) => void; // tells the page which timeframe is showing
+  /** The selected strategy's candles (D1 / H4): the chart opens on it and switches when the strategy does. */
+  followTf?: string;
   /** A past trade to show: the chart switches to the signal timeframe and frames the trade. */
   replay?: { open: SignalEvent; close?: SignalEvent; label: string } | null;
   onExitReplay?: () => void;
@@ -289,7 +292,16 @@ export default function TradingChart({
   dailyTrend?: { hh100: number | null; positions: { entry: number; stop: number }[] } | null;
 }) {
   const COLORS = PALETTES[theme];
-  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [settings, setSettings] = useState<Settings>(() => {
+    const s = loadSettings();
+    return followTf && timeframes.includes(followTf) ? { ...s, tf: followTf } : s;
+  });
+  // A different strategy was picked: show its candles (you can still change the timeframe by hand)
+  const [followed, setFollowed] = useState(followTf);
+  if (followTf !== followed) {
+    setFollowed(followTf);
+    if (followTf && timeframes.includes(followTf)) setSettings((s) => ({ ...s, tf: followTf }));
+  }
   const [drawings, setDrawings] = useState<Drawing[]>(() => loadDrawings(symbol));
   const [tool, setTool] = useState<Tool>("cursor");
   const [pending, setPending] = useState<Anchor | null>(null);
