@@ -13,6 +13,9 @@ function typingText(names: string[]) {
   return "Several people are typing";
 }
 
+// Chats the site needs (General, Bot status): never offered for removal (also refused by the server)
+const KEEP_ROOMS = ["General", "Bot status"];
+
 /** The chat drawer: chats along the top, the open chat's messages, and a box to send. */
 export default function ChatPanel({
   chat,
@@ -28,6 +31,7 @@ export default function ChatPanel({
   now: number;
 }) {
   const [draft, setDraft] = useState("");
+  const [removing, setRemoving] = useState<string | null>(null); // chat (room id) asking "remove for everyone?"
   const [selected, setSelected] = useState<string | null>(null); // tapped message (phones: shows its delete button)
   const [confirming, setConfirming] = useState<string | null>(null); // message asking "delete for everyone?"
 
@@ -123,23 +127,64 @@ export default function ChatPanel({
 
       <nav className="chat-rooms" aria-label="Chats">
         {chat.rooms.map((r) => (
-          <button key={r.id} type="button" aria-pressed={r.id === chat.activeId} onClick={() => chat.openRoom(r.id)}>
-            {r.name}
-            {(chat.unread[r.id] ?? 0) > 0 && r.id !== chat.activeId && (
-              <span className="chat-badge" aria-label={`${chat.unread[r.id]} unread`}>
-                {chat.unread[r.id]}
-              </span>
+          <span key={r.id} className="chat-room">
+            <button type="button" aria-pressed={r.id === chat.activeId} onClick={() => chat.openRoom(r.id)}>
+              {r.name}
+              {(chat.unread[r.id] ?? 0) > 0 && r.id !== chat.activeId && (
+                <span className="chat-badge" aria-label={`${chat.unread[r.id]} unread`}>
+                  {chat.unread[r.id]}
+                </span>
+              )}
+            </button>
+            {chat.isAdmin && !KEEP_ROOMS.includes(r.name) && (
+              <button
+                type="button"
+                className="chat-room-remove"
+                onClick={() => setRemoving(r.id)}
+                aria-label={`Remove the ${r.name} chat`}
+                title="Remove chat"
+              >
+                ×
+              </button>
             )}
-          </button>
+          </span>
         ))}
-        {!adding && (
+        {chat.isAdmin && !adding && (
           <button type="button" className="chat-add" onClick={() => setAdding(true)}>
             + New chat
           </button>
         )}
       </nav>
 
-      {adding && (
+      {removing && (
+        <div className="chat-confirm chat-room-confirm" role="group" aria-label="Confirm removing the chat">
+          <span>
+            Remove &ldquo;{chat.rooms.find((r) => r.id === removing)?.name}&rdquo; and all its messages for everyone?
+          </span>
+          <button
+            type="button"
+            className="chat-confirm-yes"
+            autoFocus
+            onClick={async () => {
+              const name = chat.rooms.find((r) => r.id === removing)?.name ?? "chat";
+              try {
+                await chat.removeRoom(removing);
+                toast(`Removed the ${name} chat`);
+              } catch (err) {
+                toast((err as Error).message, "error");
+              }
+              setRemoving(null);
+            }}
+          >
+            Remove
+          </button>
+          <button type="button" onClick={() => setRemoving(null)}>
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {chat.isAdmin && adding && (
         <form className="chat-new" onSubmit={createRoom}>
           <input
             value={roomName}

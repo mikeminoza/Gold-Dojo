@@ -162,6 +162,10 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
         const r = change.new as ChatRoom;
         setRooms((list) => (list.some((x) => x.id === r.id) ? list : [...list, r]));
       })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_rooms" }, (change) => {
+        const id = (change.old as { id?: string }).id;
+        if (id) setRooms((list) => list.filter((x) => x.id !== id));
+      })
       .on("broadcast", { event: "typing" }, ({ payload }) => {
         const { room, name } = (payload ?? {}) as { room?: string; name?: string };
         if (!room || !name || name === view.current.me) return;
@@ -353,6 +357,19 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
     [openRoom],
   );
 
+  /** Removes a chat and its messages (admins only); moves to another chat if it was open. */
+  const removeRoom = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/chat/rooms?id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => null);
+      const body = (await res?.json().catch(() => ({}))) as { error?: string } | undefined;
+      if (!res?.ok) throw new Error(body?.error ?? "Couldn't remove the chat. Try again.");
+      const left = view.current.rooms.filter((x) => x.id !== id);
+      setRooms(left);
+      if (view.current.activeId === id && left[0]) openRoom(left[0].id);
+    },
+    [openRoom],
+  );
+
   const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
 
   return {
@@ -371,6 +388,7 @@ export function useChat(panelOpen: boolean, onIncoming?: (message: ChatMessage, 
     announceTyping,
     typing: activeId ? Object.keys(typing[activeId] ?? {}) : [],
     addRoom,
+    removeRoom,
     remove,
     hide,
     restore,
