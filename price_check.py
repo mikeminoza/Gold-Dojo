@@ -42,8 +42,8 @@ def compare(raw, timeframe):
     return out, real
 
 
-def check(raw_bars, symbol, now=None):
-    """raw_bars(symbol, timeframe, count) -> PAXG-only candles. Returns a summary for the website."""
+def check(raw_bars, symbol, now=None, source="PAXG"):
+    """raw_bars(symbol, timeframe, count) -> the candle source alone. Returns a summary for the website."""
     now = int(now or time.time())
     rows, share = [], {}
     for tf, n in LOOK.items():
@@ -51,7 +51,7 @@ def check(raw_bars, symbol, now=None):
         r, real = compare(raw, tf)
         rows += r
         share[tf] = round(100 * real / max(1, min(n, len(raw))))
-    result = {"checked": now, "rows": len(rows), "real_share": share}
+    result = {"checked": now, "rows": len(rows), "real_share": share, "source": source}
     if not rows:
         result["ok"] = None  # not enough fully recorded candles yet (e.g. right after a restart)
         return result
@@ -67,11 +67,11 @@ def message(result, was_ok):
     if result.get("ok") is False and was_ok is not False:
         w = result["worst"]
         when = pd.Timestamp(w["time"], unit="s", tz="UTC").strftime("%a %d %b %H:%M UTC")
-        return (f"Price check: the PAXG-based {w['candle']} candle of {when} differs from real XAUUSD by "
+        return (f"Price check: the {result.get('source', 'PAXG')}-based {w['candle']} candle of {when} differs from real XAUUSD by "
                 f"${abs(w['diff']):.2f} in its {w['field']} (normal: up to ${result['allowed']:.2f}). Candles the bot "
                 f"didn't record ({100 - result['real_share']['D1']}% of recent days, "
                 f"{100 - result['real_share']['H4']}% of recent 4-hour candles) may trigger breakouts early or late.")
     if result.get("ok") is True and was_ok is False:
-        return (f"Price check OK again: PAXG-based candles match real XAUUSD within ${result['allowed']:.2f} "
+        return (f"Price check OK again: {result.get('source', 'PAXG')}-based candles match real XAUUSD within ${result['allowed']:.2f} "
                 f"(average difference ${result['avg_abs']:.2f}).")
     return None

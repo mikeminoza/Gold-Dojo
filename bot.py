@@ -507,7 +507,8 @@ class Bot:
         self.price_checked = time.time()
         was = (self.price_result or {}).get("ok")
         try:
-            self.price_result = price_check.check(raw, self.symbol)
+            source = getattr(self.feed, "candle_source", lambda: "PAXG")()
+            self.price_result = price_check.check(raw, self.symbol, source=source)
         except Exception as e:  # never let this disturb the bot
             print(f"price check skipped ({e})")
             return
@@ -673,6 +674,8 @@ class Bot:
             "telegram_bot_url": (os.getenv("TELEGRAM_BOT_URL") or None) if self.ask and self.ask.enabled else None,
             "bot_health": self.health_summary(),
             "price_check": self.price_result,
+            # where the daily / 4-hour signal candles come from: "Twelve Data" (real XAU/USD) or "PAXG"
+            "candle_source": getattr(self.feed, "candle_source", lambda: None)(),
             # share of the last day of signal candles built from real XAUUSD prices (None: PAXG-only feed)
             "real_candles": getattr(self.feed, "real_share", lambda: None)(),
             "indicators": {

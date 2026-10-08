@@ -3,6 +3,8 @@
 - Live bid/ask: real XAUUSD spot quotes from Swissquote's public price feed.
 - Candles: PAXG candles from Binance, OKX or Kraken (PAX Gold, a token backed 1:1 by physical gold), shifted by
   the measured PAXG-vs-spot gap (usually $5-10) so they line up with the XAUUSD price.
+- Daily and 4-hour candles (the trend signals): real XAU/USD from Twelve Data when TWELVEDATA_API_KEY is
+  set (twelvedata_feed.py), PAXG-adjusted otherwise or whenever Twelve Data can't answer.
 
 Same functions as mt5_data. If Swissquote can't be reached, the adjusted PAXG price is used instead.
 """
@@ -14,6 +16,7 @@ import requests
 import binance_feed as paxg
 import config
 import real_candles
+import twelvedata_feed
 
 SPOT_URL = "https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD"
 TIERS = ["elite", "prime", "premium", "standard"]  # Swissquote price tiers, tightest spread first
@@ -100,10 +103,18 @@ def _to_spot(df):
     return df
 
 
+def _base_bars(timeframe, count, include_forming):
+    """Real XAU/USD from Twelve Data for D1 / H4 when available, else PAXG shifted to spot."""
+    real = twelvedata_feed.get_bars(timeframe, count, include_forming)
+    if real is not None and len(real) >= min(count, 60):
+        return real
+    return _to_spot(paxg.get_bars(config.BINANCE_SYMBOL, timeframe, count, include_forming))
+
+
 def get_bars(symbol, timeframe, count, include_forming=False):
     """Candles: PAXG shifted to spot, with every candle the bot recorded real XAUUSD prices for
     replaced by the real prices (real_candles.py)."""
-    bars = _to_spot(paxg.get_bars(config.BINANCE_SYMBOL, timeframe, count, include_forming))
+    bars = _base_bars(timeframe, count, include_forming)
     bars, real = real_candles.overlay(bars, timeframe)
     if timeframe == config.TIMEFRAME and len(bars):
         recent = bars.tail(48)  # the last day or so of signal candles
@@ -113,8 +124,13 @@ def get_bars(symbol, timeframe, count, include_forming=False):
 
 
 def raw_bars(symbol, timeframe, count):
-    """PAXG shifted to spot only, without the real-price overlay (for the price accuracy check)."""
-    return _to_spot(paxg.get_bars(config.BINANCE_SYMBOL, timeframe, count, False))
+    """The candle source alone (Twelve Data or PAXG), without the real-price overlay (for the price check)."""
+    return _base_bars(timeframe, count, False)
+
+
+def candle_source():
+    """Where the daily / 4-hour candles come from right now: "Twelve Data" or "PAXG"."""
+    return twelvedata_feed.status()["source"]
 
 
 def real_share():
