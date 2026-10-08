@@ -8,6 +8,8 @@ live.json (for the website) and optionally Telegram.
 It only sends signals; it never places orders.
 """
 import argparse
+import sys
+import threading
 import json
 import os
 import time
@@ -107,6 +109,8 @@ class Bot:
         self.backup_sent = None  # ISO week of the last Telegram backup
         self.price_result = None  # last price accuracy check (price_check.py)
         self.price_checked = 0.0
+        self.alerted = None         # the problem the admin was last told about (monitoring)
+        self.last_loop_error = None
         self.position, self.history = self.load()
         self.report = health_report.HealthReport(self._report_mem) if config.HEALTH_REPORT and not demo else None
         self.recorder = (market_recorder.MinuteRecorder(getattr(feed, "gap", None))
@@ -499,6 +503,70 @@ class Bot:
         if self.push:
             self.push.send(None, text, title="Gold Dojo weekly summary", tag="weekly")
 
+    def admin_alert(self, text):
+        """To your private Telegram chat (TELEGRAM_ADMIN_CHAT_ID), and the Bot status chat when possible."""
+        print(f"{datetime.now():%H:%M:%S} {text}")
+        telegram_notify.send_to(os.getenv("TELEGRAM_ADMIN_CHAT_ID"), text)
+        self.cloud.post_chat(text, room=config.HEALTH_REPORT_ROOM)
+
+    def watch(self):
+        """Monitoring: tell the admin once when the bot gets stuck (with the error), and when it recovers."""
+        problem, _ = self.health.problem()
+        if problem and self.alerted is None:
+            self.alerted = problem
+            reason = self.last_loop_error or getattr(self.cloud, "last_error", None) or "no error message"
+            self.admin_alert(f"⚠️ Gold Dojo bot problem: {problem}. Last error: {reason}")
+        elif not problem and self.alerted:
+            self.admin_alert(f"✅ Gold Dojo bot recovered (was: {self.alerted}).")
+            self.alerted = None
+
+    def watchdog(self):
+        while True:
+            time.sleep(30)
+            try:
+                self.watch()
+            except Exception as e:
+                print(f"watchdog: {e}")
+
+    def self_test(self):
+        """3) At start: check each source on its own and post a one-line report."""
+        import binance_feed
+        import twelvedata_feed
+        checks = []
+        try:
+            self.feed.get_tick(self.symbol)
+            real = getattr(self.feed, "tick_is_real", lambda: None)()
+            checks.append(("Live price", "Swissquote" if real else ("PAXG fallback" if real is False else "ok"), real is not False))
+        except Exception as e:
+            checks.append(("Live price", str(e)[:60], False))
+        if twelvedata_feed.key():
+            ok = twelvedata_feed.get_bars("D1", 30) is not None
+            checks.append(("Twelve Data", "ok" if ok else (twelvedata_feed.status()["last_error"] or "failed"), ok))
+        else:
+            checks.append(("Twelve Data", "no key (PAXG candles)", None))
+        try:
+            binance_feed.get_bars(config.BINANCE_SYMBOL, "H1", 3)
+            checks.append(("PAXG backup", "ok", True))
+        except Exception as e:
+            checks.append(("PAXG backup", str(e)[:60], False))
+        if self.cloud.enabled:
+            ok = self.cloud.load_memory() is not None
+            checks.append(("Supabase", "ok" if ok else "can't read", ok))
+        checks.append(("Telegram", "on" if self.telegram else "off (no token)", True if self.telegram else None))
+        checks.append(("Admin alerts", "on" if os.getenv("TELEGRAM_ADMIN_CHAT_ID") and self.telegram else "off",
+                       True if os.getenv("TELEGRAM_ADMIN_CHAT_ID") and self.telegram else None))
+        checks.append(("Ask Dojo", "on" if os.getenv("GEMINI_API_KEY") else "off (no key)", True if os.getenv("GEMINI_API_KEY") else None))
+        checks.append(("Phone push", "on" if self.push and self.push.enabled else "off (no keys)", True if self.push and self.push.enabled else None))
+        mark = {True: "✅", False: "❌", None: "➖"}
+        version = (os.getenv("RENDER_GIT_COMMIT") or "")[:7] or "local"
+        text = f"Bot started ({version}): " + " · ".join(f"{name} {mark[ok]} {note}" for name, note, ok in checks)
+        self.self_test_result = [{"name": n, "note": t, "ok": ok} for n, t, ok in checks]
+        print(f"{datetime.now():%H:%M:%S} {text}")
+        if self.cloud.enabled:
+            self.cloud.post_chat(text, room=config.HEALTH_REPORT_ROOM)
+        if any(ok is False for _, _, ok in checks):
+            telegram_notify.send_to(os.getenv("TELEGRAM_ADMIN_CHAT_ID"), "⚠️ " + text)
+
     def check_prices(self):
         """Once a day: compare the PAXG-based daily / 4-hour candles with the real recorded XAUUSD ones."""
         raw = getattr(self.feed, "raw_bars", None)
@@ -673,6 +741,8 @@ class Bot:
             # private chat with the bot (Ask Dojo), e.g. https://t.me/golddojo_alerts_bot
             "telegram_bot_url": (os.getenv("TELEGRAM_BOT_URL") or None) if self.ask and self.ask.enabled else None,
             "bot_health": self.health_summary(),
+            "self_test": getattr(self, "self_test_result", None),
+            "health_problem": self.health.problem()[0] if self.health else None,
             "price_check": self.price_result,
             # where the daily / 4-hour signal candles come from: "Twelve Data" (real XAU/USD) or "PAXG"
             "candle_source": getattr(self.feed, "candle_source", lambda: None)(),
@@ -718,6 +788,7 @@ class Bot:
                 self.df = self.prepared()
                 return
             except Exception as e:
+                self.last_loop_error = f"{type(e).__name__}: {e}"[:300]
                 print(f"{datetime.now():%H:%M:%S} can't get prices yet ({e}); retrying in {wait}s")
             # Still alive, just waiting: keep the health page green so the host doesn't restart us
             # into the same refusal
@@ -770,6 +841,11 @@ class Bot:
             if saved:
                 print(f"Loaded {len(saved)} saved minutes of real XAUUSD prices")
         self.start()
+        if not self.demo:
+            try:
+                self.self_test()
+            except Exception as e:  # the report must never stop the bot
+                print(f"self test skipped ({e})")
         # Fill in each rule's trigger and "waiting for" right away, not only at the next candle close
         # (also catches up on any day / 4-hour candle that closed while the bot was down)
         for tracker, bars in ((self.trend, self.daily_bars), (self.h4trend, self.h4_bars)):
@@ -828,6 +904,7 @@ class Bot:
                     errors = 0
                 except Exception as e:  # keep running through temporary network hiccups / refusals
                     errors += 1
+                    self.last_loop_error = f"{type(e).__name__}: {e}"[:300]
                     print(f"{datetime.now():%H:%M:%S} error: {e}")
                     if self.report:
                         self.report.error(e)
@@ -848,6 +925,12 @@ class Bot:
 
 
 def main():
+    # Windows consoles can't print the emoji in some messages: never let printing crash the bot
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     ap = argparse.ArgumentParser()
     ap.add_argument("--demo", action="store_true", help="use fake prices instead of MetaTrader 5")
     ap.add_argument("--strategy", choices=["orb", "ema"], default=config.STRATEGY)
@@ -869,6 +952,9 @@ def main():
     bot = Bot(feed, args.demo, args.strategy)
     if os.getenv("PORT"):  # hosted as a web service (Render): answer health checks and pings
         bot.health = health.Health()
+        bot.health.cloud = bot.cloud
+        # a separate watchdog, so a stuck or stopped main loop can still tell the admin
+        threading.Thread(target=bot.watchdog, name="watchdog", daemon=True).start()
         bot.health.serve(int(os.environ["PORT"]))
     bot.run()
 

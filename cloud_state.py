@@ -39,6 +39,7 @@ def _signature(state):
 
 class CloudPublisher:
     def __init__(self, enabled=True):
+        self.last_ok, self.last_error = time.time(), None  # last successful website update (monitoring)
         self.url = os.getenv("SUPABASE_URL", "").rstrip("/")
         # Newer projects call it the "secret" key; older ones "service_role"
         self.key = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
@@ -271,10 +272,12 @@ class CloudPublisher:
             try:
                 self._send(state)
                 self._sent_sig, self._sent_at = sig, time.time()
+                self.last_ok, self.last_error = time.time(), None
                 if self._failing:
                     print(f"{datetime.now():%H:%M:%S} Supabase: sending again")
                 self._failing = False
             except (requests.RequestException, RuntimeError) as e:
+                self.last_error = str(e)[:200]
                 if not self._failing:
                     print(f"{datetime.now():%H:%M:%S} Supabase: can't send ({e}); retrying")
                 self._failing = True
