@@ -6334,3 +6334,73 @@ button[data-busy] {
 .chat-room-confirm {
   margin: 0 var(--space-3) var(--space-2);
 }
+
+/* ---- chat layout: newest messages sit just above the box, the bot's posts stand out, tidy confirms ---- */
+
+/* like any messenger, a short conversation starts at the bottom, next to where you type */
+.chat-messages > :first-child {
+  margin-top: auto;
+}
+
+.chat-messages li[data-bot] {
+  max-width: 100%;
+  width: 100%;
+}
+
+.chat-messages li[data-bot] .chat-bubble {
+  width: 100%;
+  border: 1px solid var(--inset-border);
+  border-left: 3px solid var(--gold);
+  border-radius: 4px 12px 12px 4px;
+  background: color-mix(in srgb, var(--gold) 5%, var(--panel));
+  line-height: 1.5;
+}
+
+.chat-bot-tag {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gold) 18%, transparent);
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chat-bubble {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.chat-confirm {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.chat-confirm span {
+  display: block;
+  line-height: 1.4;
+}
+
+.chat-confirm small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.chat-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.chat-room-confirm {
+  margin: 8px 16px 0;
+}
+
+.chat-rooms {
+  padding-top: 10px; /* room for the remove (x) buttons on the tabs */
+}

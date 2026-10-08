@@ -15,6 +15,7 @@ function typingText(names: string[]) {
 
 // Chats the site needs (General, Bot status): never offered for removal (also refused by the server)
 const KEEP_ROOMS = ["General", "Bot status"];
+const BOT_NAME = "Gold Dojo"; // the name the bot posts under (cloud_state.py)
 
 /** The chat drawer: chats along the top, the open chat's messages, and a box to send. */
 export default function ChatPanel({
@@ -128,7 +129,14 @@ export default function ChatPanel({
       <nav className="chat-rooms" aria-label="Chats">
         {chat.rooms.map((r) => (
           <span key={r.id} className="chat-room">
-            <button type="button" aria-pressed={r.id === chat.activeId} onClick={() => chat.openRoom(r.id)}>
+            <button
+              type="button"
+              aria-pressed={r.id === chat.activeId}
+              onClick={() => {
+                setRemoving(null);
+                chat.openRoom(r.id);
+              }}
+            >
               {r.name}
               {(chat.unread[r.id] ?? 0) > 0 && r.id !== chat.activeId && (
                 <span className="chat-badge" aria-label={`${chat.unread[r.id]} unread`}>
@@ -157,30 +165,38 @@ export default function ChatPanel({
       </nav>
 
       {removing && (
-        <div className="chat-confirm chat-room-confirm" role="group" aria-label="Confirm removing the chat">
+        <div
+          className="chat-confirm chat-room-confirm"
+          role="group"
+          aria-label="Confirm removing the chat"
+          onKeyDown={(e) => e.key === "Escape" && setRemoving(null)}
+        >
           <span>
-            Remove &ldquo;{chat.rooms.find((r) => r.id === removing)?.name}&rdquo; and all its messages for everyone?
+            Remove <strong>{chat.rooms.find((r) => r.id === removing)?.name}</strong>?
+            <small>All its messages are deleted for everyone.</small>
           </span>
-          <button
-            type="button"
-            className="chat-confirm-yes"
-            autoFocus
-            onClick={async () => {
-              const name = chat.rooms.find((r) => r.id === removing)?.name ?? "chat";
-              try {
-                await chat.removeRoom(removing);
-                toast(`Removed the ${name} chat`);
-              } catch (err) {
-                toast((err as Error).message, "error");
-              }
-              setRemoving(null);
-            }}
-          >
-            Remove
-          </button>
-          <button type="button" onClick={() => setRemoving(null)}>
-            Cancel
-          </button>
+          <div className="chat-confirm-actions">
+            <button type="button" onClick={() => setRemoving(null)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="chat-confirm-yes"
+              autoFocus
+              onClick={async () => {
+                const name = chat.rooms.find((r) => r.id === removing)?.name ?? "chat";
+                try {
+                  await chat.removeRoom(removing);
+                  toast(`Removed the ${name} chat`);
+                } catch (err) {
+                  toast((err as Error).message, "error");
+                }
+                setRemoving(null);
+              }}
+            >
+              Remove chat
+            </button>
+          </div>
         </div>
       )}
 
@@ -222,6 +238,7 @@ export default function ChatPanel({
               <li
                 key={m.key}
                 data-mine={mine}
+                data-bot={m.author === BOT_NAME || undefined}
                 data-grouped={grouped || undefined}
                 data-fresh={m.fresh || undefined}
                 data-status={m.status}
@@ -229,6 +246,7 @@ export default function ChatPanel({
                 {!grouped && (
                   <div className="chat-meta">
                     <strong>{mine ? "You" : m.author}</strong>
+                    {m.author === BOT_NAME && <span className="chat-bot-tag">Bot</span>}
                     <time>{stamp(Date.parse(m.created_at) / 1000, now)}</time>
                   </div>
                 )}
@@ -239,14 +257,21 @@ export default function ChatPanel({
                   {m.body}
                 </p>
                 {confirming === m.key && (
-                  <div className="chat-confirm" role="group" aria-label="Confirm delete">
+                  <div
+                    className="chat-confirm"
+                    role="group"
+                    aria-label="Confirm delete"
+                    onKeyDown={(e) => e.key === "Escape" && setConfirming(null)}
+                  >
                     <span>Delete for everyone?</span>
-                    <button type="button" className="chat-confirm-yes" onClick={() => deleteWithUndo(m)} autoFocus>
-                      Delete
-                    </button>
-                    <button type="button" onClick={() => setConfirming(null)}>
-                      Cancel
-                    </button>
+                    <div className="chat-confirm-actions">
+                      <button type="button" onClick={() => setConfirming(null)}>
+                        Cancel
+                      </button>
+                      <button type="button" className="chat-confirm-yes" onClick={() => deleteWithUndo(m)} autoFocus>
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 )}
                 {chat.canDelete(m) && confirming !== m.key && (
