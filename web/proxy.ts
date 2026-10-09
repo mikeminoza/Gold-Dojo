@@ -3,14 +3,16 @@ import { authConfigured, memberFor, sessionClient } from "./app/lib/members";
 
 /**
  * Auth for the whole site (Next 16's "proxy", the old middleware). Accounts-only: every page, API
- * route and script file needs a signed-in account that isn't blocked; /login is for visitors only. Only the sign-in screen, the public results page, the sign-in steps under /auth/, the styling, the app
- * manifest and the push service worker are open.
+ * route needs a signed-in account that isn't blocked; /login is for visitors only. Only the sign-in screen, the public landing
+ * page (/home, which signed-out visitors also get at /), the public results page, the sign-in steps under /auth/, the
+ * built static files, the app manifest and the push service worker are open.
  * Also refreshes the Supabase session cookies on the way through.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const open =
     pathname === "/login" ||
+    pathname === "/home" || // the public landing page
     pathname === "/results" || // the public paper-test record: past results only, no live signal
     pathname.startsWith("/auth/") ||
     pathname === "/favicon.ico" ||
@@ -19,9 +21,9 @@ export async function proxy(request: NextRequest) {
     // installing to the home screen and push notifications: the app manifest and the (notifications-only) service worker
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
-    // styling for the sign-in screen: stylesheets and fonts hold no secrets (the scripts stay locked)
-    (pathname.startsWith("/_next/static/") && pathname.endsWith(".css")) ||
-    pathname.startsWith("/_next/static/media/");
+    // the built static files: stylesheets, fonts and script chunks hold code, not data (the repo is public;
+    // the data stays behind row-level security and the server routes), and the public pages need their scripts
+    pathname.startsWith("/_next/static/");
 
   if (!authConfigured) {
     if (open || process.env.NODE_ENV !== "production") return NextResponse.next();
@@ -53,6 +55,9 @@ export async function proxy(request: NextRequest) {
     if (member?.name) return go("/");
   }
   if (open) return response;
+
+  // Visitors opening the front page get the landing page; members keep the signals at /
+  if (!user && pathname === "/") return send(NextResponse.rewrite(new URL("/home", request.url)));
 
   const api = pathname.startsWith("/api/") || pathname.startsWith("/_next/");
   const refuse = (status: number, error: string) => send(NextResponse.json({ error }, { status }));
