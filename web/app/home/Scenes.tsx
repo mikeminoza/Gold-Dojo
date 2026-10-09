@@ -10,6 +10,7 @@ import {
   useSmallScreen,
   useWebGL,
 } from "./landingHooks";
+import { exitVeil, stopLook } from "./shrinePath";
 
 // three.js only loads on this page, in the browser, after the text is already on screen
 const HeroScene = dynamic(() => import("./scenes/HeroScene"), { ssr: false });
@@ -48,26 +49,45 @@ function useScene() {
 }
 
 // How far through each section the reader is, from its box on screen (0..1)
-const heroProgress = (r: DOMRect, vh: number) => -r.top / Math.max(r.height - vh, 1);
+const shrineProgress = (r: DOMRect, vh: number) => -r.top / Math.max(r.height - vh, 1);
 const storyProgress = (r: DOMRect, vh: number) => (vh * 0.4 - r.top) / Math.max(r.height - vh * 0.6, 1);
 const globeProgress = (r: DOMRect, vh: number) => (vh - r.top) / (vh + r.height);
 
 /**
- * The hero: a tall section with a sticky stage. Scrolling the first screen flies the camera through
- * the gate, and the headline (passed in as children) drifts up and fades via the --p variable.
+ * Shows each stop's words for the current scroll position. Each stop is an element with
+ * data-stop="k" inside the stage; this writes its fade and slide straight to the DOM, so scrolling
+ * never re-renders React.
  */
-export function HeroStage({ children }: { children: ReactNode }) {
+function paintStops(stage: HTMLElement, p: number) {
+  stage.querySelectorAll<HTMLElement>("[data-stop]").forEach((el) => {
+    const k = Number(el.dataset.stop);
+    const { opacity, d } = stopLook(k, p);
+    // the words drift up a little as the walker passes them
+    const lift = Math.max(Math.min(-d, 0.5), -0.5) * 48;
+    el.style.opacity = opacity.toFixed(3);
+    el.style.transform = opacity > 0 ? `translate3d(0, ${lift.toFixed(1)}px, 0)` : "";
+    el.style.pointerEvents = opacity > 0.4 ? "" : "none";
+  });
+  stage.style.setProperty("--exit", exitVeil(p).toFixed(3));
+}
+
+/**
+ * The shrine walk: a tall section with a sticky stage. Scrolling walks the camera down a stone path
+ * through five gold torii, pausing just past each one while its words (the children, one element per
+ * stop) come and go, then steps into the hall's light and hands over to the page below.
+ */
+export function ShrineWalk({ children }: { children: ReactNode }) {
   const { box, active, still, small, webgl } = useScene();
   const section = useRef<HTMLElement>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const progress = useScrollProgress(section, heroProgress, {
+  const progress = useScrollProgress(section, shrineProgress, {
     enabled: !still,
-    onChange: (p) => stage.current?.style.setProperty("--p", p.toFixed(4)),
+    onChange: (p) => stage.current && paintStops(stage.current, p),
   });
   return (
-    <section ref={section} className="landing-hero" aria-labelledby="hero-title">
-      <div ref={stage} className="landing-hero-stage">
-        <div ref={box} className="landing-hero-art" aria-hidden>
+    <section ref={section} className="landing-shrine" aria-labelledby="hero-title">
+      <div ref={stage} className="landing-shrine-stage">
+        <div ref={box} className="landing-shrine-art" aria-hidden>
           {webgl === false ? (
             <StillIngot />
           ) : webgl === true ? (
@@ -77,6 +97,7 @@ export function HeroStage({ children }: { children: ReactNode }) {
           ) : null}
         </div>
         {children}
+        <div className="landing-shrine-veil" aria-hidden />
       </div>
     </section>
   );

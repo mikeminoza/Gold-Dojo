@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { loadPublicResults, type PublicResults, type PublicStrategy } from "../lib/publicResults";
-import { BreakoutStory, GlobeArt, HeroStage } from "./Scenes";
+import { BreakoutStory, GlobeArt, ShrineWalk } from "./Scenes";
+import type { ReactNode } from "react";
 import "./landing.css";
 
 const DESCRIPTION =
@@ -52,7 +53,7 @@ function PaperRow({ s, tz }: { s: PublicStrategy; tz: string }) {
 function Record({ data }: { data: PublicResults | null }) {
   const live = data?.strategies.filter((s) => s.started || s.rules.length > 0) ?? [];
   return (
-    <section className="landing-section" aria-labelledby="record-title">
+    <section className="landing-section" data-ground="horizon" aria-labelledby="record-title">
       <div className="landing-intro">
         <h2 id="record-title">The record is public</h2>
         <p className="landing-lead">
@@ -78,9 +79,26 @@ function Record({ data }: { data: PublicResults | null }) {
   );
 }
 
+/**
+ * The words for one stop on the shrine walk: shown just after passing gate k, beside the path
+ * (left, right, or low in the centre), over a soft dark wash so they read against the scene.
+ */
+function Stop({ k, place, title, children }: { k: number; place: "left" | "right" | "center"; title: string; children: ReactNode }) {
+  return (
+    <div className="landing-stop" data-stop={k} data-place={place}>
+      <div className="landing-wrap">
+        <div className="landing-stop-panel">
+          <h2>{title}</h2>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Brand() {
   return (
-    <Link href="/" className="landing-brand">
+    <Link href="/" className="landing-brand" aria-label="Gold Dojo">
       {/* eslint-disable-next-line @next/next/no-img-element -- the site icon, an SVG */}
       <img src="/icon-dark.svg" alt="" width={28} height={28} />
       <span>Gold Dojo</span>
@@ -110,12 +128,133 @@ export default async function Landing() {
       </header>
 
       <main id="main">
-        <HeroStage>
-          <div className="landing-wrap landing-hero-copy">
-            <h1 id="hero-title">Follow gold&apos;s long trends, not its noise.</h1>
+        <ShrineWalk>
+          <div className="landing-stop landing-stop-opening" data-stop="0">
+            <div className="landing-wrap">
+              <div className="landing-hero-copy">
+                <h1 id="hero-title">Follow gold&apos;s long trends, not its noise.</h1>
+                <p>
+                  Gold Dojo shows paper-tested buy signals for gold (XAUUSD) from two trend strategies. It never
+                  places trades, and every result is public.
+                </p>
+                <div className="landing-actions">
+                  <Link href="/login?mode=register" className="landing-btn landing-btn-primary">
+                    Create account
+                  </Link>
+                  <Link href="/results" className="landing-btn landing-btn-quiet">
+                    See the results
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Stop k={1} place="left" title="Signals, not trades">
             <p>
-              Gold Dojo shows paper-tested buy signals for gold (XAUUSD) from two trend strategies. It never places
-              trades, and every result is public.
+              Gold Dojo watches gold (XAUUSD) and posts buy signals from two long-only trend strategies. It never
+              places a trade for you.
+            </p>
+            <p>Every signal is paper-tested in the open, and every result is public, losses included.</p>
+          </Stop>
+
+          <Stop k={2} place="right" title="Daily trend strategy">
+            <p>
+              The main one. It buys when a day closes above the highest price of the previous 100 days, or when gold
+              dips to its 20-day average in an uptrend and closes back above it. About 10 trades a year.
+            </p>
+            <dl className="landing-stop-figures">
+              <div>
+                <dt>Breakout</dt>
+                <dd>79 trades, profit factor 2.14</dd>
+              </div>
+              <div>
+                <dt>Pullback</dt>
+                <dd>178 trades, profit factor 1.53</dd>
+              </div>
+            </dl>
+            <p>Profitable in both backtest periods: 2003 to 2018, and the unseen 2019 to 2026.</p>
+            <p className="landing-stop-note">Profit factor is money won divided by money lost. Above 1 made money.</p>
+          </Stop>
+
+          <Stop k={3} place="left" title="4-hour trend strategy">
+            <p>
+              The faster one. It buys when a 4-hour candle closes above the highest price of the previous 100
+              four-hour candles. About 14 trades a year, with a profit factor of 1.39 over 318 backtest trades.
+            </p>
+            <p>
+              To be plain about it: it roughly broke even from 2003 to 2018, and made its money from 2019 to 2026,
+              mostly from gold&apos;s strong rise.
+            </p>
+          </Stop>
+
+          <Stop k={4} place="center" title="How every trade is managed">
+            <ul className="landing-stop-rules">
+              <li>Buy at the next open after the signal.</li>
+              <li>The stop starts 2 × ATR below the entry, or 3 × ATR on the 4-hour strategy.</li>
+              <li>It trails up under the highest price and never moves down.</li>
+              <li>No profit target: the trailing stop ends the trade.</li>
+              <li>Each paper trade risks 1% of the account.</li>
+            </ul>
+          </Stop>
+
+          <Stop k={5} place="right" title="Every trade, win or lose, goes into the public record.">
+            <p>The live paper test so far is just below, next to the backtest it has to live up to.</p>
+          </Stop>
+        </ShrineWalk>
+
+        <div className="landing-grounds">
+          <Record data={data} />
+
+          <section className="landing-section" data-ground="mist" aria-labelledby="story-title">
+            <div className="landing-intro">
+              <h2 id="story-title">How a breakout becomes a trade</h2>
+              <p className="landing-lead">
+                The main rule doesn&apos;t predict. It waits for gold to break out, buys, and lets a trailing stop
+                decide when the trend is over.
+              </p>
+            </div>
+            <BreakoutStory />
+          </section>
+
+          <section className="landing-section landing-alerts" data-ground="waves" aria-labelledby="alerts-title">
+            <div className="landing-alerts-copy">
+              <h2 id="alerts-title">Signals reach you where you are</h2>
+              <p className="landing-lead">Gold trades around the clock, so the signals come to you.</p>
+              <ul className="landing-channels">
+                <li>
+                  <h3>Telegram channel</h3>
+                  <p>Every signal is posted the moment a rule fires. The channel is public.</p>
+                </li>
+                <li>
+                  <h3>Phone notifications</h3>
+                  <p>Members can get each signal as a notification on their phone.</p>
+                </li>
+                <li>
+                  <h3>Ask Dojo</h3>
+                  <p>
+                    An AI helper you message on Telegram: ask what the strategies are waiting for, how the paper test is
+                    going, or what R and ATR mean. It explains; it doesn&apos;t advise.
+                  </p>
+                </li>
+              </ul>
+              <p>
+                Members also get the live chart, built from real XAU/USD candles from Twelve Data with Swissquote live
+                prices, and the members&apos; chat.
+              </p>
+              {data?.telegram && (
+                <a className="landing-btn landing-btn-quiet" href={data.telegram} target="_blank" rel="noopener noreferrer">
+                  Join the Telegram channel
+                </a>
+              )}
+            </div>
+            <GlobeArt />
+          </section>
+
+          <section className="landing-section landing-final" data-ground="lantern" aria-labelledby="final-title">
+            <h2 id="final-title">Watch the rules work before you trust them.</h2>
+            <p className="landing-lead">
+              Create an account for the live chart, the alerts and the members&apos; chat. Or check the public record
+              first.
             </p>
             <div className="landing-actions">
               <Link href="/login?mode=register" className="landing-btn landing-btn-primary">
@@ -125,149 +264,9 @@ export default async function Landing() {
                 See the results
               </Link>
             </div>
-          </div>
-        </HeroStage>
-
-        <section className="landing-section" aria-labelledby="story-title">
-          <div className="landing-intro">
-            <h2 id="story-title">How a breakout becomes a trade</h2>
-            <p className="landing-lead">
-              The main rule doesn&apos;t predict. It waits for gold to break out, buys, and lets a trailing stop
-              decide when the trend is over.
-            </p>
-          </div>
-          <BreakoutStory />
-        </section>
-
-        <section className="landing-section" aria-labelledby="strategies-title">
-          <div className="landing-intro">
-            <h2 id="strategies-title">Two strategies, both long-only</h2>
-            <p className="landing-lead">
-              Both only buy, risk 1% per paper trade, and exit on a trailing stop instead of a profit target.
-            </p>
-            <p>
-              Each was developed on gold prices from 2003 to 2018, then run on 2019 to 2026, years it had never seen.
-              Profit factor is money won divided by money lost: above 1 made money.
-            </p>
-          </div>
-          <div className="landing-strategies">
-            <article aria-labelledby="daily-title">
-              <h3 id="daily-title">Daily trend</h3>
-              <p className="landing-strategy-tag">The main strategy, on daily candles.</p>
-              <dl>
-                <div>
-                  <dt>Buys when</dt>
-                  <dd>
-                    A day closes above the highest price of the previous 100 days. Or, in an uptrend (50-day average
-                    above the 200-day), price dips to the 20-day average and closes back above it.
-                  </dd>
-                </div>
-                <div>
-                  <dt>How often</dt>
-                  <dd>About 10 trades a year.</dd>
-                </div>
-                <div>
-                  <dt>Stop</dt>
-                  <dd>2 × ATR below, trailing under the highest price.</dd>
-                </div>
-                <div>
-                  <dt>Backtest</dt>
-                  <dd>
-                    Breakout: 79 trades, profit factor 2.14.
-                    <br />
-                    Pullback: 178 trades, profit factor 1.53.
-                  </dd>
-                </div>
-                <div>
-                  <dt>Worth knowing</dt>
-                  <dd>Profitable in both periods, 2003 to 2018 and the unseen 2019 to 2026. Weeks can pass with no signal.</dd>
-                </div>
-              </dl>
-            </article>
-            <article aria-labelledby="h4-title">
-              <h3 id="h4-title">4-hour trend</h3>
-              <p className="landing-strategy-tag">A faster version, on 4-hour candles.</p>
-              <dl>
-                <div>
-                  <dt>Buys when</dt>
-                  <dd>A 4-hour candle closes above the highest price of the previous 100 four-hour candles.</dd>
-                </div>
-                <div>
-                  <dt>How often</dt>
-                  <dd>About 14 trades a year.</dd>
-                </div>
-                <div>
-                  <dt>Stop</dt>
-                  <dd>3 × ATR below, trailing.</dd>
-                </div>
-                <div>
-                  <dt>Backtest</dt>
-                  <dd>318 trades, profit factor 1.39.</dd>
-                </div>
-                <div>
-                  <dt>Worth knowing</dt>
-                  <dd>
-                    It roughly broke even from 2003 to 2018 and made its money from 2019 to 2026, during gold&apos;s
-                    strong rise. It may struggle if gold stops trending.
-                  </dd>
-                </div>
-              </dl>
-            </article>
-          </div>
-        </section>
-
-        <Record data={data} />
-
-        <section className="landing-section landing-alerts" aria-labelledby="alerts-title">
-          <div className="landing-alerts-copy">
-            <h2 id="alerts-title">Signals reach you where you are</h2>
-            <p className="landing-lead">Gold trades around the clock, so the signals come to you.</p>
-            <ul className="landing-channels">
-              <li>
-                <h3>Telegram channel</h3>
-                <p>Every signal is posted the moment a rule fires. The channel is public.</p>
-              </li>
-              <li>
-                <h3>Phone notifications</h3>
-                <p>Members can get each signal as a notification on their phone.</p>
-              </li>
-              <li>
-                <h3>Ask Dojo</h3>
-                <p>
-                  An AI helper you message on Telegram: ask what the strategies are waiting for, how the paper test is
-                  going, or what R and ATR mean. It explains; it doesn&apos;t advise.
-                </p>
-              </li>
-            </ul>
-            <p>
-              Members also get the live chart, built from real XAU/USD candles from Twelve Data with Swissquote live
-              prices, and the members&apos; chat.
-            </p>
-            {data?.telegram && (
-              <a className="landing-btn landing-btn-quiet" href={data.telegram} target="_blank" rel="noopener noreferrer">
-                Join the Telegram channel
-              </a>
-            )}
-          </div>
-          <GlobeArt />
-        </section>
-
-        <section className="landing-section landing-final" aria-labelledby="final-title">
-          <h2 id="final-title">Watch the rules work before you trust them.</h2>
-          <p className="landing-lead">
-            Create an account for the live chart, the alerts and the members&apos; chat. Or check the public record
-            first.
-          </p>
-          <div className="landing-actions">
-            <Link href="/login?mode=register" className="landing-btn landing-btn-primary">
-              Create account
-            </Link>
-            <Link href="/results" className="landing-btn landing-btn-quiet">
-              See the results
-            </Link>
-          </div>
-          <p className="landing-small">Everything is a paper test with no real money. Nothing here is financial advice.</p>
-        </section>
+            <p className="landing-small">Everything is a paper test with no real money. Nothing here is financial advice.</p>
+          </section>
+        </div>
       </main>
 
       <footer className="landing-foot">

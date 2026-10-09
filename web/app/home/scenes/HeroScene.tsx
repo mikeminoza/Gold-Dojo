@@ -2,10 +2,11 @@
 
 import { Canvas, useFrame } from "@react-three/fiber";
 import { ContactShadows, Environment, Lightformer, Sparkles } from "@react-three/drei";
-import { useEffect, useMemo, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+import { SEGMENTS, walkAt } from "../shrinePath";
 import {
   GOLD,
   INK,
@@ -13,20 +14,24 @@ import {
   PALE_GOLD,
   brushedTexture,
   easeInOut,
-  easeOut,
   ingotStampTextures,
   mistTexture,
+  stonePathTexture,
 } from "./shared";
 
 type Props = { progress: RefObject<number>; active: boolean; still: boolean; small: boolean };
 
-// The fly-through, in scene units: the camera starts in front of the gate and ends just past it
-const CAM_START_Z = 10.5;
-const CAM_TRAVEL = 14;
-const GATE_Z = -1.4;
 const GROUND_Y = -1.9;
 // Mist, glow and sparkles live on their own layer: the main camera sees it, the contact shadow doesn't
 const FX_LAYER = 1;
+
+// The path, in scene units along -z: five gates, a lantern pair before each, the shrine hall at the end
+const GATE_Z = [0, 1, 2, 3, 4].map((i) => -1.4 - i * 9);
+const HALL_Z = -54;
+const LANTERN_X = 3.3;
+const LANTERN_Z = [...GATE_Z.map((z) => z + 3.5), HALL_Z + 8];
+// Where the camera stands at each stop: the opening view, just past each gate, then into the light
+const STOP_Z = [10.5, ...GATE_Z.map((z) => z - 1.2), HALL_Z + 9.5];
 
 // The torii's measurements, gate base at y = 0
 const PILLAR_X = 2.1;
@@ -36,25 +41,28 @@ const SHIMAKI_Y = 4.12;
 const KASAGI_Y = 4.4;
 const KASAGI_HALF = 3.45;
 
-/** The kasagi's sweep: flat in the middle, lifting more and more toward the ends. */
-const sweep = (x: number) => 0.42 * Math.pow(Math.min(Math.abs(x) / KASAGI_HALF, 1), 2.6);
+// Colours the scene shifts between as the walker reaches the light
+const NIGHT = new THREE.Color(INK);
+const WARM_MIST = new THREE.Color("#6e4c24");
 
-/** A beam that follows the sweep; the shimaki uses the same curve so it sits flush under the kasagi. */
-function curvedBeam(width: number, height: number, depth: number) {
+/** A beam whose ends sweep up, flat in the middle; the shimaki, the kasagi and the hall roof use it. */
+function curvedBeam(width: number, height: number, depth: number, lift = 0.42) {
+  const half = width / 2;
   const g = new THREE.BoxGeometry(width, height, depth, 64, 1, 1);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i);
+    const a = Math.min(Math.abs(x) / Math.max(half, KASAGI_HALF), 1);
     // the very tips also grow a little taller, like the cut ends of a real kasagi
-    const tip = Math.max(0, Math.abs(x) / (width / 2) - 0.9) * 10;
+    const tip = Math.max(0, Math.abs(x) / half - 0.9) * 10;
     const y = p.getY(i);
-    p.setY(i, y + sweep(x) + (y > 0 ? tip * 0.06 : 0));
+    p.setY(i, y + lift * Math.pow(a, 2.6) + (y > 0 ? tip * 0.06 : 0));
   }
   g.computeVertexNormals();
   return g;
 }
 
-/** Gold, dark lacquer and a polished gold for the top beam, shared by every gate in the scene. */
+/** Gold, dark lacquer and a polished gold for the top beam, plus the stone, shared by the whole scene. */
 function useMaterials() {
   return useMemo(() => {
     const brushed = brushedTexture();
@@ -81,55 +89,211 @@ function useMaterials() {
       envMapIntensity: 0.45,
     });
     const stone = new THREE.MeshStandardMaterial({ color: "#1b2533", roughness: 0.9 });
-    return { gold, polished, lacquer, stone };
+    // the lanterns are a paler granite, so they read against the dark ground
+    const granite = new THREE.MeshStandardMaterial({ color: "#3b4554", roughness: 0.92 });
+    const paper = new THREE.MeshStandardMaterial({
+      color: "#2a1f12",
+      emissive: "#ffbf66",
+      emissiveIntensity: 1.7,
+      roughness: 1,
+    });
+    const timber = new THREE.MeshStandardMaterial({ color: "#121821", roughness: 0.85, envMapIntensity: 0.25 });
+    return { gold, polished, lacquer, stone, granite, paper, timber };
   }, []);
 }
 
 type Materials = ReturnType<typeof useMaterials>;
 
-function Torii({ m, small, position }: { m: Materials; small: boolean; position: [number, number, number] }) {
-  const kasagi = useMemo(() => curvedBeam(KASAGI_HALF * 2, 0.26, 0.52), []);
-  const shimaki = useMemo(() => curvedBeam(6.1, 0.2, 0.36), []);
-  const seg = small ? 16 : 32;
+/** Every gate is built from the same handful of shapes, made once. */
+function useToriiShapes(small: boolean) {
+  return useMemo(() => {
+    const seg = small ? 16 : 32;
+    return {
+      pillar: new THREE.CylinderGeometry(0.17, 0.215, PILLAR_H, seg),
+      sleeve: new THREE.CylinderGeometry(0.245, 0.26, 0.6, seg),
+      band: new THREE.TorusGeometry(0.235, 0.022, 8, seg),
+      base: new THREE.CylinderGeometry(0.36, 0.4, 0.12, seg),
+      nuki: new THREE.BoxGeometry(5.5, 0.26, 0.18),
+      strut: new THREE.BoxGeometry(0.5, 0.62, 0.12),
+      plaque: new THREE.BoxGeometry(0.38, 0.5, 0.1),
+      mark: new THREE.BoxGeometry(0.07, 0.3, 0.01),
+      kasagi: curvedBeam(KASAGI_HALF * 2, 0.26, 0.52),
+      shimaki: curvedBeam(6.1, 0.2, 0.36),
+    };
+  }, [small]);
+}
+
+type Shapes = ReturnType<typeof useToriiShapes>;
+
+/** One torii. The gates further down the path skip the smallest details nobody would see. */
+function Torii({ m, g, z, detail }: { m: Materials; g: Shapes; z: number; detail: boolean }) {
+  const mid = (NUKI_Y + SHIMAKI_Y) / 2;
   return (
-    <group position={position}>
+    <group position={[0, 0, z]}>
       {[-1, 1].map((side) => (
         // pillars lean in very slightly, like the real gates
         <group key={side} position={[side * PILLAR_X, 0, 0]} rotation={[0, 0, side * 0.022]}>
           {/* hashira: the pillar, a little narrower at the top */}
-          <mesh position={[0, PILLAR_H / 2, 0]} material={m.gold}>
-            <cylinderGeometry args={[0.17, 0.215, PILLAR_H, seg]} />
-          </mesh>
+          <mesh position={[0, PILLAR_H / 2, 0]} geometry={g.pillar} material={m.gold} />
           {/* kamaki: the dark lacquer sleeve at the foot, with a thin gold band on top */}
-          <mesh position={[0, 0.42, 0]} material={m.lacquer}>
-            <cylinderGeometry args={[0.245, 0.26, 0.6, seg]} />
-          </mesh>
-          <mesh position={[0, 0.73, 0]} rotation-x={Math.PI / 2} material={m.polished}>
-            <torusGeometry args={[0.235, 0.022, 8, seg]} />
-          </mesh>
+          <mesh position={[0, 0.42, 0]} geometry={g.sleeve} material={m.lacquer} />
+          {detail && <mesh position={[0, 0.73, 0]} rotation-x={Math.PI / 2} geometry={g.band} material={m.polished} />}
           {/* the stone the pillar stands on */}
-          <mesh position={[0, 0.06, 0]} material={m.stone}>
-            <cylinderGeometry args={[0.36, 0.4, 0.12, seg]} />
-          </mesh>
+          <mesh position={[0, 0.06, 0]} geometry={g.base} material={m.stone} />
         </group>
       ))}
       {/* nuki: the lower tie beam, running through both pillars and out past them */}
-      <mesh position={[0, NUKI_Y, 0]} material={m.gold}>
-        <boxGeometry args={[5.5, 0.26, 0.18]} />
-      </mesh>
+      <mesh position={[0, NUKI_Y, 0]} geometry={g.nuki} material={m.gold} />
       {/* gakuzuka: the short strut between the beams, holding a dark plaque in a gold frame */}
-      <mesh position={[0, (NUKI_Y + SHIMAKI_Y) / 2, 0]} material={m.gold}>
-        <boxGeometry args={[0.5, 0.62, 0.12]} />
-      </mesh>
-      <mesh position={[0, (NUKI_Y + SHIMAKI_Y) / 2, 0.035]} material={m.lacquer}>
-        <boxGeometry args={[0.38, 0.5, 0.1]} />
-      </mesh>
-      <mesh position={[0, (NUKI_Y + SHIMAKI_Y) / 2, 0.088]} material={m.polished}>
-        <boxGeometry args={[0.07, 0.3, 0.01]} />
-      </mesh>
+      <mesh position={[0, mid, 0]} geometry={g.strut} material={m.gold} />
+      <mesh position={[0, mid, 0.035]} geometry={g.plaque} material={m.lacquer} />
+      {detail && <mesh position={[0, mid, 0.088]} geometry={g.mark} material={m.polished} />}
       {/* shimaki (dark) under kasagi (polished gold), both sweeping up at the ends */}
-      <mesh geometry={shimaki} position={[0, SHIMAKI_Y, 0]} material={m.lacquer} />
-      <mesh geometry={kasagi} position={[0, KASAGI_Y, 0]} material={m.polished} />
+      <mesh geometry={g.shimaki} position={[0, SHIMAKI_Y, 0]} material={m.lacquer} />
+      <mesh geometry={g.kasagi} position={[0, KASAGI_Y, 0]} material={m.polished} />
+    </group>
+  );
+}
+
+/** The five gates. Only the ones near enough to matter are drawn: behind the walker, or lost in the mist, they're skipped. */
+function Gates({ m, small }: { m: Materials; small: boolean }) {
+  const g = useToriiShapes(small);
+  const group = useRef<THREE.Group>(null);
+  useFrame((state) => {
+    const camZ = state.camera.position.z;
+    const reach = small ? 22 : 34;
+    group.current?.children.forEach((c, i) => {
+      const z = GATE_Z[i];
+      c.visible = z < camZ + 1 && z > camZ - reach;
+    });
+  });
+  return (
+    <group ref={group}>
+      {GATE_Z.map((z, i) => (
+        <Torii key={z} m={m} g={g} z={z} detail={i < 2} />
+      ))}
+    </group>
+  );
+}
+
+/** A Kasuga-style stone lantern, as stacked parts: [geometry, height of its centre, uses the glowing paper]. */
+function lanternParts() {
+  return [
+    [new THREE.CylinderGeometry(0.3, 0.34, 0.18, 6), 0.09, false],
+    [new THREE.CylinderGeometry(0.09, 0.11, 1, 8), 0.68, false],
+    [new THREE.CylinderGeometry(0.3, 0.26, 0.14, 6), 1.25, false],
+    [new THREE.CylinderGeometry(0.2, 0.2, 0.38, 6), 1.51, true],
+    [new THREE.ConeGeometry(0.5, 0.32, 6), 1.86, false],
+    [new THREE.SphereGeometry(0.08, 10, 8), 2.08, false],
+  ] as const;
+}
+
+/** Stone lanterns (tōrō) along both sides of the path, all drawn as one set of instances, each with a soft glow. */
+function Lanterns({ m, small }: { m: Materials; small: boolean }) {
+  const parts = useMemo(() => lanternParts(), []);
+  const glow = useMemo(() => mistTexture(), []);
+  const spots = useMemo(() => LANTERN_Z.flatMap((z) => [-LANTERN_X, LANTERN_X].map((x) => [x, z] as const)), []);
+  const meshes = useRef<(THREE.InstancedMesh | null)[]>([]);
+  useLayoutEffect(() => {
+    const mat = new THREE.Matrix4();
+    parts.forEach(([, y], pi) => {
+      const mesh = meshes.current[pi];
+      if (!mesh) return;
+      spots.forEach(([x, z], i) => mesh.setMatrixAt(i, mat.makeTranslation(x, y, z)));
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
+    });
+  }, [parts, spots]);
+  return (
+    <group>
+      {parts.map(([geometry, , lit], pi) => (
+        <instancedMesh
+          key={pi}
+          ref={(el) => {
+            meshes.current[pi] = el;
+          }}
+          args={[geometry, lit ? m.paper : m.granite, spots.length]}
+        />
+      ))}
+      {spots.map(([x, z]) => (
+        <sprite key={`${x},${z}`} position={[x, 1.55, z]} scale={small ? [1.5, 1.5, 1] : [1.9, 1.9, 1]} layers={FX_LAYER}>
+          <spriteMaterial map={glow} color="#ffb85c" transparent opacity={0.5} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </sprite>
+      ))}
+    </group>
+  );
+}
+
+/** The stone path, and the dark gravel either side of it. */
+function Ground() {
+  const stone = useMemo(() => {
+    const t = stonePathTexture();
+    t.repeat.set(1, 8);
+    return t;
+  }, []);
+  const length = 78;
+  return (
+    <group>
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.005, -length / 2 + 14]}>
+        <planeGeometry args={[4.4, length]} />
+        <meshStandardMaterial map={stone} color="#c9d2de" roughness={0.88} metalness={0.05} />
+      </mesh>
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0, -24]}>
+        <planeGeometry args={[90, 100]} />
+        <meshStandardMaterial color="#09131f" metalness={0.3} roughness={0.75} />
+      </mesh>
+    </group>
+  );
+}
+
+/** The shrine hall at the end of the path: a dark hall, a gold roof edge and a warm open doorway. */
+function ShrineHall({ m }: { m: Materials }) {
+  const roof = useMemo(() => curvedBeam(12.5, 0.32, 5.6, 0.7), []);
+  const glow = useMemo(() => mistTexture(), []);
+  const halo = useRef<THREE.SpriteMaterial>(null);
+  useFrame((state) => {
+    const s = (state.scene.userData.s as number | undefined) ?? 0;
+    // a far-off warm point at first, growing as the walker gets close
+    if (halo.current) halo.current.opacity = 0.2 + 0.3 * easeInOut((s - 3.2) / 1.8) + 0.35 * easeInOut(s - 5);
+  });
+  return (
+    <group position={[0, 0, HALL_Z]}>
+      <mesh position={[0, 0.25, 0]} material={m.stone}>
+        <boxGeometry args={[12, 0.5, 7]} />
+      </mesh>
+      {/* the hall: matte dark timber, so the doorway's light is the brightest thing in it */}
+      <mesh position={[0, 2.1, -0.5]} material={m.timber}>
+        <boxGeometry args={[9, 3.2, 4]} />
+      </mesh>
+      {/* gold posts across the front, the middle pair framing the doorway */}
+      {[-4.2, -2.05, 2.05, 4.2].map((x) => (
+        <mesh key={x} position={[x, 2.1, 1.62]} material={m.gold}>
+          <cylinderGeometry args={[0.15, 0.17, 3.2, 16]} />
+        </mesh>
+      ))}
+      {/* the open doorway, lit from inside; from far off only its halo shows through the mist */}
+      <mesh position={[0, 1.85, 1.52]}>
+        <planeGeometry args={[3.4, 2.6]} />
+        <meshBasicMaterial color="#ffd48a" toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 3.95, -0.5]} material={m.timber}>
+        <boxGeometry args={[10.6, 0.6, 5]} />
+      </mesh>
+      <mesh geometry={roof} position={[0, 4.4, -0.5]} material={m.polished} />
+      <sprite position={[0, 1.9, 2]} scale={[16, 9, 1]} layers={FX_LAYER}>
+        <spriteMaterial
+          ref={halo}
+          map={glow}
+          color="#ffc978"
+          transparent
+          opacity={0.2}
+          depthWrite={false}
+          fog={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </sprite>
+      {/* light spilling out of the doorway onto the path */}
+      <pointLight position={[0, 1.2, 5.5]} intensity={14} distance={16} color="#ffcf87" />
     </group>
   );
 }
@@ -165,6 +329,9 @@ function ingotGeometry() {
   return g;
 }
 
+const INGOT_Z = -0.6;
+
+/** The gold bar, floating under the first gate. As the walk begins it rises, turns and drifts off down the path. */
 function Ingot({ still }: { still: boolean }) {
   const geometry = useMemo(() => ingotGeometry(), []);
   const stamp = useMemo(() => ingotStampTextures(), []);
@@ -176,14 +343,15 @@ function Ingot({ still }: { still: boolean }) {
     const b = bar.current;
     if (!g || !b) return;
     const t = still ? 0 : state.clock.elapsedTime;
-    const p = (state.scene.userData.p as number | undefined) ?? 0;
-    const lift = easeInOut(p);
-    // it rises and drifts back through the gate as the camera follows
-    g.position.set(0, 0.05 + Math.sin(t * 0.9) * 0.1 + lift * 0.95, -lift * 7);
-    b.rotation.set(0.2 + lift * 0.35, 0.55 + t * 0.3 + p * Math.PI * 1.1, 0);
+    const s = (state.scene.userData.s as number | undefined) ?? 0;
+    const lift = easeInOut(s / 0.9);
+    // it flies off down the path and is lost in the mist well before the first stop
+    g.visible = s < 1;
+    g.position.set(0, 0.05 + Math.sin(t * 0.9) * 0.1 * (1 - lift) + lift * 3.4, INGOT_Z - lift * 30);
+    b.rotation.set(0.2 + lift * 0.4, 0.55 + t * 0.3 + lift * Math.PI * 1.4, 0);
   });
   return (
-    <group ref={group} position={[0, 0.05, 0]}>
+    <group ref={group} position={[0, 0.05, INGOT_Z]}>
       <mesh ref={bar} geometry={geometry} rotation={[0.2, 0.55, 0]}>
         <meshPhysicalMaterial
           color="#E9C068"
@@ -206,52 +374,42 @@ function Ingot({ still }: { still: boolean }) {
   );
 }
 
-type Sheet = { x: number; y: number; z: number; w: number; h: number; speed: number; opacity: number; part: number };
+type Sheet = { x: number; y: number; z: number; w: number; h: number; speed: number; opacity: number };
 
-/** Mist in three layers at different depths; the near sheets part to the sides as the camera moves in. */
+/** Low mist lying along the whole path; sheets slide aside and fade as the walker reaches them. */
 function Mist({ small, still }: { small: boolean; still: boolean }) {
   const texture = useMemo(() => mistTexture(), []);
   const group = useRef<THREE.Group>(null);
   const sheets = useMemo(() => {
-    const layers = [
-      { n: small ? 3 : 5, z: [3, 6.5], y: [-1.7, -1.1], s: [4, 6], opacity: 0.16, part: 5 },
-      { n: small ? 4 : 7, z: [-3.2, 1], y: [-1.7, -0.6], s: [5, 7.5], opacity: 0.2, part: 3 },
-      { n: small ? 3 : 6, z: [-16, -6], y: [-1.6, 0.4], s: [7, 11], opacity: 0.26, part: 1 },
-    ];
-    const out: Sheet[] = [];
-    layers.forEach((l, li) =>
-      Array.from({ length: l.n }, (_, i) => {
-        const f = (k: number) => ((i * 37 + li * 11 + k * 13) % 17) / 17; // a fixed scatter, same for everyone
-        const s = l.s[0] + (l.s[1] - l.s[0]) * f(1);
-        out.push({
-          x: -9 + (18 * (i + f(2) * 0.6)) / l.n,
-          y: l.y[0] + (l.y[1] - l.y[0]) * f(3),
-          z: l.z[0] + (l.z[1] - l.z[0]) * f(4),
-          w: s * 1.9,
-          h: s * 0.5,
-          speed: (0.06 + f(5) * 0.08) * (li === 2 ? 0.6 : 1),
-          opacity: l.opacity,
-          part: l.part,
-        });
-      }),
-    );
-    return out;
+    const n = small ? 12 : 28;
+    return Array.from({ length: n }, (_, i): Sheet => {
+      const f = (k: number) => ((i * 37 + k * 13) % 17) / 17; // a fixed scatter, same for everyone
+      const s = 5 + 5 * f(1);
+      return {
+        x: (i % 2 ? 1 : -1) * (1 + 7 * f(2)),
+        y: -1.7 + 1.6 * f(3),
+        z: 7 - (64 * (i + f(4))) / n,
+        w: s * 1.9,
+        h: s * 0.5,
+        speed: 0.05 + f(5) * 0.07,
+        opacity: 0.14 + 0.12 * f(6),
+      };
+    });
   }, [small]);
 
   useFrame((state) => {
     const g = group.current;
     if (!g) return;
     const t = still ? 0 : state.clock.elapsedTime;
-    const p = (state.scene.userData.p as number | undefined) ?? 0;
     const camZ = state.camera.position.z;
     g.children.forEach((c, i) => {
       const s = sheets[i];
       const drift = ((s.x + t * s.speed + 11) % 22) - 11;
-      // parting: each sheet slides away from the centre line, the near ones furthest
-      c.position.x = drift + Math.sign(drift || 1) * easeOut(p * 1.4) * s.part;
-      // sheets fade as the camera gets close to them, so the lens never fills with fog
-      const near = THREE.MathUtils.clamp((camZ - s.z - 0.8) / 3.5, 0, 1);
-      ((c as THREE.Sprite).material as THREE.SpriteMaterial).opacity = s.opacity * near;
+      const ahead = camZ - s.z;
+      // the near sheets part to the sides, and fade so the lens never fills with fog
+      const part = THREE.MathUtils.clamp(1 - ahead / 7, 0, 1) * 3;
+      c.position.x = drift + Math.sign(drift || 1) * part;
+      ((c as THREE.Sprite).material as THREE.SpriteMaterial).opacity = s.opacity * THREE.MathUtils.clamp((ahead - 0.8) / 3.5, 0, 1);
     });
   });
 
@@ -266,9 +424,15 @@ function Mist({ small, still }: { small: boolean; still: boolean }) {
   );
 }
 
+/** Where the camera is along the path for a walk position in stops (0..6). */
+function pathZ(s: number) {
+  const i = Math.min(Math.floor(s), SEGMENTS - 1);
+  return THREE.MathUtils.lerp(STOP_Z[i], STOP_Z[i + 1], s - i);
+}
+
 /**
- * The camera: a short push-in on load, then the scroll flies it through the gate. Progress is
- * smoothed here once and shared with the ingot and mist through scene.userData.
+ * The camera: a short push-in on load, then the scroll walks it down the path. Progress is smoothed
+ * here once and shared with the rest of the scene through scene.userData.s (the walk, in stops).
  */
 function CameraRig({
   progress,
@@ -280,28 +444,50 @@ function CameraRig({
   pointer: RefObject<{ x: number; y: number }>;
 }) {
   const shown = useRef(0);
+  // time since the scene started, kept here: the canvas clock restarts whenever drawing resumes
+  const age = useRef(0);
+  const lamp = useRef<THREE.PointLight>(null);
   useFrame((state, delta) => {
     const target = still ? 0 : progress.current;
-    shown.current += (target - shown.current) * (1 - Math.exp(-delta * 7));
-    const p = shown.current;
-    state.scene.userData.p = p;
+    shown.current += (target - shown.current) * (1 - Math.exp(-delta * 6));
+    const s = walkAt(shown.current);
+    state.scene.userData.s = s;
 
     const cam = state.camera;
-    const intro = still ? 1 : easeOut(state.clock.elapsedTime / 4);
-    const fly = easeInOut(p);
-    // on wide screens the gate starts right of centre beside the headline, then centres as we approach
+    age.current += Math.min(delta, 0.1);
+    const intro = still ? 1 : 1 - Math.pow(1 - Math.min(age.current / 4, 1), 3);
+    const start = easeInOut(s / 0.75);
+    // on wide screens the gate starts right of centre beside the headline, then the walker steps onto the path
     const wide = state.size.width > 900;
-    const shift = (wide ? -4.1 : 0) * (1 - easeInOut((p - 0.08) / 0.6));
-    const lookY = THREE.MathUtils.lerp(wide ? 1.9 : -0.6, 0.9, fly);
-    const sway = still ? 0 : 1 - fly;
+    const shift = (wide ? -4.1 : 0) * (1 - start);
+    // on phones the eye looks a little down, which lifts the gates into the top of the screen, above the words
+    const lookY = wide ? THREE.MathUtils.lerp(1.9, 1.1, start) : THREE.MathUtils.lerp(-2.7, -1.5, start);
+    const sway = still ? 0 : 1 - start * 0.7;
     const k = still ? 1 : 1 - Math.exp(-delta * 2.5);
     const ptr = pointer.current;
-    cam.position.x += (shift + ptr.x * 0.7 * sway - cam.position.x) * k;
-    cam.position.y += (0.5 + ptr.y * 0.35 * sway - cam.position.y) * k;
-    cam.position.z = CAM_START_Z + 4.5 * (1 - intro) - CAM_TRAVEL * fly;
-    cam.lookAt(shift, lookY, cam.position.z - CAM_START_Z);
+    // portrait screens stand a few steps further back at the start, so the whole first gate fits across
+    const back = state.size.width < state.size.height ? 4 * (1 - start) : 0;
+    const z = pathZ(s) + 4.5 * (1 - intro) + back;
+    cam.position.x += (shift + ptr.x * 0.6 * sway - cam.position.x) * k;
+    cam.position.y += (0.5 + ptr.y * 0.3 * sway - cam.position.y) * k;
+    cam.position.z = z;
+    cam.lookAt(shift, lookY, z - 10);
+
+    // a warm light walks a few steps ahead, as if from the lanterns, so the nearest gate always catches some
+    if (lamp.current) lamp.current.position.set(0, 1.6, z - 5);
+
+    // at the end the mist turns warm and closes in: the walker steps into the hall's light
+    const end = easeInOut(s - 5);
+    const fog = state.scene.fog as THREE.Fog | null;
+    if (fog) {
+      fog.color.lerpColors(NIGHT, WARM_MIST, end);
+      fog.near = THREE.MathUtils.lerp(8, 0, end);
+      fog.far = THREE.MathUtils.lerp(30, 7, end);
+    }
+    const bg = state.scene.background;
+    if (bg instanceof THREE.Color) bg.lerpColors(NIGHT, WARM_MIST, end);
   });
-  return null;
+  return <pointLight ref={lamp} intensity={9} distance={11} color="#ffcf87" />;
 }
 
 export default function HeroScene({ progress, active, still, small }: Props) {
@@ -321,7 +507,7 @@ export default function HeroScene({ progress, active, still, small }: Props) {
     <Canvas
       dpr={[1, small ? 1.5 : 1.75]}
       frameloop={active && !still ? "always" : "demand"}
-      camera={{ position: [small ? 0 : -4.1, 0.5, still ? CAM_START_Z : 14], fov: small ? 52 : 40, near: 0.1, far: 60 }}
+      camera={{ position: [small ? 0 : -4.1, 0.5, still ? STOP_Z[0] : 15], fov: small ? 66 : 42, near: 0.1, far: 80 }}
       gl={{ antialias: !small, alpha: false, powerPreference: "high-performance" }}
       onCreated={({ gl, camera }) => {
         camera.layers.enable(FX_LAYER);
@@ -332,10 +518,10 @@ export default function HeroScene({ progress, active, still, small }: Props) {
       }}
     >
       <color attach="background" args={[INK]} />
-      <fog attach="fog" args={[INK, 8, 25]} />
-      <ambientLight intensity={0.22} />
-      <directionalLight position={[4, 6, 5]} intensity={1.5} color="#fff3d6" />
-      <directionalLight position={[-5, 3, -6]} intensity={0.6} color={MIST} />
+      <fog attach="fog" args={[INK, 8, 30]} />
+      <ambientLight intensity={0.2} />
+      <directionalLight position={[4, 6, 5]} intensity={1.3} color="#fff3d6" />
+      <directionalLight position={[-5, 3, -6]} intensity={0.5} color={MIST} />
       <Environment resolution={small ? 64 : 128} frames={1}>
         {/* a dim warm sky inside the reflections, so no face of the metal turns black */}
         <mesh scale={30}>
@@ -351,33 +537,29 @@ export default function HeroScene({ progress, active, still, small }: Props) {
       </Environment>
 
       <group position={[0, GROUND_Y, 0]}>
-        <Torii m={m} small={small} position={[0, 0, GATE_Z]} />
-        {/* more gates further down the path, fading into the night */}
-        <Torii m={m} small={small} position={[0, 0, GATE_Z - 8]} />
-        {!small && <Torii m={m} small={small} position={[0, 0, GATE_Z - 16]} />}
+        <Ground />
+        <Gates m={m} small={small} />
+        <Lanterns m={m} small={small} />
+        <ShrineHall m={m} />
       </group>
       <Ingot still={still} />
 
-      {/* the ground the gate stands on, with a soft shadow under the gate and the bar */}
-      <mesh rotation-x={-Math.PI / 2} position={[0, GROUND_Y, -6]}>
-        <planeGeometry args={[60, 60]} />
-        <meshStandardMaterial color="#0c1725" metalness={0.5} roughness={0.6} />
-      </mesh>
+      {/* a soft shadow at the feet of the first gate and its lanterns, drawn once: nothing there moves */}
       <ContactShadows
-        position={[0, GROUND_Y + 0.01, GATE_Z + 0.6]}
-        scale={[11, 7]}
-        far={4.5}
-        blur={2.6}
-        opacity={0.8}
+        position={[0, GROUND_Y + 0.02, GATE_Z[0] + 0.8]}
+        scale={[11, 8]}
+        far={1.2}
+        blur={2.4}
+        opacity={0.75}
         resolution={small ? 256 : 512}
-        frames={still ? 1 : Infinity}
+        frames={1}
         color="#000000"
       />
       <Mist small={small} still={still} />
       <Sparkles
-        count={small ? 50 : 160}
-        scale={[14, 6, 18]}
-        position={[0, 1, -4]}
+        count={small ? 50 : 170}
+        scale={[11, 5, 64]}
+        position={[0, 1, -24]}
         size={small ? 2.2 : 2.8}
         speed={still ? 0 : 0.25}
         opacity={0.6}

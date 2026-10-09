@@ -124,3 +124,41 @@ export function seeded(seed: number) {
     return s / 4294967296;
   };
 }
+
+/**
+ * The stone path to the shrine: rows of uneven slabs with dark joints, drawn once. Repeats along
+ * the path, so a short tile covers the whole walk.
+ */
+export function stonePathTexture() {
+  const rand = seeded(5);
+  const W = 256;
+  const H = 512;
+  const t = canvasTexture(W, H, (ctx) => {
+    ctx.fillStyle = "#070d15";
+    ctx.fillRect(0, 0, W, H);
+    let y = 0;
+    while (y < H) {
+      const rowH = Math.min(46 + Math.floor(rand() * 34), H - y);
+      let x = 0;
+      // the rows are staggered, two or three slabs across
+      const cuts = rand() < 0.5 ? [0.38 + rand() * 0.24] : [0.28 + rand() * 0.1, 0.62 + rand() * 0.1];
+      for (const edge of [...cuts, 1]) {
+        const x2 = Math.round(edge * W);
+        const v = 34 + Math.floor(rand() * 18);
+        ctx.fillStyle = `rgb(${v},${v + 6},${v + 14})`;
+        ctx.fillRect(x + 2, y + 2, x2 - x - 4, rowH - 4);
+        // a little speckle and wear on each slab
+        for (let i = 0; i < 26; i++) {
+          const s = v + Math.floor((rand() - 0.5) * 22);
+          ctx.fillStyle = `rgba(${s},${s + 5},${s + 12},0.7)`;
+          ctx.fillRect(x + 3 + rand() * (x2 - x - 8), y + 3 + rand() * (rowH - 8), 1 + rand() * 3, 1 + rand() * 3);
+        }
+        x = x2;
+      }
+      y += rowH;
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  return t;
+}
