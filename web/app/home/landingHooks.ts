@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type RefObject } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 
 /** Subscribes to a media query; false on the server. */
 function useMedia(query: string) {
@@ -67,4 +67,44 @@ export function useInView(ref: RefObject<Element | null>, margin = "120px") {
     return () => io.disconnect();
   }, [ref, margin]);
   return inView;
+}
+
+/**
+ * How far the page has scrolled through an element, as a ref (0..1) kept current without any React
+ * state, so the 3D scenes can read it every frame. `measure` turns the element's box into progress;
+ * `onChange` hears every new value (for cheap DOM updates). Off when `enabled` is false.
+ */
+export function useScrollProgress(
+  ref: RefObject<HTMLElement | null>,
+  measure: (box: DOMRect, viewport: number) => number,
+  { enabled = true, onChange }: { enabled?: boolean; onChange?: (p: number) => void } = {},
+) {
+  const progress = useRef(0);
+  const listener = useRef(onChange);
+  useEffect(() => {
+    listener.current = onChange;
+  });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !enabled) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const p = Math.min(Math.max(measure(el.getBoundingClientRect(), innerHeight), 0), 1);
+      progress.current = p;
+      listener.current?.(p);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    addEventListener("scroll", onScroll, { passive: true });
+    addEventListener("resize", onScroll);
+    return () => {
+      removeEventListener("scroll", onScroll);
+      removeEventListener("resize", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [ref, measure, enabled]);
+  return progress;
 }

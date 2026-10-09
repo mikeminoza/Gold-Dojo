@@ -1,8 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Component, useEffect, useRef, useState, type ReactNode } from "react";
-import { useInView, usePageVisible, useReducedMotion, useSmallScreen, useWebGL } from "./landingHooks";
+import { Component, useRef, useState, type ReactNode } from "react";
+import {
+  useInView,
+  usePageVisible,
+  useReducedMotion,
+  useScrollProgress,
+  useSmallScreen,
+  useWebGL,
+} from "./landingHooks";
 
 // three.js only loads on this page, in the browser, after the text is already on screen
 const HeroScene = dynamic(() => import("./scenes/HeroScene"), { ssr: false });
@@ -40,28 +47,50 @@ function useScene() {
   return { box, active: inView && visible, still, small, webgl };
 }
 
-export function HeroArt() {
+// How far through each section the reader is, from its box on screen (0..1)
+const heroProgress = (r: DOMRect, vh: number) => -r.top / Math.max(r.height - vh, 1);
+const storyProgress = (r: DOMRect, vh: number) => (vh * 0.4 - r.top) / Math.max(r.height - vh * 0.6, 1);
+const globeProgress = (r: DOMRect, vh: number) => (vh - r.top) / (vh + r.height);
+
+/**
+ * The hero: a tall section with a sticky stage. Scrolling the first screen flies the camera through
+ * the gate, and the headline (passed in as children) drifts up and fades via the --p variable.
+ */
+export function HeroStage({ children }: { children: ReactNode }) {
   const { box, active, still, small, webgl } = useScene();
+  const section = useRef<HTMLElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const progress = useScrollProgress(section, heroProgress, {
+    enabled: !still,
+    onChange: (p) => stage.current?.style.setProperty("--p", p.toFixed(4)),
+  });
   return (
-    <div ref={box} className="landing-hero-art" aria-hidden>
-      {webgl === false ? (
-        <StillIngot />
-      ) : webgl === true ? (
-        <SceneBoundary fallback={<StillIngot />}>
-          <HeroScene active={active} still={still} small={small} />
-        </SceneBoundary>
-      ) : null}
-    </div>
+    <section ref={section} className="landing-hero" aria-labelledby="hero-title">
+      <div ref={stage} className="landing-hero-stage">
+        <div ref={box} className="landing-hero-art" aria-hidden>
+          {webgl === false ? (
+            <StillIngot />
+          ) : webgl === true ? (
+            <SceneBoundary fallback={<StillIngot />}>
+              <HeroScene progress={progress} active={active} still={still} small={small} />
+            </SceneBoundary>
+          ) : null}
+        </div>
+        {children}
+      </div>
+    </section>
   );
 }
 
+/** The globe beside the alerts: turns as the section scrolls past, and its routes light up. */
 export function GlobeArt() {
   const { box, active, still, small, webgl } = useScene();
+  const progress = useScrollProgress(box, globeProgress, { enabled: !still });
   return (
     <div ref={box} className="landing-globe" aria-hidden>
       {webgl === true && (
         <SceneBoundary fallback={<div className="landing-globe-still" />}>
-          <GlobeScene active={active} still={still} small={small} />
+          <GlobeScene progress={progress} active={active} still={still} small={small} />
         </SceneBoundary>
       )}
       {webgl === false && <div className="landing-globe-still" />}
@@ -72,15 +101,15 @@ export function GlobeArt() {
 const STEPS = [
   {
     title: "A day closes above the 100-day high.",
-    body: "Gold has spent months under a ceiling. The rule waits for a daily close above the highest price of the previous 100 days, not just a touch.",
+    body: "Gold spends months under a ceiling. The rule waits for a daily close above the highest price of the previous 100 days. A brief touch is not enough.",
   },
   {
-    title: "Buy at the next open, stop 2 × ATR below.",
-    body: "The paper trade starts at the next day's open. The stop sits two average daily ranges (ATR) under the entry, so 1% of the account is at risk.",
+    title: "Buy at the next open, with the stop 2 × ATR below.",
+    body: "The paper trade opens at the next day's open. The stop sits two average daily ranges (ATR) under the entry, sized so 1% of the account is at risk.",
   },
   {
-    title: "The stop trails up under the highest price; the trade ends when it's hit.",
-    body: "There is no profit target. As gold makes new highs the stop follows 2 × ATR beneath them and never moves down. A deep enough dip closes the trade.",
+    title: "The stop trails up until a dip hits it.",
+    body: "There is no profit target. As gold makes new highs the stop follows 2 × ATR beneath them and never moves down. A deep enough dip ends the trade.",
   },
 ];
 
@@ -91,46 +120,24 @@ const stepFor = (p: number) => (p < 0.36 ? 0 : p < 0.62 ? 1 : 2);
 export function BreakoutStory() {
   const { box, active, still, small, webgl } = useScene();
   const section = useRef<HTMLDivElement>(null);
-  const progress = useRef(0);
   const [step, setStep] = useState(0);
-
-  useEffect(() => {
-    const el = section.current;
-    if (!el) return;
-    let frame = 0;
-    const measure = () => {
-      frame = 0;
-      const r = el.getBoundingClientRect();
-      const run = Math.max(r.height - innerHeight * 0.6, 1);
-      const p = Math.min(Math.max((innerHeight * 0.4 - r.top) / run, 0), 1);
-      progress.current = p;
-      setStep(stepFor(p));
-    };
-    const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(measure);
-    };
-    onScroll();
-    addEventListener("scroll", onScroll, { passive: true });
-    addEventListener("resize", onScroll);
-    return () => {
-      removeEventListener("scroll", onScroll);
-      removeEventListener("resize", onScroll);
-      cancelAnimationFrame(frame);
-    };
-  }, []);
+  // the step only changes three times per pass, so this state update is rare
+  const progress = useScrollProgress(section, storyProgress, { onChange: (p) => setStep(stepFor(p)) });
 
   return (
     <div ref={section} className="landing-story">
-      <div ref={box} className="landing-story-art" aria-hidden>
-        {webgl === true && (
-          <SceneBoundary fallback={null}>
-            <CandleScene progress={progress} active={active} still={still} small={small} />
-          </SceneBoundary>
-        )}
+      <div className="landing-story-art">
+        <div ref={box} className="landing-story-canvas" aria-hidden>
+          {webgl === true && (
+            <SceneBoundary fallback={null}>
+              <CandleScene progress={progress} active={active} still={still} small={small} />
+            </SceneBoundary>
+          )}
+        </div>
       </div>
       <ol className="landing-steps">
         {STEPS.map((s, i) => (
-          <li key={s.title} className="landing-step" data-active={i === step || undefined}>
+          <li key={s.title} className="landing-step" data-active={still || i === step || undefined}>
             <span className="landing-step-n" aria-hidden>
               {i + 1}
             </span>
