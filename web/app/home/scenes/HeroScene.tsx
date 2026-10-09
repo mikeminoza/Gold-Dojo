@@ -156,9 +156,10 @@ function CameraRig({ still, pointer }: { still: boolean; pointer: React.RefObjec
     const k = 1 - Math.exp(-delta * 2.5);
     // on wide screens the gate stands right of centre, leaving the left side to the headline
     const wide = state.size.width > 900;
-    const shift = wide ? -2.3 : 0;
-    // on narrow screens the gate sits higher, above the headline
-    const lookY = wide ? 0.6 : -1.2;
+    const shift = wide ? -3.1 : 0;
+    // aim the camera above the gate so its top beam clears the header; on narrow screens it still
+    // stays above the headline
+    const lookY = wide ? 1.7 : -0.2;
     const tx = shift + (still ? 0 : p.x * 0.7);
     const ty = still ? 0.5 : 0.5 + p.y * 0.35;
     cam.position.x += (tx - cam.position.x) * k;
